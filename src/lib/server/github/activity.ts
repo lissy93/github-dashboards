@@ -23,7 +23,13 @@ import {
 	type CommitCommentItem,
 	type ReviewItem
 } from '$lib/server/github/activity-map';
-import type { ActivityEvent, ActivityPage, ActivityType, Reactions } from '$lib/types';
+import type {
+	ActivityEvent,
+	ActivityPage,
+	ActivityRhythm,
+	ActivityType,
+	Reactions
+} from '$lib/types';
 
 const PER_PAGE = 100;
 const EVENT_PAGES = 3;
@@ -260,6 +266,52 @@ export function backfillActivity(login: string): Promise<{ stored: number }> {
 
 // Whether this user has been synced before, so the page renders inline vs streams
 export const isSynced = (login: string) => isCached(`activity:sync:${login.toLowerCase()}`);
+
+// Refreshed hourly, the heavy backfill behind it is itself cached for a day
+const RHYTHM_TTL = 3600;
+
+const rhythmKey = (login: string) => `activity:rhythm:${login.toLowerCase()}`;
+
+// Whether the rhythm is built, so the stats page renders inline vs streams
+export const isRhythmReady = (login: string) => isCached(rhythmKey(login));
+
+// Hour and weekday converted to UTC so the rhythm is timezone-stable
+const utc = (part: string) =>
+	sql<number>`extract(${sql.raw(part)} from (${activityEvent.createdAt} at time zone 'UTC'))::int`;
+
+// When a user is active across the tracked timeline: a weekday-by-hour punch card,
+// seeded from the same feed and backfill the activity timeline uses
+export function getActivityRhythm(login: string): Promise<ActivityRhythm> {
+	return cached(
+		rhythmKey(login),
+		async () => {
+			await Promise.allSettled([syncActivity(login), backfillActivity(login)]);
+			const rows = await db
+				.select({ dow: utc('dow'), hour: utc('hour'), count: sql<number>`count(*)::int` })
+				.from(activityEvent)
+				.where(eq(activityEvent.user, login.toLowerCase()))
+				.groupBy(sql`1, 2`);
+
+			const punch = Array.from({ length: 7 }, () => new Array(24).fill(0));
+			let total = 0;
+			for (const row of rows) {
+				// Postgres dow is Sunday-first, shift so Monday leads the punch card
+				const weekday = (row.dow + 6) % 7;
+				punch[weekday][row.hour] += row.count;
+				total += row.count;
+			}
+
+			let peak: ActivityRhythm['peak'] = null;
+			punch.forEach((row, weekday) =>
+				row.forEach((count, hour) => {
+					if (count > 0 && (!peak || count > peak.count)) peak = { weekday, hour, count };
+				})
+			);
+			return { total, punch, peak };
+		},
+		RHYTHM_TTL
+	);
+}
 
 function toEvent(row: typeof activityEvent.$inferSelect): ActivityEvent {
 	return {

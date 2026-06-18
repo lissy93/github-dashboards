@@ -10,6 +10,7 @@ export const STAR_WINDOW_DEFAULT = 7;
 export const paths = {
 	user: (user: string) => `/${user}`,
 	userRepos: (user: string) => `/${user}/repos`,
+	userStats: (user: string) => `/${user}/stats`,
 	userActivity: (user: string) => `/${user}/activity`,
 	userTasks: (user: string) => `/${user}/tasks`,
 	userTaskList: (user: string, list: string) => `/${user}/tasks/${list}`,

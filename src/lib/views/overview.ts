@@ -1,4 +1,11 @@
-import type { UserOverview, TaskData, ActivityEvent } from '$lib/types';
+import type {
+	UserOverview,
+	TaskData,
+	ActivityEvent,
+	ActivityRhythm,
+	UserContributions,
+	LanguageUsage
+} from '$lib/types';
 import type { DisplayError } from '$lib/errors';
 
 // A settled load, errors travel as data so their message survives streaming
@@ -7,6 +14,9 @@ export type LoadResult<T> = { ok: true; data: T } | { ok: false; error: DisplayE
 export type OverviewResult = LoadResult<UserOverview>;
 export type TaskResult = LoadResult<TaskData>;
 export type ActivityResult = LoadResult<ActivityEvent[]>;
+export type ContributionsResult = LoadResult<UserContributions>;
+export type LanguagesResult = LoadResult<LanguageUsage[]>;
+export type RhythmResult = LoadResult<ActivityRhythm>;
 
 // Trim each task bucket to a short preview while keeping its real total
 export function previewBuckets(data: TaskData, limit: number): TaskData {

@@ -68,6 +68,42 @@ export type UserOverview = {
 	contributedRepos: Repo[];
 };
 
+// One day in the contribution calendar, count is total contributions that day
+export type ContributionDay = { date: string; count: number };
+
+// Contribution totals split by kind, restricted is private work
+export type ContributionTotals = {
+	commits: number;
+	issues: number;
+	prs: number;
+	reviews: number;
+	restricted: number;
+};
+
+// One calendar year: its daily calendar plus the split totals for that year
+export type YearCalendar = ContributionTotals & {
+	year: number;
+	total: number;
+	days: ContributionDay[];
+};
+
+// All-time contributions, per year, newest year first
+export type UserContributions = {
+	total: number;
+	totals: ContributionTotals;
+	years: YearCalendar[];
+};
+
+// Total bytes and repo count for one language across a user's repos
+export type LanguageUsage = { name: string; color: string | null; bytes: number; repos: number };
+
+// When a user is active, from tracked activity timestamps (UTC)
+export type ActivityRhythm = {
+	total: number;
+	punch: number[][];
+	peak: { weekday: number; hour: number; count: number } | null;
+};
+
 // Normalised activity kinds, shared by the events feed and the GraphQL backfill
 export type ActivityType =
 	| 'pr'

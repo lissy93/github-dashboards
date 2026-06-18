@@ -9,12 +9,13 @@
 		value: string | number;
 		icon?: Component<{ size?: number | string; class?: string }>;
 		delta?: number;
+		hint?: string;
 		class?: string;
 	};
-	let { label, value, icon, delta, class: className }: Props = $props();
+	let { label, value, icon, delta, hint, class: className }: Props = $props();
 </script>
 
-<div class={cn('flex flex-col gap-1', className)}>
+<div class={cn('flex flex-col gap-1', hint && 'cursor-help', className)} title={hint}>
 	<div class="text-muted-foreground flex items-center gap-1.5 text-xs">
 		{#if icon}<Icon {icon} size={13} />{/if}
 		<span class="truncate">{label}</span>

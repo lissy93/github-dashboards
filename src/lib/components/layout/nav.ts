@@ -1,5 +1,5 @@
 import type { Component } from 'svelte';
-import { LayoutGrid, BookMarked, Activity, ListTodo } from '@lucide/svelte';
+import { LayoutGrid, BookMarked, ChartColumn, Activity, ListTodo } from '@lucide/svelte';
 import { paths } from '$lib/config';
 import { TASK_BUCKETS } from '$lib/components/tasks/tasks-config';
 import type { TaskBucket } from '$lib/types';
@@ -20,7 +20,8 @@ const TASK_ORDER: TaskBucket[] = ['reviewPrs', 'reviewIssues', 'myPrs', 'myIssue
 export function userNav(user: string, isOrg: boolean): NavItem[] {
 	const items: NavItem[] = [
 		{ label: 'Overview', href: paths.user(user), icon: LayoutGrid },
-		{ label: 'Repos', href: paths.userRepos(user), icon: BookMarked }
+		{ label: 'Repos', href: paths.userRepos(user), icon: BookMarked },
+		{ label: 'Stats', href: paths.userStats(user), icon: ChartColumn }
 	];
 	if (!isOrg) {
 		items.push({ label: 'Activity', href: paths.userActivity(user), icon: Activity });
