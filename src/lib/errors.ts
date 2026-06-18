@@ -55,8 +55,11 @@ export function logError(scope: string, error: unknown): AppError {
 	return appError;
 }
 
+// A user-safe error, the shape every panel and page renders
+export type DisplayError = { title: string; message: string };
+
 // Shape a thrown error into something a panel or page can render
-export function toDisplayError(error: unknown): { title: string; message: string } {
+export function toDisplayError(error: unknown): DisplayError {
 	const appError = toAppError(error);
 	return {
 		title: appError.code.replace(/_/g, ' '),

@@ -57,7 +57,8 @@ export const activityEvent = pgTable(
 		title: text('title'),
 		body: text('body'),
 		url: text('url').notNull(),
-		payload: jsonb('payload')
+		payload: jsonb('payload'),
+		reactions: jsonb('reactions')
 	},
 	(table) => [
 		index('activity_user_time_idx').on(table.user, table.createdAt.desc(), table.id.desc())

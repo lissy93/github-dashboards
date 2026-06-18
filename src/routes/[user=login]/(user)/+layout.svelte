@@ -1,18 +1,13 @@
 <script lang="ts">
-	import NavTabs from '$lib/components/layout/NavTabs.svelte';
-	import { USER_NAV } from '$lib/config';
+	import MainNav from '$lib/components/layout/MainNav.svelte';
+	import { userNav } from '$lib/components/layout/nav';
 	import type { LayoutData } from './$types';
 
 	let { data, children }: { data: LayoutData; children: import('svelte').Snippet } = $props();
-	const tabs = $derived(
-		USER_NAV.filter((item) => !(data.isOrg && item.userOnly)).map((item) => ({
-			label: item.label,
-			href: item.to(data.user)
-		}))
-	);
+	const items = $derived(userNav(data.user, data.isOrg));
 </script>
 
 <div class="space-y-5">
-	<NavTabs {tabs} />
+	<MainNav {items} label="{data.user} sections" />
 	{@render children()}
 </div>

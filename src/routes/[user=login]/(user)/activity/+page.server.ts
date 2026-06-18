@@ -1,4 +1,4 @@
-import { ingestActivity, getActivityPage, isActivityReady } from '$lib/server/github/activity';
+import { syncActivity, getActivityPage, isSynced } from '$lib/server/github/activity';
 import { logError, toDisplayError } from '$lib/errors';
 import type { ActivityPage } from '$lib/types';
 import type { PageServerLoad } from './$types';
@@ -12,8 +12,10 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 	const { isOrg } = await parent();
 	if (isOrg) return { user: params.user, isOrg: true as const };
 
-	// Refresh from GitHub best-effort, then serve the page from the store
-	const result: Promise<ActivityResult> = ingestActivity(params.user)
+	// Refresh recent events best-effort, then serve the first page from the store.
+	// Deep history is backfilled lazily by the API once the user starts scrolling
+	const result: Promise<ActivityResult> = syncActivity(params.user)
+		.catch((caught) => logError('activity-sync', caught))
 		.then(() => getActivityPage(params.user))
 		.then((page) => ({ ok: true as const, page }))
 		.catch((caught) => {
@@ -22,6 +24,6 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 		});
 
 	// Render inline once seeded for SEO, stream only the cold first build
-	const ready = await isActivityReady(params.user);
+	const ready = await isSynced(params.user);
 	return { user: params.user, isOrg: false as const, result: ready ? await result : result };
 };

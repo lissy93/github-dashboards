@@ -4,6 +4,13 @@ const decimal = new Intl.NumberFormat('en', { maximumFractionDigits: 1 });
 const SIZE_UNITS = ['KB', 'MB', 'GB', 'TB'];
 const relative = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
 const dateFmt = new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short', year: 'numeric' });
+const dateTimeFmt = new Intl.DateTimeFormat('en', {
+	day: 'numeric',
+	month: 'short',
+	year: 'numeric',
+	hour: 'numeric',
+	minute: '2-digit'
+});
 
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
 	['year', 31536000],
@@ -48,4 +55,9 @@ export function relativeTime(iso: string): string {
 // Absolute short date, e.g. 5 Jun 2024
 export function formatDate(iso: string): string {
 	return dateFmt.format(Date.parse(iso));
+}
+
+// Exact date and time for tooltips, e.g. Jun 5, 2024, 2:32 PM
+export function formatDateTime(iso: string): string {
+	return dateTimeFmt.format(Date.parse(iso));
 }

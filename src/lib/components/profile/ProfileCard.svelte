@@ -15,7 +15,8 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import StatTile from '$lib/components/common/StatTile.svelte';
-	import { compactNumber, formatDate } from '$lib/format';
+	import Hint from '$lib/components/common/Hint.svelte';
+	import { compactNumber, formatDate, formatDateTime } from '$lib/format';
 	import { GITHUB_WEB } from '$lib/config';
 	import type { UserProfile } from '$lib/types';
 
@@ -26,8 +27,12 @@
 			profile.company && { icon: Building2, text: profile.company },
 			profile.location && { icon: MapPin, text: profile.location },
 			profile.websiteUrl && { icon: LinkIcon, text: profile.websiteUrl, href: profile.websiteUrl },
-			{ icon: Calendar, text: `Joined ${formatDate(profile.createdAt)}` }
-		].filter(Boolean) as { icon: typeof MapPin; text: string; href?: string }[]
+			{
+				icon: Calendar,
+				text: `Joined ${formatDate(profile.createdAt)}`,
+				title: formatDateTime(profile.createdAt)
+			}
+		].filter(Boolean) as { icon: typeof MapPin; text: string; href?: string; title?: string }[]
 	);
 
 	const stats = $derived([
@@ -69,7 +74,7 @@
 			</div>
 			<div class="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
 				{#each meta as item (item.text)}
-					<span class="flex items-center gap-1.5">
+					<Hint text={item.title} class="gap-1.5">
 						<Icon icon={item.icon} size={13} />
 						{#if item.href}
 							<a
@@ -81,7 +86,7 @@
 								{item.text}
 							</a>
 						{:else}{item.text}{/if}
-					</span>
+					</Hint>
 				{/each}
 			</div>
 		</div>

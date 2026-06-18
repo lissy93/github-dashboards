@@ -11,12 +11,14 @@
 		view: View;
 		searchPlaceholder?: string;
 		showSort?: boolean;
+		showDir?: boolean;
 	};
 	let {
 		config,
 		view = $bindable(),
 		searchPlaceholder = 'Search',
-		showSort = true
+		showSort = true,
+		showDir = true
 	}: Props = $props();
 
 	const sortLabel = $derived(config.sorts.find((sort) => sort.key === view.sortKey)?.label ?? '');
@@ -64,13 +66,15 @@
 		</Select.Root>
 	{/if}
 
-	<Button
-		variant="outline"
-		size="icon"
-		class="size-9"
-		aria-label="Toggle sort direction"
-		onclick={() => (view.dir = view.dir === 'asc' ? 'desc' : 'asc')}
-	>
-		<Icon icon={view.dir === 'asc' ? ArrowUpNarrowWide : ArrowDownNarrowWide} />
-	</Button>
+	{#if showDir}
+		<Button
+			variant="outline"
+			size="icon"
+			class="size-9"
+			aria-label="Toggle sort direction"
+			onclick={() => (view.dir = view.dir === 'asc' ? 'desc' : 'asc')}
+		>
+			<Icon icon={view.dir === 'asc' ? ArrowUpNarrowWide : ArrowDownNarrowWide} />
+		</Button>
+	{/if}
 </div>

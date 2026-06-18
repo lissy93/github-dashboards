@@ -13,7 +13,9 @@ import {
 	Trash2,
 	BookOpen,
 	Globe,
-	UserPlus
+	UserPlus,
+	MessagesSquare,
+	Heart
 } from '@lucide/svelte';
 import type { ActivityEvent, ActivityType } from '$lib/types';
 
@@ -34,7 +36,9 @@ const META: Record<ActivityType, Meta> = {
 	delete: { icon: Trash2, color: 'text-muted-foreground', label: 'Delete' },
 	wiki: { icon: BookOpen, color: 'text-info', label: 'Wiki' },
 	public: { icon: Globe, color: 'text-success', label: 'Public' },
-	member: { icon: UserPlus, color: 'text-info', label: 'Member' }
+	member: { icon: UserPlus, color: 'text-info', label: 'Member' },
+	discussion: { icon: MessagesSquare, color: 'text-info', label: 'Discussion' },
+	sponsor: { icon: Heart, color: 'text-primary', label: 'Sponsor' }
 };
 
 export const activityLabel = (type: ActivityType): string => META[type]?.label ?? type;
@@ -62,8 +66,20 @@ const REVIEW_PHRASE: Record<string, string> = {
 	approved: 'approved',
 	changes_requested: 'requested changes on',
 	commented: 'reviewed',
-	dismissed: 'dismissed a review on'
+	dismissed: 'dismissed a review on',
+	resolved: 'resolved a thread on',
+	unresolved: 'reopened a thread on'
 };
+
+const SPONSOR_PHRASE: Record<string, string> = {
+	created: 'started sponsoring',
+	cancelled: 'cancelled sponsorship of',
+	tier_changed: 'changed sponsorship tier for',
+	pending_cancellation: 'is ending sponsorship of'
+};
+
+// Comment targets keyed by the payload "on" field, defaulting to issue
+const COMMENT_ON: Record<string, string> = { pr: 'PR', discussion: 'discussion' };
 
 // A short human phrase for the action, e.g. "merged PR #7" or "pushed 3 commits"
 export function activitySummary(event: ActivityEvent): string {
@@ -74,9 +90,15 @@ export function activitySummary(event: ActivityEvent): string {
 		case 'issue':
 			return `${event.action} issue #${p.number}`;
 		case 'comment':
-			return p.number ? `commented on ${p.on === 'pr' ? 'PR' : 'issue'} #${p.number}` : 'commented';
+			return p.number
+				? `commented on ${COMMENT_ON[p.on ?? ''] ?? 'issue'} #${p.number}`
+				: 'commented';
 		case 'review':
 			return `${REVIEW_PHRASE[event.action ?? ''] ?? 'reviewed'} PR #${p.number}`;
+		case 'discussion':
+			return `started discussion #${p.number}`;
+		case 'sponsor':
+			return SPONSOR_PHRASE[event.action ?? ''] ?? 'sponsored';
 		case 'release':
 			return 'published a release';
 		case 'push': {

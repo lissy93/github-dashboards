@@ -1,6 +1,8 @@
 <script lang="ts">
 	import Icon from '$lib/components/common/Icon.svelte';
-	import { relativeTime, formatDate } from '$lib/format';
+	import Hint from '$lib/components/common/Hint.svelte';
+	import Reactions from '$lib/components/activity/Reactions.svelte';
+	import { relativeTime, formatDateTime } from '$lib/format';
 	import { GITHUB_WEB } from '$lib/config';
 	import {
 		activityIcon,
@@ -29,13 +31,11 @@
 			<span class="bg-muted rounded px-1.5 py-0.5 text-[0.65rem] tracking-wide uppercase">
 				{activityLabel(event.type)}
 			</span>
-			<time
-				datetime={event.createdAt}
-				class="ml-auto shrink-0 text-xs tabular-nums"
-				title={formatDate(event.createdAt)}
-			>
-				{relativeTime(event.createdAt)}
-			</time>
+			<Hint text={formatDateTime(event.createdAt)} class="ml-auto shrink-0">
+				<time datetime={event.createdAt} class="text-xs tabular-nums">
+					{relativeTime(event.createdAt)}
+				</time>
+			</Hint>
 		</div>
 
 		{#if event.title}
@@ -50,6 +50,9 @@
 		{/if}
 		{#if event.body}
 			<p class="text-muted-foreground line-clamp-2 text-sm">{event.body}</p>
+		{/if}
+		{#if event.reactions}
+			<Reactions reactions={event.reactions} />
 		{/if}
 	</div>
 </article>

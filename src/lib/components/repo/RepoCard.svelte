@@ -20,7 +20,15 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import Metric from '$lib/components/common/Metric.svelte';
-	import { compactNumber, formatNumber, formatSize, relativeTime, formatDate } from '$lib/format';
+	import Hint from '$lib/components/common/Hint.svelte';
+	import {
+		compactNumber,
+		formatNumber,
+		formatSize,
+		relativeTime,
+		formatDate,
+		formatDateTime
+	} from '$lib/format';
 	import { paths } from '$lib/config';
 	import type { Repo, RepoExtras } from '$lib/types';
 
@@ -70,7 +78,7 @@
 	);
 	const releaseLabel = $derived(
 		stats?.latestRelease
-			? `Latest release ${stats.latestRelease.tag} · ${formatDate(stats.latestRelease.publishedAt)}` +
+			? `Latest release ${stats.latestRelease.tag} · ${formatDateTime(stats.latestRelease.publishedAt)}` +
 					(stats.releaseCount > 1 ? ` · ${formatNumber(stats.releaseCount)} releases` : '')
 			: ''
 	);
@@ -206,12 +214,12 @@
 					<Metric
 						icon={History}
 						value={relativeTime(repo.pushedAt)}
-						label="Last updated {formatDate(repo.pushedAt)}"
+						label="Last updated {formatDateTime(repo.pushedAt)}"
 					/>
 					<Metric
 						icon={Calendar}
 						value={formatDate(repo.createdAt)}
-						label="Created {formatDate(repo.createdAt)}"
+						label="Created {formatDateTime(repo.createdAt)}"
 					/>
 				</div>
 			</div>
@@ -238,7 +246,7 @@
 						<Metric
 							icon={History}
 							value={relativeTime(repo.pushedAt)}
-							label="Last updated {formatDate(repo.pushedAt)}"
+							label="Last updated {formatDateTime(repo.pushedAt)}"
 						/>
 						<Metric icon={Star} value={compactNumber(repo.stars)} label={starsLabel} />
 					</div>
@@ -265,7 +273,9 @@
 					><Icon icon={stat.icon} size={13} />{compactNumber(stat.value)}</span
 				>
 			{/each}
-			<span class="ml-auto">Updated {relativeTime(repo.pushedAt)}</span>
+			<Hint text="Last updated {formatDateTime(repo.pushedAt)}" class="ml-auto">
+				Updated {relativeTime(repo.pushedAt)}
+			</Hint>
 		</div>
 	</a>
 {/if}

@@ -3,6 +3,11 @@ import {
 	mapEvent,
 	prToActivities,
 	issueToActivities,
+	discussionToActivity,
+	discussionCommentToActivity,
+	commentToActivity,
+	commitCommentToActivity,
+	reviewToActivity,
 	truncate,
 	encodeCursor,
 	decodeCursor,
@@ -113,6 +118,130 @@ describe('mapEvent', () => {
 	it('returns null for unknown event types', () => {
 		expect(mapEvent(event('SponsorshipEvent', {}))).toBeNull();
 	});
+
+	it('keeps only non-zero reaction counts from a comment', () => {
+		const result = mapEvent(
+			event('IssueCommentEvent', {
+				issue: { title: 'Bug', html_url: 'u', number: 2 },
+				comment: { body: 'me too', html_url: 'c', reactions: { '+1': 3, heart: 1, laugh: 0 } }
+			})
+		);
+		expect(result?.reactions).toEqual({ '+1': 3, heart: 1 });
+	});
+
+	it('leaves reactions null when an event has none', () => {
+		const result = mapEvent(event('WatchEvent', { action: 'started' }));
+		expect(result?.reactions).toBeNull();
+	});
+
+	it('maps a resolved review thread onto the PR as a review row', () => {
+		const result = mapEvent(
+			event('PullRequestReviewThreadEvent', { action: 'resolved', pull_request: { number: 7 } })
+		);
+		expect(result?.type).toBe('review');
+		expect(result?.action).toBe('resolved');
+		expect(result?.url).toBe('https://github.com/octocat/hello/pull/7');
+	});
+
+	it('maps a sponsorship to the sponsorable profile with no repo crash', () => {
+		const result = mapEvent({
+			id: '9',
+			type: 'SponsorshipEvent',
+			payload: { action: 'created', sponsorship: { sponsorable: { login: 'octo' } } },
+			created_at: '2026-06-01T00:00:00Z'
+		});
+		expect(result?.type).toBe('sponsor');
+		expect(result?.repo).toBe('octo');
+		expect(result?.url).toBe('https://github.com/octo');
+	});
+});
+
+describe('discussion backfill mappers', () => {
+	it('maps an authored discussion with a stable id and reactions', () => {
+		const row = discussionToActivity({
+			number: 12,
+			title: 'Roadmap',
+			url: 'https://github.com/octocat/hello/discussions/12',
+			createdAt: '2026-05-01T00:00:00Z',
+			repository: { nameWithOwner: 'octocat/hello' },
+			reactionGroups: [{ content: 'HEART', reactors: { totalCount: 2 } }]
+		});
+		expect(row.id).toBe('disc:octocat/hello#12');
+		expect(row.type).toBe('discussion');
+		expect(row.reactions).toEqual({ heart: 2 });
+	});
+
+	it('maps a discussion comment as a comment row keyed by its url', () => {
+		const row = discussionCommentToActivity({
+			url: 'https://github.com/octocat/hello/discussions/12#discussioncomment-1',
+			createdAt: '2026-05-02T00:00:00Z',
+			bodyText: 'agreed',
+			discussion: { number: 12, title: 'Roadmap', repository: { nameWithOwner: 'octocat/hello' } }
+		});
+		expect(row.type).toBe('comment');
+		expect(row.payload).toMatchObject({ number: 12, on: 'discussion' });
+		expect(row.id).toContain('discussioncomment-1');
+		expect(row.body).toBe('agreed');
+	});
+
+	it('reads the PR vs issue target of a backfilled comment from its url', () => {
+		const base = {
+			createdAt: '2026-05-02T00:00:00Z',
+			bodyText: 'lgtm',
+			issue: { number: 5, title: 'Bug', repository: { nameWithOwner: 'octocat/hello' } }
+		};
+		const onPr = commentToActivity({
+			...base,
+			url: 'https://github.com/octocat/hello/pull/5#issuecomment-1'
+		});
+		const onIssue = commentToActivity({
+			...base,
+			url: 'https://github.com/octocat/hello/issues/5#issuecomment-2'
+		});
+		expect(onPr.payload).toMatchObject({ number: 5, on: 'pr' });
+		expect(onIssue.payload).toMatchObject({ number: 5, on: 'issue' });
+	});
+
+	it('shares one id between a feed comment and the same backfilled comment', () => {
+		const url = 'https://github.com/octocat/hello/issues/2#issuecomment-99';
+		const feed = mapEvent(
+			event('IssueCommentEvent', {
+				issue: { title: 'Bug', html_url: 'u', number: 2 },
+				comment: { body: 'me too', html_url: url }
+			})
+		);
+		const backfilled = commentToActivity({
+			url,
+			createdAt: '2026-05-02T00:00:00Z',
+			bodyText: 'me too',
+			issue: { number: 2, title: 'Bug', repository: { nameWithOwner: 'octocat/hello' } }
+		});
+		expect(feed?.id).toBe(backfilled.id);
+	});
+
+	it('maps a commit comment with no number and a review with its state', () => {
+		const commit = commitCommentToActivity({
+			url: 'https://github.com/octocat/hello/commit/abc#commitcomment-1',
+			createdAt: '2026-05-02T00:00:00Z',
+			bodyText: 'nit',
+			repository: { nameWithOwner: 'octocat/hello' }
+		});
+		expect(commit.type).toBe('comment');
+		expect(commit.payload).toBeNull();
+
+		const review = reviewToActivity({
+			occurredAt: '2026-05-03T00:00:00Z',
+			pullRequestReview: {
+				url: 'https://github.com/octocat/hello/pull/7#pullrequestreview-1',
+				state: 'CHANGES_REQUESTED',
+				bodyText: 'please fix',
+				pullRequest: { number: 7, title: 'Fix', repository: { nameWithOwner: 'octocat/hello' } }
+			}
+		});
+		expect(review.type).toBe('review');
+		expect(review.action).toBe('changes_requested');
+		expect(review.id).toContain('pullrequestreview-1');
+	});
 });
 
 describe('backfill mappers share ids with the events feed', () => {
@@ -136,6 +265,18 @@ describe('backfill mappers share ids with the events feed', () => {
 			event('PullRequestEvent', { action: 'merged', pull_request: { number: 7 } })
 		);
 		expect(feed?.id).toBe('pr:octocat/hello#7:merged');
+	});
+
+	it('maps GraphQL reactionGroups onto every derived PR row', () => {
+		const rows = prToActivities({
+			...pr,
+			reactionGroups: [
+				{ content: 'THUMBS_UP', reactors: { totalCount: 5 } },
+				{ content: 'ROCKET', reactors: { totalCount: 0 } }
+			]
+		});
+		expect(rows.every((row) => row.reactions?.['+1'] === 5)).toBe(true);
+		expect(rows[0].reactions).toEqual({ '+1': 5 });
 	});
 
 	it('uses closed when a PR was closed without merging', () => {

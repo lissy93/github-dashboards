@@ -6,6 +6,7 @@
 	// One stat: an icon or colour dot, a value and a tooltip with the full label
 	let {
 		icon,
+		iconClass,
 		dot,
 		value,
 		label,
@@ -13,6 +14,7 @@
 		trailing
 	}: {
 		icon?: Component<{ size?: number | string; class?: string }>;
+		iconClass?: string;
 		dot?: string | null;
 		value: string | number;
 		label: string;
@@ -33,9 +35,9 @@
 					style="background-color: {dot ?? 'var(--muted-foreground)'}"
 				></span>
 			{:else if icon}
-				<Icon {icon} {size} />
+				<Icon {icon} {size} class={iconClass} />
 			{/if}
-			{value}
+			{#if value !== ''}{value}{/if}
 			{@render trailing?.()}
 		</Tooltip.Trigger>
 		<Tooltip.Content class="pointer-events-none">{label}</Tooltip.Content>

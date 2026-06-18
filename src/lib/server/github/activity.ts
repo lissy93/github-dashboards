@@ -8,12 +8,22 @@ import {
 	mapEvent,
 	prToActivities,
 	issueToActivities,
+	discussionToActivity,
+	discussionCommentToActivity,
+	commentToActivity,
+	commitCommentToActivity,
+	reviewToActivity,
 	encodeCursor,
 	decodeCursor,
 	type RawEvent,
-	type BackfillItem
+	type BackfillItem,
+	type DiscussionItem,
+	type DiscussionCommentItem,
+	type CommentItem,
+	type CommitCommentItem,
+	type ReviewItem
 } from '$lib/server/github/activity-map';
-import type { ActivityEvent, ActivityPage, ActivityType } from '$lib/types';
+import type { ActivityEvent, ActivityPage, ActivityType, Reactions } from '$lib/types';
 
 const PER_PAGE = 100;
 const EVENT_PAGES = 3;
@@ -43,7 +53,8 @@ async function store(login: string, events: ActivityEvent[]): Promise<void> {
 			target: activityEvent.id,
 			set: {
 				title: sql`coalesce(${activityEvent.title}, excluded.title)`,
-				body: sql`coalesce(${activityEvent.body}, excluded.body)`
+				body: sql`coalesce(${activityEvent.body}, excluded.body)`,
+				reactions: sql`coalesce(excluded.reactions, ${activityEvent.reactions})`
 			}
 		});
 }
@@ -66,7 +77,7 @@ async function fetchEvents(login: string): Promise<ActivityEvent[]> {
 }
 
 // Refresh the newest events for a user, throttled and deduped against history
-function syncEvents(login: string): Promise<{ stored: number }> {
+export function syncActivity(login: string): Promise<{ stored: number }> {
 	return cached(
 		`activity:sync:${login.toLowerCase()}`,
 		async () => {
@@ -78,14 +89,13 @@ function syncEvents(login: string): Promise<{ stored: number }> {
 	);
 }
 
-type Conn = { nodes: BackfillItem[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
-type BackfillUser = { pullRequests?: Conn; issues?: Conn } | null;
+type Conn<T> = { nodes: T[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
 
 const PR_QUERY = `
 	query BackfillPRs($login: String!, $cursor: String) {
 		user(login: $login) {
 			pullRequests(first: ${PER_PAGE}, after: $cursor, orderBy: { field: CREATED_AT, direction: DESC }) {
-				nodes { number title url createdAt mergedAt closedAt repository { nameWithOwner } }
+				nodes { number title url createdAt mergedAt closedAt repository { nameWithOwner } reactionGroups { content reactors { totalCount } } }
 				pageInfo { hasNextPage endCursor }
 			}
 		}
@@ -96,24 +106,83 @@ const ISSUE_QUERY = `
 	query BackfillIssues($login: String!, $cursor: String) {
 		user(login: $login) {
 			issues(first: ${PER_PAGE}, after: $cursor, orderBy: { field: CREATED_AT, direction: DESC }) {
-				nodes { number title url createdAt closedAt repository { nameWithOwner } }
+				nodes { number title url createdAt closedAt repository { nameWithOwner } reactionGroups { content reactors { totalCount } } }
 				pageInfo { hasNextPage endCursor }
 			}
 		}
 	}
 `;
 
-// Page a single authored connection (PRs or issues) up to the backfill cap
-async function fetchBackfill(
-	login: string,
-	query: string,
-	pick: (user: BackfillUser) => Conn | undefined
-): Promise<BackfillItem[]> {
-	const items: BackfillItem[] = [];
+const DISCUSSION_QUERY = `
+	query BackfillDiscussions($login: String!, $cursor: String) {
+		user(login: $login) {
+			repositoryDiscussions(first: ${PER_PAGE}, after: $cursor, orderBy: { field: CREATED_AT, direction: DESC }) {
+				nodes { number title url createdAt repository { nameWithOwner } reactionGroups { content reactors { totalCount } } }
+				pageInfo { hasNextPage endCursor }
+			}
+		}
+	}
+`;
+
+// This connection has no orderBy, so page backwards to get the newest first,
+// aliasing the cursor fields so the shared pager reads them the same way
+const DISCUSSION_COMMENT_QUERY = `
+	query BackfillDiscussionComments($login: String!, $cursor: String) {
+		user(login: $login) {
+			repositoryDiscussionComments(last: ${PER_PAGE}, before: $cursor) {
+				nodes { url createdAt bodyText discussion { number title repository { nameWithOwner } } reactionGroups { content reactors { totalCount } } }
+				pageInfo { hasNextPage: hasPreviousPage endCursor: startCursor }
+			}
+		}
+	}
+`;
+
+const COMMENT_QUERY = `
+	query BackfillComments($login: String!, $cursor: String) {
+		user(login: $login) {
+			issueComments(first: ${PER_PAGE}, after: $cursor, orderBy: { field: UPDATED_AT, direction: DESC }) {
+				nodes { url createdAt bodyText issue { number title repository { nameWithOwner } } reactionGroups { content reactors { totalCount } } }
+				pageInfo { hasNextPage endCursor }
+			}
+		}
+	}
+`;
+
+// Commit comments have no orderBy, so page backwards for newest first (see above)
+const COMMIT_COMMENT_QUERY = `
+	query BackfillCommitComments($login: String!, $cursor: String) {
+		user(login: $login) {
+			commitComments(last: ${PER_PAGE}, before: $cursor) {
+				nodes { url createdAt bodyText repository { nameWithOwner } reactionGroups { content reactors { totalCount } } }
+				pageInfo { hasNextPage: hasPreviousPage endCursor: startCursor }
+			}
+		}
+	}
+`;
+
+// Reviews live under contributionsCollection, which spans the last year only
+const REVIEW_QUERY = `
+	query BackfillReviews($login: String!) {
+		user(login: $login) {
+			contributionsCollection {
+				pullRequestReviewContributions(first: ${PER_PAGE}) {
+					nodes { occurredAt pullRequestReview { url state bodyText pullRequest { number title repository { nameWithOwner } } } }
+				}
+			}
+		}
+	}
+`;
+
+// Page one authored connection up to the backfill cap, keyed by its field name
+async function fetchBackfill<Node>(login: string, query: string, field: string): Promise<Node[]> {
+	const items: Node[] = [];
 	let cursor: string | null = null;
 	for (let page = 0; page < BACKFILL_PAGES; page++) {
-		const data = await graphql<{ user: BackfillUser }>(query, { login, cursor });
-		const conn = pick(data.user);
+		const data: { user: Record<string, Conn<Node>> | null } = await graphql(query, {
+			login,
+			cursor
+		});
+		const conn = data.user?.[field];
 		if (!conn) break;
 		items.push(...conn.nodes);
 		if (!conn.pageInfo.hasNextPage || !conn.pageInfo.endCursor) break;
@@ -122,16 +191,66 @@ async function fetchBackfill(
 	return items;
 }
 
-// Seed deep history from authored PRs and issues, reseeded at most daily
-function backfillActivity(login: string): Promise<{ stored: number }> {
+// One bounded page of the last year of submitted reviews, dropping deleted ones
+async function fetchReviews(login: string): Promise<ReviewItem[]> {
+	type Data = {
+		user: {
+			contributionsCollection: { pullRequestReviewContributions: { nodes: ReviewItem[] } };
+		} | null;
+	};
+	const data: Data = await graphql(REVIEW_QUERY, { login });
+	const nodes = data.user?.contributionsCollection.pullRequestReviewContributions.nodes ?? [];
+	return nodes.filter((node) => node.pullRequestReview);
+}
+
+// Run one backfill source, never rejecting so a single flaky connection can not
+// waste the others nor force the whole backfill to re-run on the next scroll
+async function source<T>(label: string, fetch: () => Promise<T[]>): Promise<T[]> {
+	try {
+		return await fetch();
+	} catch (caught) {
+		logError(`activity-backfill:${label}`, caught);
+		return [];
+	}
+}
+
+// Seed deep history from authored PRs, issues, discussions, comments and reviews,
+// reseeded daily. Heavy, so it runs lazily once a user scrolls, not on page load
+export function backfillActivity(login: string): Promise<{ stored: number }> {
 	return cached(
 		`activity:backfill:${login.toLowerCase()}`,
 		async () => {
-			const [prs, issues] = await Promise.all([
-				fetchBackfill(login, PR_QUERY, (user) => user?.pullRequests),
-				fetchBackfill(login, ISSUE_QUERY, (user) => user?.issues)
-			]);
-			const events = [...prs.flatMap(prToActivities), ...issues.flatMap(issueToActivities)];
+			const [prs, issues, discussions, discComments, comments, commitComments, reviews] =
+				await Promise.all([
+					source('prs', () => fetchBackfill<BackfillItem>(login, PR_QUERY, 'pullRequests')),
+					source('issues', () => fetchBackfill<BackfillItem>(login, ISSUE_QUERY, 'issues')),
+					source('discussions', () =>
+						fetchBackfill<DiscussionItem>(login, DISCUSSION_QUERY, 'repositoryDiscussions')
+					),
+					source('discussion-comments', () =>
+						fetchBackfill<DiscussionCommentItem>(
+							login,
+							DISCUSSION_COMMENT_QUERY,
+							'repositoryDiscussionComments'
+						)
+					),
+					source('comments', () =>
+						fetchBackfill<CommentItem>(login, COMMENT_QUERY, 'issueComments')
+					),
+					source('commit-comments', () =>
+						fetchBackfill<CommitCommentItem>(login, COMMIT_COMMENT_QUERY, 'commitComments')
+					),
+					source('reviews', () => fetchReviews(login))
+				]);
+			const events = [
+				...prs.flatMap(prToActivities),
+				...issues.flatMap(issueToActivities),
+				...discussions.map(discussionToActivity),
+				...discComments.map(discussionCommentToActivity),
+				...comments.map(commentToActivity),
+				...commitComments.map(commitCommentToActivity),
+				...reviews.map(reviewToActivity)
+			];
 			await store(login, events);
 			return { stored: events.length };
 		},
@@ -139,17 +258,8 @@ function backfillActivity(login: string): Promise<{ stored: number }> {
 	);
 }
 
-// Best-effort refresh from GitHub. A failure here must never blank stored
-// history, so the page always renders whatever getActivityPage returns
-export async function ingestActivity(login: string): Promise<void> {
-	const settled = await Promise.allSettled([syncEvents(login), backfillActivity(login)]);
-	for (const result of settled)
-		if (result.status === 'rejected') logError('activity-ingest', result.reason);
-}
-
-// Whether deep history has been seeded, so the page can render inline vs stream
-export const isActivityReady = (login: string) =>
-	isCached(`activity:backfill:${login.toLowerCase()}`);
+// Whether this user has been synced before, so the page renders inline vs streams
+export const isSynced = (login: string) => isCached(`activity:sync:${login.toLowerCase()}`);
 
 function toEvent(row: typeof activityEvent.$inferSelect): ActivityEvent {
 	return {
@@ -161,7 +271,8 @@ function toEvent(row: typeof activityEvent.$inferSelect): ActivityEvent {
 		title: row.title,
 		body: row.body,
 		url: row.url,
-		payload: row.payload as Record<string, unknown> | null
+		payload: row.payload as Record<string, unknown> | null,
+		reactions: row.reactions as Reactions | null
 	};
 }
 
