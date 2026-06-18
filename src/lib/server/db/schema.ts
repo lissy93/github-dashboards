@@ -1,4 +1,13 @@
-import { pgTable, text, integer, jsonb, timestamp, date, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+	pgTable,
+	text,
+	integer,
+	jsonb,
+	timestamp,
+	date,
+	uniqueIndex,
+	index
+} from 'drizzle-orm/pg-core';
 
 // Generic key/value cache for any GitHub response, with per-entry ttl
 export const cacheEntry = pgTable('cache_entry', {
@@ -32,4 +41,25 @@ export const repoStarsDaily = pgTable(
 		stars: integer('stars').notNull()
 	},
 	(table) => [uniqueIndex('repo_stars_day_idx').on(table.repo, table.day)]
+);
+
+// Normalised timeline rows per user, accumulated from the events feed and backfill.
+// id is deterministic so the same action from either source dedupes on insert
+export const activityEvent = pgTable(
+	'activity_event',
+	{
+		id: text('id').primaryKey(),
+		user: text('user').notNull(),
+		type: text('type').notNull(),
+		action: text('action'),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+		repo: text('repo').notNull(),
+		title: text('title'),
+		body: text('body'),
+		url: text('url').notNull(),
+		payload: jsonb('payload')
+	},
+	(table) => [
+		index('activity_user_time_idx').on(table.user, table.createdAt.desc(), table.id.desc())
+	]
 );

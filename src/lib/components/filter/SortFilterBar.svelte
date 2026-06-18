@@ -6,8 +6,18 @@
 	import Icon from '$lib/components/common/Icon.svelte';
 	import type { SortFilterConfig, View } from '$lib/components/filter/sort-filter';
 
-	type Props = { config: SortFilterConfig<T>; view: View; searchPlaceholder?: string };
-	let { config, view = $bindable(), searchPlaceholder = 'Search' }: Props = $props();
+	type Props = {
+		config: SortFilterConfig<T>;
+		view: View;
+		searchPlaceholder?: string;
+		showSort?: boolean;
+	};
+	let {
+		config,
+		view = $bindable(),
+		searchPlaceholder = 'Search',
+		showSort = true
+	}: Props = $props();
 
 	const sortLabel = $derived(config.sorts.find((sort) => sort.key === view.sortKey)?.label ?? '');
 	function filterLabel(key: string): string {
@@ -41,16 +51,18 @@
 		</Select.Root>
 	{/each}
 
-	<Select.Root type="single" bind:value={view.sortKey}>
-		<Select.Trigger class="h-9">{sortLabel}</Select.Trigger>
-		<Select.Content>
-			{#each config.sorts as sort (sort.key)}
-				<Select.Item value={sort.key} disabled={sort.disabled}>
-					{sort.label}{sort.disabled ? ' (loading)' : ''}
-				</Select.Item>
-			{/each}
-		</Select.Content>
-	</Select.Root>
+	{#if showSort}
+		<Select.Root type="single" bind:value={view.sortKey}>
+			<Select.Trigger class="h-9">{sortLabel}</Select.Trigger>
+			<Select.Content>
+				{#each config.sorts as sort (sort.key)}
+					<Select.Item value={sort.key} disabled={sort.disabled}>
+						{sort.label}{sort.disabled ? ' (loading)' : ''}
+					</Select.Item>
+				{/each}
+			</Select.Content>
+		</Select.Root>
+	{/if}
 
 	<Button
 		variant="outline"

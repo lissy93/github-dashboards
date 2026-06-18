@@ -67,3 +67,38 @@ export type UserOverview = {
 	ownedRepos: Repo[];
 	contributedRepos: Repo[];
 };
+
+// Normalised activity kinds, shared by the events feed and the GraphQL backfill
+export type ActivityType =
+	| 'pr'
+	| 'issue'
+	| 'comment'
+	| 'review'
+	| 'release'
+	| 'push'
+	| 'star'
+	| 'fork'
+	| 'create'
+	| 'delete'
+	| 'wiki'
+	| 'public'
+	| 'member';
+
+// One timeline row, source-agnostic. id is deterministic so sources dedupe
+export type ActivityEvent = {
+	id: string;
+	type: ActivityType;
+	action: string | null;
+	createdAt: string;
+	repo: string;
+	title: string | null;
+	body: string | null;
+	url: string;
+	payload: Record<string, unknown> | null;
+};
+
+// One page of the timeline, newest first, with the cursor for the next older page
+export type ActivityPage = {
+	events: ActivityEvent[];
+	nextCursor: string | null;
+};

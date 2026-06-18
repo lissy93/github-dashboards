@@ -15,10 +15,11 @@ export const paths = {
 	repoSection: (user: string, repo: string, section: string) => `/${user}/${repo}/${section}`
 };
 
-// Tabs shown on user pages
-export const USER_NAV = [
+// Tabs shown on user pages. userOnly tabs are hidden for org accounts
+type UserNavItem = { label: string; to: (user: string) => string; userOnly?: boolean };
+export const USER_NAV: UserNavItem[] = [
 	{ label: 'Overview', to: (user: string) => paths.user(user) },
-	{ label: 'Activity', to: (user: string) => paths.userActivity(user) },
+	{ label: 'Activity', to: (user: string) => paths.userActivity(user), userOnly: true },
 	{ label: 'Todo', to: (user: string) => paths.userTodo(user) }
 ];
 
