@@ -12,7 +12,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import StatTile from '$lib/components/common/StatTile.svelte';
 	import { repoTotals } from '$lib/views/stats';
-	import { compactNumber, formatNumber } from '$lib/format';
+	import { compactNumber, formatNumber, formatSize } from '$lib/format';
 	import type { ContributionsResult, LanguagesResult, OverviewResult } from '$lib/views/overview';
 
 	// Lines of code are estimated from byte size at this average line length
@@ -62,7 +62,8 @@
 			out.push({
 				label: 'Lines of code',
 				value: compactNumber(Math.round(bytes / AVG_LINE_LENGTH)),
-				icon: FileCode
+				icon: FileCode,
+				hint: `Rough estimate from ${formatSize(bytes / 1024)} of code`
 			});
 		}
 		return out;

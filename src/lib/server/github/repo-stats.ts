@@ -13,6 +13,7 @@ const QUERY = `
 		repository(owner: $owner, name: $name) {
 			closedIssues: issues(states: CLOSED) { totalCount }
 			mergedPRs: pullRequests(states: MERGED) { totalCount }
+			closedPRs: pullRequests(states: CLOSED) { totalCount }
 			releases { totalCount }
 			latestRelease { tagName publishedAt }
 			defaultBranchRef { target { ... on Commit { history { totalCount } } } }
@@ -24,6 +25,7 @@ type Raw = {
 	repository: {
 		closedIssues: { totalCount: number };
 		mergedPRs: { totalCount: number };
+		closedPRs: { totalCount: number };
 		releases: { totalCount: number };
 		latestRelease: { tagName: string; publishedAt: string } | null;
 		defaultBranchRef: { target: { history?: { totalCount: number } } | null } | null;
@@ -36,6 +38,7 @@ async function fetchStats(owner: string, name: string): Promise<RepoStats | null
 	return {
 		closedIssues: repository.closedIssues.totalCount,
 		mergedPRs: repository.mergedPRs.totalCount,
+		closedPRs: repository.closedPRs.totalCount,
 		commits: repository.defaultBranchRef?.target?.history?.totalCount ?? 0,
 		releaseCount: repository.releases.totalCount,
 		latestRelease: repository.latestRelease
@@ -46,5 +49,5 @@ async function fetchStats(owner: string, name: string): Promise<RepoStats | null
 
 // Heavier counts for the owned repos, cached as one entry with a bounded refresh
 export function getOwnedRepoStats(login: string): Promise<RepoStatsMap> {
-	return enrichOwnedRepos('repo-stats', login, TTL, (repo) => fetchStats(repo.owner, repo.name));
+	return enrichOwnedRepos('repo-stats:v2', login, TTL, (repo) => fetchStats(repo.owner, repo.name));
 }

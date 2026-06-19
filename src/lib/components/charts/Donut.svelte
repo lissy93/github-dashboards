@@ -7,18 +7,19 @@
 
 	let {
 		data,
+		legend,
 		centerLabel,
 		valueLabel = 'Value'
-	}: { data: Slice[]; centerLabel?: string; valueLabel?: string } = $props();
+	}: { data: Slice[]; legend?: Slice[]; centerLabel?: string; valueLabel?: string } = $props();
 
 	const RADIUS = 42;
 	const CIRC = 2 * Math.PI * RADIUS;
-	const total = $derived(data.reduce((sum, slice) => sum + slice.value, 0));
 
 	// Pair each slice with its colour, arc length and rotation offset
-	const segments = $derived.by(() => {
+	function toSegments(slices: Slice[]) {
+		const total = slices.reduce((sum, slice) => sum + slice.value, 0);
 		let cumulative = 0;
-		return data.map((slice, index) => {
+		return slices.map((slice, index) => {
 			const fraction = total > 0 ? slice.value / total : 0;
 			const segment = {
 				...slice,
@@ -30,7 +31,11 @@
 			cumulative += fraction;
 			return segment;
 		});
-	});
+	}
+
+	// The ring can show every slice while the legend keeps a shorter rolled-up list
+	const segments = $derived(toSegments(data));
+	const legendSegments = $derived(legend ? toSegments(legend) : segments);
 
 	const tip = chartTip();
 	const tipFor = (segment: (typeof segments)[number]): TipData => ({
@@ -44,7 +49,7 @@
 </script>
 
 <div class="flex flex-col items-center gap-5 sm:flex-row sm:gap-6">
-	<svg viewBox="0 0 100 100" class="size-32 shrink-0 -rotate-90" aria-hidden="true">
+	<svg viewBox="0 0 100 100" class="size-32 shrink-0 -rotate-90" role="img" aria-label={valueLabel}>
 		{#each segments as segment (segment.label)}
 			<circle
 				cx="50"
@@ -55,6 +60,10 @@
 				stroke-width="14"
 				stroke-dasharray="{segment.dash} {CIRC - segment.dash}"
 				stroke-dashoffset={-segment.offset}
+				role="img"
+				aria-label="{segment.label}: {formatNumber(segment.value)}"
+				onpointermove={(event) => tip.show(event, tipFor(segment))}
+				onpointerleave={tip.hide}
 			/>
 		{/each}
 		{#if centerLabel}
@@ -71,7 +80,7 @@
 		{/if}
 	</svg>
 	<ul class="grid w-full grow gap-1.5 text-xs">
-		{#each segments as segment (segment.label)}
+		{#each legendSegments as segment (segment.label)}
 			<li
 				class="flex items-center gap-2"
 				onpointermove={(event) => tip.show(event, tipFor(segment))}
@@ -82,7 +91,6 @@
 				<span class="text-muted-foreground ml-auto tabular-nums">
 					{compactNumber(segment.value)}
 				</span>
-				<span class="text-muted-foreground w-9 text-right tabular-nums">{segment.percent}%</span>
 			</li>
 		{/each}
 	</ul>

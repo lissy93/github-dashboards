@@ -2,6 +2,7 @@
 	import { HEATMAP_LEVELS } from './chart';
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
+	import Hint from '$lib/components/common/Hint.svelte';
 	import { contributionLevels, type LevelDay } from '$lib/views/stats';
 	import { MONTHS_SHORT, DAYS_FULL, toMondayFirst } from '$lib/datetime';
 	import { compactNumber, formatNumber, formatDate } from '$lib/format';
@@ -64,9 +65,9 @@
 <div class="flex flex-col gap-1.5">
 	<div class="flex items-baseline justify-between text-xs">
 		<span class="font-medium">{year}</span>
-		<span class="text-muted-foreground" title="{formatNumber(total)} contributions">
+		<Hint text="{formatNumber(total)} contributions" class="text-muted-foreground">
 			{compactNumber(total)}
-		</span>
+		</Hint>
 	</div>
 	<div class="overflow-x-auto pb-1">
 		<div class="flex min-w-[18rem] flex-col gap-1">

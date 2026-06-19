@@ -3,7 +3,7 @@ import { getUserOverview } from '$lib/server/github/user';
 import { cached, isCached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
 import { createLogger } from '$lib/logger';
-import type { LanguageUsage, Repo } from '$lib/types';
+import type { LanguageUsage, RepoLang, Repo } from '$lib/types';
 
 const log = createLogger('languages');
 const TTL = 86400;
@@ -29,31 +29,26 @@ function chunkQuery(size: number): string {
 	return `query RepoLanguages(${params.join(', ')}) { ${fields.join('\n')} }`;
 }
 
-// Fold one repo's language edges into the running per-language totals
-function accumulate(totals: Map<string, LanguageUsage>, edges: Edge[]) {
-	for (const edge of edges) {
-		const entry = totals.get(edge.node.name) ?? {
-			name: edge.node.name,
-			color: edge.node.color,
-			bytes: 0,
-			repos: 0
-		};
-		entry.bytes += edge.size;
-		entry.repos += 1;
-		totals.set(edge.node.name, entry);
-	}
-}
-
-async function fetchChunk(repos: Repo[], totals: Map<string, LanguageUsage>) {
+// One chunk's repos resolved to their language byte breakdowns, keyed by repo
+async function fetchChunk(repos: Repo[]): Promise<Record<string, RepoLang[]>> {
 	const variables: Record<string, string> = {};
 	repos.forEach((repo, index) => {
 		variables[`o${index}`] = repo.owner;
 		variables[`n${index}`] = repo.name;
 	});
 	const data = await graphql<Record<string, RepoLanguages>>(chunkQuery(repos.length), variables);
-	for (const repo of Object.values(data)) {
-		if (repo) accumulate(totals, repo.languages.edges);
-	}
+	const out: Record<string, RepoLang[]> = {};
+	repos.forEach((repo, index) => {
+		const node = data[`r${index}`];
+		if (node) {
+			out[repo.nameWithOwner] = node.languages.edges.map((edge) => ({
+				name: edge.node.name,
+				color: edge.node.color,
+				bytes: edge.size
+			}));
+		}
+	});
+	return out;
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -63,27 +58,58 @@ function chunk<T>(items: T[], size: number): T[][] {
 	return groups;
 }
 
+const repoLangKey = (login: string) => `user:repo-languages:1:${login.toLowerCase()}`;
 const langKey = (login: string) => `user:languages:2:${login.toLowerCase()}`;
 
-// Whether language bytes are cached, so the page can render them inline
+// Whether per-repo language bytes are cached, so the page can render them inline
+export const isRepoLanguagesCached = (login: string) => isCached(repoLangKey(login));
+
+// Whether language totals are cached, so the page can render them inline
 export const isLanguagesCached = (login: string) => isCached(langKey(login));
 
-// Byte totals per language across a user's own non-fork repos, batched and cached
-export function getOwnedLanguages(login: string): Promise<LanguageUsage[]> {
+// Language byte breakdown for each of a user's own non-fork repos, keyed by repo.
+// The heavy fetch both the totals and the per-year chart share, batched and cached
+export function getRepoLanguages(login: string): Promise<Record<string, RepoLang[]>> {
 	return cached(
-		langKey(login),
+		repoLangKey(login),
 		async () => {
 			const { ownedRepos } = await getUserOverview(login);
 			// Every authored repo counts, forks are someone else's code so drop them
 			const repos = ownedRepos.filter((repo) => !repo.isFork);
-			const totals = new Map<string, LanguageUsage>();
+			const map: Record<string, RepoLang[]> = {};
 			await mapLimit(chunk(repos, CHUNK), CHUNK_CONCURRENCY, async (group) => {
 				try {
-					await fetchChunk(group, totals);
+					Object.assign(map, await fetchChunk(group));
 				} catch (error) {
 					log.warn('language chunk failed', error);
 				}
 			});
+			return map;
+		},
+		TTL
+	);
+}
+
+// Byte totals per language across a user's repos, derived from the per-repo map
+export function getOwnedLanguages(login: string): Promise<LanguageUsage[]> {
+	return cached(
+		langKey(login),
+		async () => {
+			const map = await getRepoLanguages(login);
+			const totals = new Map<string, LanguageUsage>();
+			for (const langs of Object.values(map)) {
+				for (const lang of langs) {
+					const entry = totals.get(lang.name) ?? {
+						name: lang.name,
+						color: lang.color,
+						bytes: 0,
+						repos: 0
+					};
+					entry.bytes += lang.bytes;
+					entry.repos += 1;
+					totals.set(lang.name, entry);
+				}
+			}
 			return [...totals.values()].sort((first, second) => second.bytes - first.bytes);
 		},
 		TTL

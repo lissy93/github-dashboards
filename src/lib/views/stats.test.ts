@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
 	languageBreakdown,
 	topRepos,
@@ -7,7 +7,16 @@ import {
 	contributionLevels,
 	contributionsPerYear,
 	visibleContributionYears,
-	funFacts
+	funFacts,
+	topicCloud,
+	topicCount,
+	licenseBreakdown,
+	repoRecency,
+	reposPerYear,
+	portfolioScatter,
+	SCATTER_AXES,
+	issueFlow,
+	prFlow
 } from '$lib/views/stats';
 import type {
 	ActivityRhythm,
@@ -40,6 +49,7 @@ function repo(partial: Partial<Repo>): Repo {
 		isArchived: false,
 		isFork: false,
 		license: null,
+		topics: [],
 		...partial
 	};
 }
@@ -103,16 +113,27 @@ describe('starHistory', () => {
 describe('topRepos', () => {
 	const byKey = (key: string) => REPO_METRICS.find((metric) => metric.key === key)!;
 
-	it('ranks by stars, drops zero-metric and forked repos', () => {
+	it('ranks by stars, dropping zero-metric repos and pristine forks but keeping starred forks', () => {
 		const repos = [
 			repo({ name: 'big', stars: 50 }),
 			repo({ name: 'mid', stars: 20 }),
 			repo({ name: 'empty', stars: 0 }),
-			repo({ name: 'forked', stars: 99, isFork: true })
+			repo({ name: 'pristine-fork', stars: 0, isFork: true }),
+			repo({ name: 'starred-fork', stars: 99, isFork: true })
 		];
 		const out = topRepos(repos, byKey('stars'), {});
-		expect(out.map((row) => row.label)).toEqual(['big', 'mid']);
-		expect(out[0].rows?.[0]).toEqual({ label: 'Stars', value: '50' });
+		expect(out.map((row) => row.label)).toEqual(['starred-fork', 'big', 'mid']);
+		expect(out[0].rows?.[0]).toEqual({ label: 'Stars', value: '99' });
+	});
+
+	it('marks forks in the tooltip but leaves authored repos unflagged', () => {
+		const repos = [
+			repo({ name: 'starred-fork', stars: 99, isFork: true }),
+			repo({ name: 'big', stars: 50 })
+		];
+		const out = topRepos(repos, byKey('stars'), {});
+		expect(out[0].rows).toContainEqual({ label: 'Type', value: 'Fork' });
+		expect(out[1].rows?.some((row) => row.label === 'Type')).toBe(false);
 	});
 
 	it('ranks by another metric and formats its value', () => {
@@ -272,5 +293,190 @@ describe('funFacts', () => {
 
 	it('returns nothing when there are no calendar days', () => {
 		expect(funFacts(contributions([]), null, [])).toEqual([]);
+	});
+});
+
+describe('topicCloud', () => {
+	it('tallies topics across owned repos, dropping forks, sorted by count', () => {
+		const repos = [
+			repo({ topics: ['cli', 'rust'] }),
+			repo({ topics: ['cli', 'web'] }),
+			repo({ topics: ['cli'] }),
+			repo({ topics: ['rust'], isFork: true })
+		];
+		const out = topicCloud(repos);
+		expect(out[0]).toMatchObject({ label: 'cli', value: 3 });
+		expect(out.find((word) => word.label === 'rust')?.value).toBe(1);
+		expect(out.find((word) => word.label === 'web')?.value).toBe(1);
+		expect(out[0].rows?.[0]).toEqual({ label: 'Repos', value: '3' });
+	});
+
+	it('caps the cloud at the limit and handles no topics', () => {
+		expect(topicCloud([repo({}), repo({})])).toEqual([]);
+		const many = [repo({ topics: ['a', 'b', 'c'] })];
+		expect(topicCloud(many, 2)).toHaveLength(2);
+	});
+});
+
+describe('topicCount', () => {
+	it('counts distinct topics across owned repos, ignoring forks', () => {
+		const repos = [
+			repo({ topics: ['cli', 'rust'] }),
+			repo({ topics: ['cli', 'web'] }),
+			repo({ topics: ['only-fork'], isFork: true })
+		];
+		expect(topicCount(repos)).toBe(3);
+	});
+});
+
+describe('licenseBreakdown', () => {
+	it('buckets null as No license and rolls the tail', () => {
+		const repos = [
+			repo({ license: 'MIT' }),
+			repo({ license: 'MIT' }),
+			repo({ license: 'Apache-2.0' }),
+			repo({ license: null })
+		];
+		const out = licenseBreakdown(repos);
+		expect(out[0]).toMatchObject({ label: 'MIT', value: 2 });
+		expect(out.find((slice) => slice.label === 'No license')?.value).toBe(1);
+	});
+});
+
+describe('repoRecency', () => {
+	afterEach(() => vi.useRealTimers());
+
+	it('groups repos into ordered recency bands by last push', () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-06-19T00:00:00Z'));
+		const ago = (days: number) => new Date(Date.now() - days * 86400000).toISOString();
+		const repos = [
+			repo({ pushedAt: ago(10) }),
+			repo({ pushedAt: ago(29) }),
+			repo({ pushedAt: ago(100) }),
+			repo({ pushedAt: ago(800) })
+		];
+		const out = repoRecency(repos);
+		expect(out.map((slice) => [slice.label, slice.value])).toEqual([
+			['Past month', 2],
+			['Past 6 months', 1],
+			['Over 2 years', 1]
+		]);
+		expect(out[0].rows?.[1]).toEqual({ label: 'Last push', value: 'Pushed within 30 days' });
+	});
+});
+
+describe('reposPerYear', () => {
+	const ts = '01-01T00:00:00Z';
+	const lang = (name: string, color: string | null, bytes: number) => ({ name, color, bytes });
+
+	it('splits a multi-language repo by byte share, keeping bar totals at repo count', () => {
+		const repos = [repo({ nameWithOwner: 'a/r', createdAt: `2020-${ts}` })];
+		const map = { 'a/r': [lang('JS', '#f1e05a', 60), lang('CSS', '#563d7c', 40)] };
+		const out = reposPerYear(repos, map);
+		expect(out.bars[0].total).toBe(1);
+		expect(out.bars[0].values.JS).toBeCloseTo(0.6);
+		expect(out.bars[0].values.CSS).toBeCloseTo(0.4);
+		// One series per language, biggest share first, real colour kept
+		expect(out.series.map((entry) => entry.key)).toEqual(['JS', 'CSS']);
+		expect(out.series[0].color).toBe('#f1e05a');
+	});
+
+	it('shows every language as its own series and fills gap years', () => {
+		const repos = [
+			repo({ nameWithOwner: 'a/x', createdAt: `2020-${ts}` }),
+			repo({ nameWithOwner: 'a/y', createdAt: `2022-${ts}` })
+		];
+		const map = {
+			'a/x': [lang('Go', '#00ADD8', 100)],
+			'a/y': [lang('Rust', '#dea584', 100)]
+		};
+		const out = reposPerYear(repos, map);
+		expect(out.bars.map((bar) => bar.label)).toEqual(['2020', '2021', '2022']);
+		expect(out.bars[1].total).toBe(0);
+		expect(out.series.map((entry) => entry.key).sort()).toEqual(['Go', 'Rust']);
+	});
+
+	it('falls back to the primary language, then a muted Other, without byte data', () => {
+		const repos = [
+			repo({
+				nameWithOwner: 'a/p',
+				createdAt: `2021-${ts}`,
+				language: { name: 'Vue', color: '#41b883' }
+			}),
+			repo({ nameWithOwner: 'a/u', createdAt: `2021-${ts}`, language: null })
+		];
+		const out = reposPerYear(repos, {});
+		expect(out.bars[0].values.Vue).toBe(1);
+		expect(out.bars[0].values.Other).toBe(1);
+		const other = out.series.find((entry) => entry.key === 'Other');
+		expect(other?.color).toBe('var(--muted-foreground)');
+	});
+
+	it('excludes forks and returns nothing when no repos qualify', () => {
+		expect(reposPerYear([repo({ isFork: true })], {})).toEqual({ bars: [], series: [] });
+	});
+});
+
+describe('portfolioScatter', () => {
+	const byKey = (key: string) => SCATTER_AXES.find((axis) => axis.key === key)!;
+
+	it('plots the chosen axes per owned repo, dropping forks', () => {
+		const repos = [
+			repo({ name: 'a', stars: 5, forks: 2, language: { name: 'Go', color: '#0ad' } }),
+			repo({ name: 'f', isFork: true })
+		];
+		const out = portfolioScatter(repos, byKey('created'), byKey('stars'));
+		expect(out).toHaveLength(1);
+		expect(out[0]).toMatchObject({ label: 'a', y: 5, r: 2, color: '#0ad' });
+		// Tooltip leads with the y axis, x axis, then the forks size detail
+		expect(out[0].rows?.map((row) => row.label)).toEqual(['Stars', 'Created', 'Forks', 'Language']);
+	});
+
+	it('reads a lazy axis from the loaded maps and dedupes a repeated axis', () => {
+		const repos = [repo({ name: 'a', nameWithOwner: 'o/a', forks: 4 })];
+		const maps = { stats: { 'o/a': { commits: 12 } as never } };
+		const out = portfolioScatter(repos, byKey('forks'), byKey('commits'), maps);
+		expect(out[0]).toMatchObject({ x: 4, y: 12 });
+		// Forks is both the x axis and the size detail, so it lists once
+		expect(out[0].rows?.filter((row) => row.label === 'Forks')).toHaveLength(1);
+	});
+
+	it('falls back to no colour when a repo has no language', () => {
+		expect(portfolioScatter([repo({})], byKey('created'), byKey('stars'))[0].color).toBeUndefined();
+	});
+});
+
+describe('issueFlow and prFlow', () => {
+	const stats = (partial: Partial<Record<string, number>>) => ({ ...partial }) as never;
+
+	it('sums open from the repo and closed from the lazy stats map, dropping forks', () => {
+		const repos = [
+			repo({ nameWithOwner: 'o/a', openIssues: 3 }),
+			repo({ nameWithOwner: 'o/b', openIssues: 1 }),
+			repo({ nameWithOwner: 'o/f', openIssues: 9, isFork: true })
+		];
+		const out = issueFlow(repos, {
+			'o/a': stats({ closedIssues: 12 }),
+			'o/b': stats({ closedIssues: 4 })
+		});
+		expect(out.total).toBe(20);
+		expect(out.rate).toBe(80);
+		expect(out.slices.map((slice) => [slice.label, slice.value])).toEqual([
+			['Closed', 16],
+			['Open', 4]
+		]);
+	});
+
+	it('counts merged and closed PRs together as resolved', () => {
+		const repos = [repo({ nameWithOwner: 'o/a', openPRs: 2 })];
+		const out = prFlow(repos, { 'o/a': stats({ mergedPRs: 6, closedPRs: 2 }) });
+		expect(out.total).toBe(10);
+		expect(out.rate).toBe(80);
+	});
+
+	it('stays at a zero rate when there is nothing to resolve', () => {
+		expect(issueFlow([repo({})], {}).rate).toBe(0);
+		expect(prFlow([repo({})], {}).total).toBe(0);
 	});
 });

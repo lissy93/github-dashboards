@@ -23,7 +23,7 @@ describe('buildBreakdown', () => {
 		{ nameWithOwner: 'o/c', name: 'c', stars: 10 }
 	];
 
-	it('keeps the top repos and folds the rest into Other, carrying values forward', () => {
+	it('keeps the top repos and folds the rest into Other, interpolating between samples', () => {
 		const rows = [
 			{ repo: 'o/a', day: '2021-01-01', stars: 100 },
 			{ repo: 'o/b', day: '2021-01-01', stars: 50 },
@@ -33,7 +33,9 @@ describe('buildBreakdown', () => {
 		const out = buildBreakdown(rows, repos, 2);
 		expect(out.days).toEqual(['2021-01-01', '2021-06-01', '2022-01-01']);
 		expect(out.series.map((item) => item.label)).toEqual(['a', 'b', 'Other']);
-		expect(out.series[0].values).toEqual([100, 100, 300]);
+		// a ramps from 100 to 300, so mid-axis sits proportionally between them
+		expect(out.series[0].values).toEqual([100, 183, 300]);
+		// b has a single sample, held flat past it; c stays 0 until its first sample
 		expect(out.series[1].values).toEqual([50, 50, 50]);
 		expect(out.series[2].values).toEqual([0, 10, 10]);
 	});

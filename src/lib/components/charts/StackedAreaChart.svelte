@@ -1,11 +1,15 @@
 <script lang="ts">
-	import { stackColor, niceStep } from './chart';
+	import { stackColor, niceStep, splinePath } from './chart';
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
 	import { compactNumber, formatNumber, formatDate } from '$lib/format';
 	import type { StarStack } from '$lib/views/stats';
 
-	let { data, height = 15 }: { data: StarStack; height?: number } = $props();
+	let {
+		data,
+		height = 15,
+		smooth = true
+	}: { data: StarStack; height?: number; smooth?: boolean } = $props();
 
 	const PAD = { top: 12, right: 14, bottom: 22, left: 44 };
 	const Y_TICKS = 5;
@@ -43,12 +47,16 @@
 		}
 		const bands = series.map((item, band) => {
 			const lower = band > 0 ? upper[band - 1] : null;
-			let path = xs.map((x, day) => `${day ? 'L' : 'M'}${x} ${yOf(upper[band][day])}`).join(' ');
-			for (let day = days.length - 1; day >= 0; day--)
-				path += ` L${xs[day]} ${yOf(lower ? lower[day] : 0)}`;
-			return { label: item.label, color: colorFor(band, item.label), d: `${path} Z` };
+			const top = xs.map((x, day) => ({ x, y: yOf(upper[band][day]) }));
+			const bottom = xs.map((x, day) => ({ x, y: yOf(lower ? lower[day] : 0) })).reverse();
+			// Smooth the upper edge, then trace the (equally smoothed) lower edge back
+			const d = `${splinePath(top, smooth)} L${splinePath(bottom, smooth).slice(1)} Z`;
+			return { label: item.label, color: colorFor(band, item.label), d };
 		});
-		const outline = xs.map((x, day) => `${day ? 'L' : 'M'}${x} ${yOf(total[day])}`).join(' ');
+		const outline = splinePath(
+			xs.map((x, day) => ({ x, y: yOf(total[day]) })),
+			smooth
+		);
 		// Gridlines at clean steps up to the data max, which sits flush with the top
 		const yTicks = Array.from({ length: Math.floor(top / step) + 1 }, (_, index) => ({
 			value: index * step,

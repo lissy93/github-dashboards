@@ -5,6 +5,7 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import Icon from '$lib/components/common/Icon.svelte';
+	import EmptyState from '$lib/components/common/EmptyState.svelte';
 	import { cn } from '$lib/utils';
 	import { formatNumber } from '$lib/format';
 	import { toDisplayError } from '$lib/errors';
@@ -19,6 +20,7 @@
 		error?: unknown;
 		empty?: boolean;
 		emptyText?: string;
+		emptyHint?: string;
 		class?: string;
 		actions?: Snippet;
 		children?: Snippet;
@@ -33,6 +35,7 @@
 		error,
 		empty = false,
 		emptyText = 'Nothing here yet',
+		emptyHint,
 		class: className,
 		actions,
 		children
@@ -82,7 +85,7 @@
 				<Skeleton class="h-4 w-1/2" />
 			</div>
 		{:else if empty}
-			<p class="text-muted-foreground text-sm">{emptyText}</p>
+			<EmptyState {icon} text={emptyText} hint={emptyHint} />
 		{:else}
 			{@render children?.()}
 		{/if}

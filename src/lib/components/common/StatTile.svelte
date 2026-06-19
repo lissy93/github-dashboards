@@ -2,6 +2,7 @@
 	import type { Component } from 'svelte';
 	import { TrendingUp, TrendingDown } from '@lucide/svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
+	import Hint from '$lib/components/common/Hint.svelte';
 	import { cn } from '$lib/utils';
 
 	type Props = {
@@ -15,12 +16,12 @@
 	let { label, value, icon, delta, hint, class: className }: Props = $props();
 </script>
 
-<div class={cn('flex flex-col gap-1', hint && 'cursor-help', className)} title={hint}>
-	<div class="text-muted-foreground flex items-center gap-1.5 text-xs">
+<Hint text={hint} class={cn('w-full flex-col items-start gap-1', hint && 'cursor-help', className)}>
+	<span class="text-muted-foreground flex items-center gap-1.5 text-xs">
 		{#if icon}<Icon {icon} size={13} />{/if}
 		<span class="truncate">{label}</span>
-	</div>
-	<div class="flex items-baseline gap-2">
+	</span>
+	<span class="flex items-baseline gap-2">
 		<span class="text-xl font-medium">{value}</span>
 		{#if delta !== undefined && delta !== 0}
 			<span
@@ -30,5 +31,5 @@
 				{Math.abs(delta)}
 			</span>
 		{/if}
-	</div>
-</div>
+	</span>
+</Hint>

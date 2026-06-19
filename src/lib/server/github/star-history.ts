@@ -33,7 +33,7 @@ type DayStars = Point & { repo: string };
 // Per-repo star history across a user's owned repos, reconstructed and cached
 export function getUserStarHistory(login: string): Promise<StarBreakdown> {
 	return cached(
-		`user:star-history:v2:${login.toLowerCase()}`,
+		`user:star-history:v3:${login.toLowerCase()}`,
 		async () => {
 			const { ownedRepos } = await getUserOverview(login);
 			const targets = ownedRepos.filter((repo) => repo.stars > 0).slice(0, MAX_REPOS);
@@ -146,7 +146,7 @@ async function readRows(names: string[]): Promise<DayStars[]> {
 
 type RepoMeta = { nameWithOwner: string; name: string; stars: number };
 
-// Carry each repo's value forward across a shared day axis, keeping the top repos
+// Interpolate each repo's value across a shared day axis, keeping the top repos
 // as their own series and folding the rest into one Other band. Rows arrive day-sorted
 export function buildBreakdown(rows: DayStars[], repos: RepoMeta[], limit: number): StarBreakdown {
 	if (!rows.length) return { days: [], series: [] };
@@ -158,17 +158,22 @@ export function buildBreakdown(rows: DayStars[], repos: RepoMeta[], limit: numbe
 		byRepo.set(row.repo, list);
 	}
 
-	// Carry one repo's known counts forward to every day on the shared axis
+	// One repo's count on the shared axis: 0 before its first sample, linearly
+	// interpolated between known samples, then held past the last one. Stars accrue
+	// steadily between samples, so a ramp reads truer than a hold-then-jump staircase
 	const carry = (key: string): number[] => {
 		const points = byRepo.get(key) ?? [];
-		const values: number[] = [];
-		let last = 0;
-		let cursor = 0;
-		for (const day of days) {
-			while (cursor < points.length && points[cursor].day <= day) last = points[cursor++].stars;
-			values.push(last);
-		}
-		return values;
+		const times = points.map((point) => Date.parse(point.day));
+		return days.map((day) => {
+			const time = Date.parse(day);
+			if (!points.length || time < times[0]) return 0;
+			let index = 0;
+			while (index + 1 < points.length && times[index + 1] <= time) index++;
+			const next = points[index + 1];
+			if (!next) return points[index].stars;
+			const frac = (time - times[index]) / (times[index + 1] - times[index] || 1);
+			return Math.round(points[index].stars + (next.stars - points[index].stars) * frac);
+		});
 	};
 
 	const ranked = repos

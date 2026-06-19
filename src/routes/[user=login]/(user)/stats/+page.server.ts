@@ -1,12 +1,18 @@
 import { getUserOverview, isUserOverviewCached } from '$lib/server/github/user';
 import { getUserContributions, isContributionsCached } from '$lib/server/github/user-stats';
-import { getOwnedLanguages, isLanguagesCached } from '$lib/server/github/languages';
+import {
+	getOwnedLanguages,
+	getRepoLanguages,
+	isLanguagesCached,
+	isRepoLanguagesCached
+} from '$lib/server/github/languages';
 import { getActivityRhythm, isRhythmReady } from '$lib/server/github/activity';
 import { logError, toDisplayError } from '$lib/errors';
 import type {
 	OverviewResult,
 	ContributionsResult,
 	LanguagesResult,
+	RepoLanguagesResult,
 	RhythmResult
 } from '$lib/views/overview';
 import type { PageServerLoad } from './$types';
@@ -31,6 +37,11 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 		'user-stats-languages',
 		getOwnedLanguages(user)
 	);
+	// Per-repo language bytes power the per-year language split, fetched the same way
+	const repoLanguages: Promise<RepoLanguagesResult> = settle(
+		'user-stats-repo-languages',
+		getRepoLanguages(user)
+	);
 	// Contributions and the activity rhythm are user-only, orgs get the repo charts
 	const contributions: Promise<ContributionsResult> | null = isOrg
 		? null
@@ -40,12 +51,14 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 		: settle('user-stats-rhythm', getActivityRhythm(user));
 
 	// Render cached data server-side for SEO, stream only a slow cold miss
-	const [overviewReady, languagesReady, contributionsReady, rhythmReady] = await Promise.all([
-		isUserOverviewCached(user),
-		isLanguagesCached(user),
-		isOrg ? Promise.resolve(true) : isContributionsCached(user),
-		isOrg ? Promise.resolve(true) : isRhythmReady(user)
-	]);
+	const [overviewReady, languagesReady, repoLanguagesReady, contributionsReady, rhythmReady] =
+		await Promise.all([
+			isUserOverviewCached(user),
+			isLanguagesCached(user),
+			isRepoLanguagesCached(user),
+			isOrg ? Promise.resolve(true) : isContributionsCached(user),
+			isOrg ? Promise.resolve(true) : isRhythmReady(user)
+		]);
 
 	// The summary strip needs all three, settle them as one so it renders in one pass
 	const summary = Promise.all([overview, contributions ?? Promise.resolve(null), languages]);
@@ -60,6 +73,7 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 		isOrg,
 		overview: overviewReady ? await overview : overview,
 		languages: languagesReady ? await languages : languages,
+		repoLanguages: repoLanguagesReady ? await repoLanguages : repoLanguages,
 		contributions: contributions && (contributionsReady ? await contributions : contributions),
 		rhythm: rhythm && (rhythmReady ? await rhythm : rhythm),
 		summary: summaryReady ? await summary : summary,

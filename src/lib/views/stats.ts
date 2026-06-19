@@ -6,6 +6,7 @@ import type {
 	ContributionTotals,
 	LanguageUsage,
 	Repo,
+	RepoLang,
 	RepoStats,
 	UserContributions,
 	YearCalendar
@@ -18,6 +19,15 @@ export type TipData = { title: string; color?: string; rows: TipRow[] };
 
 // A chart datum, rows override the default tooltip detail when present
 export type Slice = { label: string; value: number; color?: string; rows?: TipRow[] };
+// One scatter dot: x/y plot position, r drives the dot size, rows feed the tooltip
+export type ScatterPoint = {
+	label: string;
+	x: number;
+	y: number;
+	r: number;
+	color?: string;
+	rows?: TipRow[];
+};
 export type LevelDay = ContributionDay & { level: number };
 
 // One coloured series in a stacked bar, keyed to a StackBar's values
@@ -38,6 +48,12 @@ export const CONTRIBUTION_SERIES: StackSeries[] = [
 // Owned repos that count toward a user's footprint, forks add noise so drop them
 function authored(repos: Repo[]): Repo[] {
 	return repos.filter((repo) => !repo.isFork);
+}
+
+// Repos worth ranking: authored repos plus any fork the user grew their own audience
+// on. A fork starts at zero stars, so stars here mean people value this copy specifically
+function notable(repos: Repo[]): Repo[] {
+	return repos.filter((repo) => !repo.isFork || repo.stars > 0);
 }
 
 // Owned source repos and their combined star count, for the summary strip
@@ -158,14 +174,14 @@ export const REPO_METRICS: RepoMetric[] = [
 ];
 
 // Top owned repos for a metric, tooltip carries the metric, language and recency
-export function topRepos(repos: Repo[], metric: RepoMetric, maps: MetricMaps, limit = 8): Slice[] {
+export function topRepos(repos: Repo[], metric: RepoMetric, maps: MetricMaps, limit = 10): Slice[] {
 	const show = metric.format ?? formatNumber;
 	const valueOf = (repo: Repo) =>
 		metric.value(repo, {
 			stats: maps.stats?.[repo.nameWithOwner],
 			contributors: maps.contributors?.[repo.nameWithOwner]
 		});
-	return authored(repos)
+	return notable(repos)
 		.map((repo) => ({ repo, value: valueOf(repo) }))
 		.filter((entry) => entry.value > 0)
 		.sort((first, second) => second.value - first.value)
@@ -176,7 +192,8 @@ export function topRepos(repos: Repo[], metric: RepoMetric, maps: MetricMaps, li
 			rows: [
 				{ label: metric.short, value: show(value) },
 				{ label: 'Language', value: repo.language?.name ?? 'n/a' },
-				{ label: 'Updated', value: relativeTime(repo.pushedAt) }
+				{ label: 'Updated', value: relativeTime(repo.pushedAt) },
+				...(repo.isFork ? [{ label: 'Type', value: 'Fork' }] : [])
 			]
 		}));
 }
@@ -418,4 +435,274 @@ export function contributionsPerYear(years: YearCalendar[]): StackBar[] {
 				}
 			};
 		});
+}
+
+export type YearLanguageBars = { bars: StackBar[]; series: StackSeries[] };
+
+// Distinct fallbacks for languages GitHub gives no colour, untyped repos stay muted
+const FALLBACK_COLORS = [
+	'var(--chart-1)',
+	'var(--chart-2)',
+	'var(--chart-3)',
+	'var(--chart-4)',
+	'var(--chart-5)'
+];
+const NO_LANGUAGE = 'Other';
+
+// One repo's languages and the fraction of that repo each represents, summing to 1.
+// Multi-language repos split by byte share; repos with no breakdown fall back to
+// their primary language, or one muted Other bucket when even that is missing
+function repoShares(
+	repo: Repo,
+	repoLangs: Record<string, RepoLang[]>
+): [name: string, color: string | null, share: number][] {
+	const langs = repoLangs[repo.nameWithOwner] ?? [];
+	const totalBytes = langs.reduce((sum, lang) => sum + lang.bytes, 0);
+	if (totalBytes > 0) {
+		return langs.map((lang) => [lang.name, lang.color, lang.bytes / totalBytes]);
+	}
+	if (repo.language) return [[repo.language.name, repo.language.color, 1]];
+	return [[NO_LANGUAGE, 'var(--muted-foreground)', 1]];
+}
+
+// Owned repos bucketed by creation year, each bar one repo tall per repo and split
+// across the languages of those repos. Forks are dropped like the other footprint
+// stats; every language gets its own series; gap years stay in so the axis reads
+// linearly. Bar totals stay equal to the repos created that year
+export function reposPerYear(
+	repos: Repo[],
+	repoLangs: Record<string, RepoLang[]>
+): YearLanguageBars {
+	const owned = authored(repos);
+	if (!owned.length) return { bars: [], series: [] };
+
+	// Total repo-share and first-seen colour per language, to rank and colour series
+	const totals = new Map<string, number>();
+	const colors = new Map<string, string | null>();
+	const byYear = new Map<number, StackBar>();
+
+	for (const repo of owned) {
+		const year = new Date(repo.createdAt).getUTCFullYear();
+		let bar = byYear.get(year);
+		if (!bar) {
+			bar = { label: String(year), values: {}, total: 0 };
+			byYear.set(year, bar);
+		}
+		bar.total += 1;
+		for (const [name, color, share] of repoShares(repo, repoLangs)) {
+			if (!colors.has(name)) colors.set(name, color);
+			totals.set(name, (totals.get(name) ?? 0) + share);
+			bar.values[name] = (bar.values[name] ?? 0) + share;
+		}
+	}
+
+	// Every language as its own series, biggest first so it anchors the stack
+	let fallback = 0;
+	const series: StackSeries[] = [...totals.entries()]
+		.sort((first, second) => second[1] - first[1])
+		.map(([name]) => ({
+			key: name,
+			label: name,
+			color: colors.get(name) ?? FALLBACK_COLORS[fallback++ % FALLBACK_COLORS.length]
+		}));
+
+	// Fill gap years with empty bars so adjacent bars are never years apart
+	const years = [...byYear.keys()];
+	const bars: StackBar[] = [];
+	for (let year = Math.min(...years); year <= Math.max(...years); year += 1) {
+		bars.push(byYear.get(year) ?? { label: String(year), values: {}, total: 0 });
+	}
+	return { bars, series };
+}
+
+// Most common repo topics across owned repos, sized later by their repo count
+export function topicCloud(repos: Repo[], limit = 40): Slice[] {
+	const counts = new Map<string, number>();
+	for (const repo of authored(repos)) {
+		for (const topic of repo.topics) counts.set(topic, (counts.get(topic) ?? 0) + 1);
+	}
+	return [...counts.entries()]
+		.sort((first, second) => second[1] - first[1])
+		.slice(0, limit)
+		.map(([label, value]) => ({
+			label,
+			value,
+			rows: [{ label: 'Repos', value: formatNumber(value) }]
+		}));
+}
+
+// Distinct topic count across owned repos, so the cloud can flag any it trims
+export function topicCount(repos: Repo[]): number {
+	const seen = new Set<string>();
+	for (const repo of authored(repos)) for (const topic of repo.topics) seen.add(topic);
+	return seen.size;
+}
+
+// How owned repos are licensed, unlicensed repos collapse into one bucket
+export function licenseBreakdown(repos: Repo[], limit = 8): Slice[] {
+	const counts = new Map<string, number>();
+	for (const repo of authored(repos)) {
+		const key = repo.license ?? 'No license';
+		counts.set(key, (counts.get(key) ?? 0) + 1);
+	}
+	const slices = [...counts.entries()]
+		.sort((first, second) => second[1] - first[1])
+		.map(([label, value]) => ({ label, value }));
+	return rollUp(slices, limit);
+}
+
+// Recency bands by days since the last push, freshest first, labels self-explain
+const RECENCY_BANDS = [
+	{ label: 'Past month', maxDays: 30, hint: 'Pushed within 30 days' },
+	{ label: 'Past 6 months', maxDays: 182, hint: 'Pushed 1 to 6 months ago' },
+	{ label: 'Past 2 years', maxDays: 730, hint: 'Pushed 6 months to 2 years ago' },
+	{ label: 'Over 2 years', maxDays: Infinity, hint: 'Pushed over 2 years ago' }
+];
+
+// Owned repos grouped by how recently they were pushed to, empty bands dropped
+export function repoRecency(repos: Repo[]): Slice[] {
+	const now = Date.now();
+	const counts = new Array(RECENCY_BANDS.length).fill(0);
+	for (const repo of authored(repos)) {
+		const days = (now - Date.parse(repo.pushedAt)) / 86400000;
+		counts[RECENCY_BANDS.findIndex((band) => days < band.maxDays)] += 1;
+	}
+	return RECENCY_BANDS.map((band, index) => ({
+		label: band.label,
+		value: counts[index],
+		rows: [
+			{ label: 'Repos', value: formatNumber(counts[index]) },
+			{ label: 'Last push', value: band.hint }
+		]
+	})).filter((slice) => slice.value > 0);
+}
+
+// An axis the portfolio scatter can plot, lazy axes read the loaded metric maps
+export type ScatterAxis = {
+	key: string;
+	label: string;
+	time?: boolean;
+	lazy?: boolean;
+	format?: (value: number) => string;
+	value: (repo: Repo, data: MetricInput) => number;
+};
+
+export const SCATTER_AXES: ScatterAxis[] = [
+	{ key: 'created', label: 'Created', time: true, value: (repo) => Date.parse(repo.createdAt) },
+	{ key: 'pushed', label: 'Last push', time: true, value: (repo) => Date.parse(repo.pushedAt) },
+	{ key: 'stars', label: 'Stars', value: (repo) => repo.stars },
+	{ key: 'forks', label: 'Forks', value: (repo) => repo.forks },
+	{ key: 'watchers', label: 'Watchers', value: (repo) => repo.watchers },
+	{ key: 'size', label: 'Size', format: formatSize, value: (repo) => repo.diskUsage },
+	{ key: 'open', label: 'Open issues + PRs', value: (repo) => repo.openIssues + repo.openPRs },
+	{
+		key: 'commits',
+		label: 'Commits',
+		lazy: true,
+		value: (_repo, data) => data.stats?.commits ?? 0
+	},
+	{
+		key: 'contributors',
+		label: 'Contributors',
+		lazy: true,
+		value: (_repo, data) => data.contributors ?? 0
+	},
+	{
+		key: 'mergedPRs',
+		label: 'Merged PRs',
+		lazy: true,
+		value: (_repo, data) => data.stats?.mergedPRs ?? 0
+	}
+];
+
+// Format an axis value for a tooltip, dates read as a day, metrics as numbers
+function axisDisplay(axis: ScatterAxis, value: number): string {
+	if (axis.time) return formatDate(new Date(value).toISOString());
+	return (axis.format ?? formatNumber)(value);
+}
+
+// Owned repos as scatter dots on a chosen pair of axes, forks driving the dot size
+export function portfolioScatter(
+	repos: Repo[],
+	xAxis: ScatterAxis,
+	yAxis: ScatterAxis,
+	maps: MetricMaps = {}
+): ScatterPoint[] {
+	return authored(repos).map((repo) => {
+		const input = {
+			stats: maps.stats?.[repo.nameWithOwner],
+			contributors: maps.contributors?.[repo.nameWithOwner]
+		};
+		const x = xAxis.value(repo, input);
+		const y = yAxis.value(repo, input);
+		const rows: TipRow[] = [];
+		const seen = new Set<string>();
+		// Dedupe so a repeated axis or the forks size detail only lists once
+		const add = (label: string, value: string) => {
+			if (seen.has(label)) return;
+			seen.add(label);
+			rows.push({ label, value });
+		};
+		add(yAxis.label, axisDisplay(yAxis, y));
+		add(xAxis.label, axisDisplay(xAxis, x));
+		add('Forks', formatNumber(repo.forks));
+		add('Language', repo.language?.name ?? 'n/a');
+		return {
+			label: repo.name,
+			x,
+			y,
+			r: repo.forks,
+			color: repo.language?.color ?? undefined,
+			rows
+		};
+	});
+}
+
+// Open vs closed split for the resolution gauges, with the closed share up front
+export type FlowStat = { slices: Slice[]; total: number; rate: number };
+
+// Two slices sharing one whole, coloured by domain state, closed leads the arc
+function flow(open: number, closed: number): FlowStat {
+	const total = open + closed;
+	const rate = total ? Math.round((closed / total) * 100) : 0;
+	const slice = (label: string, value: number, color: string, share: number): Slice => ({
+		label,
+		value,
+		color,
+		rows: [
+			{ label, value: formatNumber(value) },
+			{ label: 'Share', value: `${share}%` }
+		]
+	});
+	return {
+		total,
+		rate,
+		slices: [
+			slice('Closed', closed, 'var(--merged)', rate),
+			slice('Open', open, 'var(--open)', 100 - rate)
+		]
+	};
+}
+
+// Open vs closed issues across owned repos, closed counts come from the lazy map
+export function issueFlow(repos: Repo[], stats: Record<string, RepoStats>): FlowStat {
+	let open = 0;
+	let closed = 0;
+	for (const repo of authored(repos)) {
+		open += repo.openIssues;
+		closed += stats[repo.nameWithOwner]?.closedIssues ?? 0;
+	}
+	return flow(open, closed);
+}
+
+// Open vs resolved PRs across owned repos, resolved being merged plus closed
+export function prFlow(repos: Repo[], stats: Record<string, RepoStats>): FlowStat {
+	let open = 0;
+	let closed = 0;
+	for (const repo of authored(repos)) {
+		open += repo.openPRs;
+		const entry = stats[repo.nameWithOwner];
+		closed += (entry?.mergedPRs ?? 0) + (entry?.closedPRs ?? 0);
+	}
+	return flow(open, closed);
 }

@@ -32,6 +32,7 @@ const REPO_FIELDS = `
 		openIssues: issues(states: OPEN) { totalCount }
 		openPRs: pullRequests(states: OPEN) { totalCount }
 		licenseInfo { spdxId }
+		repositoryTopics(first: 8) { nodes { topic { name } } }
 	}
 `;
 
@@ -55,6 +56,7 @@ const OVERVIEW_QUERY = `
 				name bio company location websiteUrl twitterUsername createdAt
 				followers { totalCount }
 				following { totalCount }
+				organizations(first: 12) { nodes { login name avatarUrl } }
 				contributionsCollection { contributionCalendar { totalContributions } }
 				ownedRepos: repositories(first: ${PAGE}, ${OWNED_ARGS}) {
 					totalCount nodes { ...repoFields } pageInfo { hasNextPage endCursor }
@@ -130,6 +132,7 @@ type RawRepo = {
 	openIssues: { totalCount: number };
 	openPRs: { totalCount: number };
 	licenseInfo: { spdxId: string | null } | null;
+	repositoryTopics: { nodes: { topic: { name: string } | null }[] };
 };
 
 type RawConn = {
@@ -152,6 +155,7 @@ type RawOwner = {
 	createdAt: string;
 	followers?: { totalCount: number };
 	following?: { totalCount: number };
+	organizations?: { nodes: { login: string; name: string | null; avatarUrl: string }[] };
 	contributionsCollection?: { contributionCalendar: { totalContributions: number } };
 	ownedRepos: RawConn & { totalCount: number };
 };
@@ -219,7 +223,10 @@ function mapRepo(raw: RawRepo): Repo {
 		isArchived: raw.isArchived,
 		isFork: raw.isFork,
 		// NOASSERTION means GitHub found a licence file it could not identify, treat as none
-		license: normalizeLicense(raw.licenseInfo?.spdxId)
+		license: normalizeLicense(raw.licenseInfo?.spdxId),
+		topics: raw.repositoryTopics.nodes
+			.map((node) => node.topic?.name)
+			.filter((name): name is string => !!name)
 	};
 }
 
@@ -237,6 +244,7 @@ function mapProfile(owner: RawOwner, ownedRepos: Repo[]): UserProfile {
 		createdAt: owner.createdAt,
 		followers: owner.followers?.totalCount ?? 0,
 		following: owner.following?.totalCount ?? 0,
+		organizations: owner.organizations?.nodes ?? [],
 		repoCount: owner.ownedRepos.totalCount,
 		totalStars: ownedRepos.reduce((sum, repo) => sum + repo.stars, 0),
 		contributionsLastYear:
@@ -245,7 +253,7 @@ function mapProfile(owner: RawOwner, ownedRepos: Repo[]): UserProfile {
 }
 
 // Bump the version when the stored shape changes, to retire old entries
-const overviewKey = (login: string) => `user:overview:6:${login.toLowerCase()}`;
+const overviewKey = (login: string) => `user:overview:8:${login.toLowerCase()}`;
 
 // Whether this overview is already cached, so the page can render it inline
 export const isUserOverviewCached = (login: string) => isCached(overviewKey(login));

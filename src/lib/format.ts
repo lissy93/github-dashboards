@@ -31,6 +31,11 @@ export function formatNumber(value: number): string {
 	return number.format(value);
 }
 
+// Number to at most one decimal, for fractional shares e.g. 2.666 -> 2.7
+export function formatDecimal(value: number): string {
+	return decimal.format(value);
+}
+
 // Human disk size from a kilobyte count, e.g. 2048 -> 2 MB
 export function formatSize(kb: number): string {
 	let value = kb;

@@ -1,35 +1,28 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { Trophy } from '@lucide/svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
 	import HBarList from '$lib/components/charts/HBarList.svelte';
 	import * as Select from '$lib/components/ui/select';
-	import { loadOwnedMap } from '$lib/owned-maps';
+	import { ownedMetrics } from '$lib/owned-metrics.svelte';
 	import { topRepos, REPO_METRICS } from '$lib/views/stats';
-	import type { Repo, RepoStats } from '$lib/types';
+	import type { Repo } from '$lib/types';
 
 	let { user, repos }: { user: string; repos: Repo[] } = $props();
 
 	let metricKey = $state(REPO_METRICS[0].key);
-	let stats = $state<Record<string, RepoStats>>();
-	let contributors = $state<Record<string, number>>();
+	const metrics = ownedMetrics(() => user);
 
 	const metric = $derived(
 		REPO_METRICS.find((option) => option.key === metricKey) ?? REPO_METRICS[0]
 	);
 	// Lazy metrics stay disabled until both maps land, so they never rank on partial data
-	const loaded = $derived(stats !== undefined && contributors !== undefined);
-	const leaders = $derived(topRepos(repos, metric, { stats, contributors }));
-
-	onMount(() => {
-		loadOwnedMap<Record<string, RepoStats>>(user, 'repo-stats').then((map) => (stats = map ?? {}));
-		loadOwnedMap<Record<string, number>>(user, 'contributors').then(
-			(map) => (contributors = map ?? {})
-		);
-	});
+	const loaded = $derived(metrics.loaded);
+	const leaders = $derived(
+		topRepos(repos, metric, { stats: metrics.stats, contributors: metrics.contributors })
+	);
 </script>
 
-<Panel title="Top Repos" icon={Trophy}>
+<Panel title="Top repos" icon={Trophy}>
 	<div class="mb-3 flex items-center justify-between gap-2">
 		<p class="text-muted-foreground text-xs">{metric.label}</p>
 		<Select.Root type="single" bind:value={metricKey}>

@@ -4,7 +4,8 @@ import type {
 	ActivityEvent,
 	ActivityRhythm,
 	UserContributions,
-	LanguageUsage
+	LanguageUsage,
+	RepoLang
 } from '$lib/types';
 import type { DisplayError } from '$lib/errors';
 
@@ -16,6 +17,7 @@ export type TaskResult = LoadResult<TaskData>;
 export type ActivityResult = LoadResult<ActivityEvent[]>;
 export type ContributionsResult = LoadResult<UserContributions>;
 export type LanguagesResult = LoadResult<LanguageUsage[]>;
+export type RepoLanguagesResult = LoadResult<Record<string, RepoLang[]>>;
 export type RhythmResult = LoadResult<ActivityRhythm>;
 
 // Trim each task bucket to a short preview while keeping its real total

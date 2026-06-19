@@ -1,5 +1,8 @@
 export type Language = { name: string; color: string | null };
 
+// One language's byte size within a single repo, before any cross-repo totals
+export type RepoLang = { name: string; color: string | null; bytes: number };
+
 export type Release = { tag: string; publishedAt: string };
 
 export type Repo = {
@@ -22,12 +25,14 @@ export type Repo = {
 	isArchived: boolean;
 	isFork: boolean;
 	license: string | null;
+	topics: string[];
 };
 
 // Heavier per-repo counts fetched lazily so the list renders fast
 export type RepoStats = {
 	closedIssues: number;
 	mergedPRs: number;
+	closedPRs: number;
 	commits: number;
 	releaseCount: number;
 	latestRelease: Release | null;
@@ -57,6 +62,7 @@ export type UserProfile = {
 	createdAt: string;
 	followers: number;
 	following: number;
+	organizations: Org[];
 	repoCount: number;
 	totalStars: number;
 	contributionsLastYear: number;
@@ -146,6 +152,21 @@ export type ActivityPage = {
 };
 
 export type Person = { login: string; avatarUrl: string };
+// A named account: org membership, sponsor, or a follower
+export type Org = { login: string; name: string | null; avatarUrl: string };
+// A follower ranked by their own follower count
+export type NotableFollower = Org & { followers: number };
+// Lazily loaded social proof for a user, followers sampled from the connection
+export type UserSocial = {
+	topFollowers: NotableFollower[];
+	newestFollowers: NotableFollower[];
+	followersTotal: number;
+	followersSampled: number;
+	sponsorsTotal: number;
+	sponsors: Org[];
+};
+// One recent stargazer, with the repo and time they starred for context
+export type RecentStar = { login: string; avatarUrl: string; repo: string; starredAt: string };
 export type IssueLabel = { name: string; color: string };
 
 // PR check rollup and review state, normalised to lowercase tokens, null when absent

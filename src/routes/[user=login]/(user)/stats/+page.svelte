@@ -1,10 +1,31 @@
 <script lang="ts">
-	import { ChartColumn, CalendarDays, Clock, Sparkles } from '@lucide/svelte';
-	import RepoStatsSection from '$lib/components/stats/RepoStatsSection.svelte';
+	import {
+		CalendarDays,
+		Clock,
+		Sparkles,
+		History,
+		ChartPie,
+		Code,
+		Scale,
+		Activity,
+		Tags,
+		FolderGit2,
+		Trophy,
+		ScatterChart,
+		CircleDot,
+		GitPullRequest,
+		Users,
+		Star
+	} from '@lucide/svelte';
 	import StarHistoryPanel from '$lib/components/stats/StarHistoryPanel.svelte';
-	import ContributionsSection from '$lib/components/stats/ContributionsSection.svelte';
-	import ContributionActivity from '$lib/components/stats/ContributionActivity.svelte';
 	import ActivityRhythm from '$lib/components/stats/ActivityRhythm.svelte';
+	import ContributionsRow from '$lib/components/stats/ContributionsRow.svelte';
+	import ContributionActivity from '$lib/components/stats/ContributionActivity.svelte';
+	import TopReposPanel from '$lib/components/stats/TopReposPanel.svelte';
+	import RepoInsights from '$lib/components/stats/RepoInsights.svelte';
+	import RepoFlowPanels from '$lib/components/stats/RepoFlowPanels.svelte';
+	import PeoplePanels from '$lib/components/stats/PeoplePanels.svelte';
+	import PortfolioPanel from '$lib/components/stats/PortfolioPanel.svelte';
 	import FunFacts from '$lib/components/stats/FunFacts.svelte';
 	import StatStrip from '$lib/components/stats/StatStrip.svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
@@ -36,63 +57,113 @@
 		<StatStrip {overview} {contributions} {languages} />
 	{/await}
 
-	<StarHistoryPanel user={data.user} />
-
-	{#if data.contributions || data.rhythm}
-		<div class="grid gap-5 lg:grid-cols-2 lg:items-start">
-			{#if data.contributions}
-				{#await data.contributions}
-					<Panel title="Contribution activity" icon={CalendarDays} loading />
-				{:then result}
-					{#if result.ok}
-						<ContributionActivity data={result.data} />
-					{:else}
-						<ErrorState error={result.error} />
-					{/if}
-				{/await}
+	<div class="grid gap-5 lg:grid-cols-2 lg:items-start">
+		<StarHistoryPanel user={data.user} />
+		{#await data.overview}
+			<Panel title="Top repos" icon={Trophy} loading />
+		{:then result}
+			{#if result.ok}
+				<TopReposPanel user={data.user} repos={result.data.ownedRepos} />
+			{:else}
+				<ErrorState error={result.error} />
 			{/if}
+		{/await}
+	</div>
 
-			<div class="grid gap-5">
-				{#if data.rhythm}
-					{#await data.rhythm}
-						<Panel title="Activity rhythm" icon={Clock} loading />
-					{:then result}
-						{#if result.ok}
-							<ActivityRhythm data={result.data} />
-						{:else}
-							<ErrorState error={result.error} />
-						{/if}
-					{/await}
-				{/if}
-
-				{#if data.contributions}
-					{#await data.contributions then result}
-						{#if result.ok}
-							<ContributionsSection data={result.data} />
-						{/if}
-					{/await}
-				{/if}
+	{#if data.contributions}
+		{#await data.contributions}
+			<div class="grid gap-5 lg:grid-cols-3">
+				<Panel class="lg:col-span-2" title="Contributions per year" icon={History} loading />
+				<Panel title="By type" icon={ChartPie} loading />
 			</div>
-		</div>
+		{:then result}
+			{#if result.ok}
+				<ContributionsRow data={result.data} />
+			{:else}
+				<ErrorState error={result.error} />
+			{/if}
+		{/await}
 	{/if}
 
+	<!-- One balancing masonry column set: a short contribution calendar lets the repo
+	     panels repack beneath it instead of leaving the left side empty -->
+	<div class="lg:columns-2 lg:gap-5 [&>*]:mb-5 [&>*]:break-inside-avoid">
+		{#if data.contributions}
+			{#await data.contributions}
+				<Panel title="Contribution activity" icon={CalendarDays} loading />
+			{:then result}
+				{#if result.ok}
+					<ContributionActivity data={result.data} />
+				{:else}
+					<ErrorState error={result.error} />
+				{/if}
+			{/await}
+		{/if}
+
+		{#if data.rhythm}
+			{#await data.rhythm}
+				<Panel title="Activity rhythm" icon={Clock} loading />
+			{:then result}
+				{#if result.ok}
+					<ActivityRhythm data={result.data} />
+				{:else}
+					<ErrorState error={result.error} />
+				{/if}
+			{/await}
+		{/if}
+
+		{#await data.overview}
+			<Panel title="Repos created per year" icon={FolderGit2} loading />
+			<div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-1">
+				<Panel title="Top languages" icon={Code} loading />
+				<Panel title="Licenses" icon={Scale} loading />
+			</div>
+			<Panel title="Repo activity" icon={Activity} loading />
+			<Panel title="Topics" icon={Tags} loading />
+		{:then result}
+			{#if result.ok}
+				<RepoInsights
+					repos={result.data.ownedRepos}
+					languages={data.languages}
+					repoLanguages={data.repoLanguages}
+				/>
+			{:else}
+				<ErrorState error={result.error} />
+			{/if}
+		{/await}
+	</div>
+
 	{#await data.overview}
-		<div class="grid gap-5 lg:grid-cols-2">
-			<Panel class="lg:col-span-2" title="Totals" icon={ChartColumn} loading />
-			<Panel title="Top languages" icon={ChartColumn} loading />
-			<Panel title="Top Repos" icon={ChartColumn} loading />
+		<Panel title="Portfolio" icon={ScatterChart} loading />
+	{:then result}
+		{#if result.ok}
+			<PortfolioPanel user={data.user} repos={result.data.ownedRepos} />
+		{/if}
+	{/await}
+
+	{#await data.overview}
+		<div class="grid gap-5 sm:grid-cols-2">
+			<Panel title="Issues" icon={CircleDot} loading />
+			<Panel title="Pull requests" icon={GitPullRequest} loading />
 		</div>
 	{:then result}
 		{#if result.ok}
-			<RepoStatsSection
-				user={data.user}
-				repos={result.data.ownedRepos}
-				languages={data.languages}
-			/>
-		{:else}
-			<ErrorState error={result.error} />
+			<RepoFlowPanels user={data.user} repos={result.data.ownedRepos} />
 		{/if}
 	{/await}
+
+	{#if !data.isOrg}
+		{#await data.overview}
+			<div class="grid gap-5 lg:grid-cols-3 lg:items-start">
+				<Panel title="Followers" icon={Users} loading />
+				<Panel title="Latest stargazers" icon={Star} loading />
+			</div>
+		{:then result}
+			{#if result.ok}
+				<PeoplePanels user={data.user} organizations={result.data.profile.organizations} />
+			{/if}
+		{/await}
+	{/if}
 
 	{#if data.facts}
 		{#await data.facts}
