@@ -1,10 +1,9 @@
 import { restResponse } from '$lib/server/github/client';
 import { enrichOwnedRepos } from '$lib/server/github/enrich';
 import { AppError } from '$lib/errors';
+import type { OwnedRepoData } from '$lib/types';
 
 const DAY = 86400;
-
-export type ContributorMap = Record<string, number>;
 
 // Contributor count from a per_page=1 listing: the last page number is the total
 export function parseContributorCount(linkHeader: string | null, bodyLength: number): number {
@@ -26,8 +25,8 @@ async function fetchCount(owner: string, repo: string): Promise<number> {
 }
 
 // Contributor counts for the owned repos, cached as one entry with a bounded refresh
-export function getOwnedContributors(login: string): Promise<ContributorMap> {
-	return enrichOwnedRepos('contributors', login, DAY, async (repo) => {
+export function getOwnedContributors(login: string): Promise<OwnedRepoData<number>> {
+	return enrichOwnedRepos('contributors:v2', login, DAY, async (repo) => {
 		const count = await fetchCount(repo.owner, repo.name);
 		return count > 0 ? count : null;
 	});

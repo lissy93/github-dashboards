@@ -160,14 +160,16 @@ type RawOwner = {
 	ownedRepos: RawConn & { totalCount: number };
 };
 
+type FetchedRepos = { nodes: RawRepo[]; capped: boolean };
+
 // Contributed repos run as their own query so it never shares the owned timeout
-async function fetchContributed(login: string): Promise<RawRepo[]> {
+async function fetchContributed(login: string): Promise<FetchedRepos> {
 	const first = await graphql<{ user: { repositoriesContributedTo: RawConn } | null }>(
 		CONTRIB_FIRST_QUERY,
 		{ login }
 	);
 	const conn = first.user?.repositoriesContributedTo;
-	if (!conn) return [];
+	if (!conn) return { nodes: [], capped: false };
 	return fetchAll(conn, 'contributed repos', login, async (cursor) => {
 		const data = await graphql<{ user: { repositoriesContributedTo: RawConn } }>(
 			CONTRIB_PAGE_QUERY,
@@ -183,7 +185,7 @@ async function fetchAll(
 	label: string,
 	login: string,
 	nextPage: (cursor: string) => Promise<RawConn>
-): Promise<RawRepo[]> {
+): Promise<FetchedRepos> {
 	const nodes = [...first.nodes];
 	let info = first.pageInfo;
 	let pages = 1;
@@ -193,8 +195,9 @@ async function fetchAll(
 		info = conn.pageInfo;
 		pages += 1;
 	}
-	if (info.hasNextPage) log.warn(`${label} truncated at ${nodes.length} for ${login}`);
-	return nodes;
+	const capped = info.hasNextPage;
+	if (capped) log.warn(`${label} truncated at ${nodes.length} for ${login}`);
+	return { nodes, capped };
 }
 
 // Drop the placeholder GitHub returns for an unrecognised licence file
@@ -253,7 +256,7 @@ function mapProfile(owner: RawOwner, ownedRepos: Repo[]): UserProfile {
 }
 
 // Bump the version when the stored shape changes, to retire old entries
-const overviewKey = (login: string) => `user:overview:8:${login.toLowerCase()}`;
+const overviewKey = (login: string) => `user:overview:9:${login.toLowerCase()}`;
 
 // Whether this overview is already cached, so the page can render it inline
 export const isUserOverviewCached = (login: string) => isCached(overviewKey(login));
@@ -278,10 +281,12 @@ export function getUserOverview(login: string): Promise<UserOverview> {
 
 		const [owned, contributed] = await Promise.all([
 			ownedTask,
-			owner.__typename === 'User' ? fetchContributed(login) : Promise.resolve<RawRepo[]>([])
+			owner.__typename === 'User'
+				? fetchContributed(login)
+				: Promise.resolve<FetchedRepos>({ nodes: [], capped: false })
 		]);
 
-		const ownedRepos = owned.map(mapRepo);
+		const ownedRepos = owned.nodes.map(mapRepo);
 
 		// Record today's star counts so deltas can build up over time
 		try {
@@ -293,7 +298,9 @@ export function getUserOverview(login: string): Promise<UserOverview> {
 		return {
 			profile: mapProfile(owner, ownedRepos),
 			ownedRepos,
-			contributedRepos: contributed.map(mapRepo)
+			contributedRepos: contributed.nodes.map(mapRepo),
+			ownedReposCapped: owned.capped,
+			contributedReposCapped: contributed.capped
 		};
 	});
 }

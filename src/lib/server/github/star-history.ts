@@ -6,6 +6,7 @@ import { getUserOverview } from '$lib/server/github/user';
 import { cached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
 import { createLogger } from '$lib/logger';
+import { AppError } from '$lib/errors';
 import type { Repo } from '$lib/types';
 import type { StarBreakdown } from '$lib/views/stats';
 
@@ -13,15 +14,15 @@ const log = createLogger('star-history');
 
 const PER_PAGE = 100;
 // Pages sampled per repo, so a 50k-star repo still costs a handful of requests
-const SAMPLE_PAGES = 15;
+const SAMPLE_PAGES = 4;
 // GitHub only paginates the first 40k stargazers, so timestamps stop past this page
 const PAGE_CAP = 400;
 const CONCURRENCY = 6;
 const MAX_REPOS = 150;
+const REFRESH_REPOS = 24;
 // Repos shown as their own band, the rest fold into a single Other band
 const TOP_REPOS = 8;
-// History is immutable, so hold a repo's backfill long and lean on daily snapshots
-// for the recent tail
+// Keep reconstructed history long and use daily snapshots for the recent tail
 const BACKFILL_TTL = 30 * 86400;
 const AGGREGATE_TTL = 6 * 3600;
 const STAR_ACCEPT = 'application/vnd.github.star+json';
@@ -33,19 +34,35 @@ type DayStars = Point & { repo: string };
 // Per-repo star history across a user's owned repos, reconstructed and cached
 export function getUserStarHistory(login: string): Promise<StarBreakdown> {
 	return cached(
-		`user:star-history:v3:${login.toLowerCase()}`,
+		`user:star-history:v4:${login.toLowerCase()}`,
 		async () => {
 			const { ownedRepos } = await getUserOverview(login);
-			const targets = ownedRepos.filter((repo) => repo.stars > 0).slice(0, MAX_REPOS);
+			const starred = ownedRepos.filter((repo) => repo.stars > 0).slice(0, MAX_REPOS);
+			const before = await readRows(starred.map((repo) => repo.nameWithOwner));
+			const known = new Set(before.map((row) => row.repo));
+			const targets = [
+				...starred.filter((repo) => !known.has(repo.nameWithOwner.toLowerCase())),
+				...starred.filter((repo) => known.has(repo.nameWithOwner.toLowerCase()))
+			].slice(0, REFRESH_REPOS);
+			let failures = 0;
 			await mapLimit(targets, CONCURRENCY, async (repo) => {
 				try {
 					await backfillRepo(repo);
 				} catch (error) {
+					failures += 1;
 					log.warn(`backfill failed for ${repo.nameWithOwner}`, error);
 				}
 			});
-			const rows = await readRows(ownedRepos.map((repo) => repo.nameWithOwner));
-			return buildBreakdown(rows, ownedRepos, TOP_REPOS);
+			const rows = await readRows(starred.map((repo) => repo.nameWithOwner));
+			if (failures && !rows.length) {
+				throw new AppError('upstream', 'Star history refresh failed', { expose: false });
+			}
+			const covered = new Set(rows.map((row) => row.repo)).size;
+			return {
+				...buildBreakdown(rows, starred, TOP_REPOS),
+				coveredRepos: covered,
+				totalRepos: starred.length
+			};
 		},
 		AGGREGATE_TTL
 	);
@@ -84,8 +101,7 @@ async function reconstruct(repo: Repo): Promise<Point[]> {
 		if (point) points.push(point);
 		newest = list.at(-1) ?? newest;
 	}
-	// Anchor the recent end at the true current total, unless the stargazer feed was
-	// capped: past 40k the newest reachable star is old, so daily snapshots take over
+	// Anchor the recent end unless GitHub's 40k pagination cap makes it stale
 	if (newest && lastPage < PAGE_CAP)
 		points.push({ day: dayOf(newest.starred_at), stars: repo.stars });
 	return points;
@@ -146,8 +162,7 @@ async function readRows(names: string[]): Promise<DayStars[]> {
 
 type RepoMeta = { nameWithOwner: string; name: string; stars: number };
 
-// Interpolate each repo's value across a shared day axis, keeping the top repos
-// as their own series and folding the rest into one Other band. Rows arrive day-sorted
+// Interpolate repo histories on one axis and fold the long tail into Other
 export function buildBreakdown(rows: DayStars[], repos: RepoMeta[], limit: number): StarBreakdown {
 	if (!rows.length) return { days: [], series: [] };
 	const days = [...new Set(rows.map((row) => row.day))];
@@ -158,9 +173,7 @@ export function buildBreakdown(rows: DayStars[], repos: RepoMeta[], limit: numbe
 		byRepo.set(row.repo, list);
 	}
 
-	// One repo's count on the shared axis: 0 before its first sample, linearly
-	// interpolated between known samples, then held past the last one. Stars accrue
-	// steadily between samples, so a ramp reads truer than a hold-then-jump staircase
+	// Ramp between samples, then hold the latest known count
 	const carry = (key: string): number[] => {
 		const points = byRepo.get(key) ?? [];
 		const times = points.map((point) => Date.parse(point.day));

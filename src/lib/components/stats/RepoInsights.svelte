@@ -53,29 +53,9 @@
 	{/if}
 {/await}
 
-<!-- Three masonry items: the parent grid spaces and balances them across columns -->
-<!-- Languages and licenses pair up once the column is full width, stacked otherwise -->
-<div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-1">
-	{#await languages}
-		<Panel title="Top languages" icon={Code} loading />
-	{:then result}
-		{#if result.ok}
-			<Panel title="Top languages" icon={Code} empty={!result.data.length}>
-				<Donut
-					data={languageBreakdown(result.data, result.data.length)}
-					legend={languageBreakdown(result.data)}
-					valueLabel="Bytes"
-				/>
-			</Panel>
-		{:else}
-			<Panel title="Top languages" icon={Code} error={result.error} />
-		{/if}
-	{/await}
-
-	<Panel title="Licenses" icon={Scale} empty={!license.length}>
-		<Donut data={license} valueLabel="Repos" />
-	</Panel>
-</div>
+<Panel title="Licenses" icon={Scale} empty={!license.length}>
+	<Donut data={license} valueLabel="Repos" />
+</Panel>
 
 <Panel title="Repo activity" icon={Activity} empty={!recency.length}>
 	<HBarList data={recency} colored valueLabel="Repos" />
@@ -84,3 +64,20 @@
 <Panel title="Topics" icon={Tags} empty={!topics.length}>
 	<TagCloud data={topics} more={moreTopics} />
 </Panel>
+
+<!-- Languages last, its byte fetch streams in after the repo-derived panels -->
+{#await languages}
+	<Panel title="Top languages" icon={Code} loading />
+{:then result}
+	{#if result.ok}
+		<Panel title="Top languages" icon={Code} empty={!result.data.length}>
+			<Donut
+				data={languageBreakdown(result.data, result.data.length)}
+				legend={languageBreakdown(result.data)}
+				valueLabel="Bytes"
+			/>
+		</Panel>
+	{:else}
+		<Panel title="Top languages" icon={Code} error={result.error} />
+	{/if}
+{/await}

@@ -12,8 +12,7 @@
 
 	const weekdayOf = (date: string) => new Date(`${date}T00:00:00Z`).getUTCDay();
 
-	// Walk the whole calendar year into Sunday-aligned week columns, so a partial
-	// year still spans full width with blank cells where days have no data yet
+	// Fill Sunday-aligned weeks across the whole calendar year
 	const weeks = $derived.by(() => {
 		const byDate = new Map(contributionLevels(days).map((day) => [day.date, day]));
 		const columns: (LevelDay | null)[][] = [];

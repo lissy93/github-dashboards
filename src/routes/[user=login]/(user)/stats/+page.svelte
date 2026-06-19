@@ -29,7 +29,6 @@
 	import FunFacts from '$lib/components/stats/FunFacts.svelte';
 	import StatStrip from '$lib/components/stats/StatStrip.svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
-	import ErrorState from '$lib/components/common/ErrorState.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { APP_NAME } from '$lib/config';
@@ -54,7 +53,11 @@
 			{/each}
 		</Card.Root>
 	{:then [overview, contributions, languages]}
-		<StatStrip {overview} {contributions} {languages} />
+		{#if overview.ok}
+			<StatStrip {overview} {contributions} {languages} />
+		{:else}
+			<Panel title="Summary" icon={Activity} error={overview.error} />
+		{/if}
 	{/await}
 
 	<div class="grid gap-5 lg:grid-cols-2 lg:items-start">
@@ -65,7 +68,7 @@
 			{#if result.ok}
 				<TopReposPanel user={data.user} repos={result.data.ownedRepos} />
 			{:else}
-				<ErrorState error={result.error} />
+				<Panel title="Top repos" icon={Trophy} error={result.error} />
 			{/if}
 		{/await}
 	</div>
@@ -80,13 +83,20 @@
 			{#if result.ok}
 				<ContributionsRow data={result.data} />
 			{:else}
-				<ErrorState error={result.error} />
+				<div class="grid gap-5 lg:grid-cols-3">
+					<Panel
+						class="lg:col-span-2"
+						title="Contributions per year"
+						icon={History}
+						error={result.error}
+					/>
+					<Panel title="By type" icon={ChartPie} error={result.error} />
+				</div>
 			{/if}
 		{/await}
 	{/if}
 
-	<!-- One balancing masonry column set: a short contribution calendar lets the repo
-	     panels repack beneath it instead of leaving the left side empty -->
+	<!-- Let the shorter panels pack neatly around each other -->
 	<div class="lg:columns-2 lg:gap-5 [&>*]:mb-5 [&>*]:break-inside-avoid">
 		{#if data.contributions}
 			{#await data.contributions}
@@ -95,7 +105,7 @@
 				{#if result.ok}
 					<ContributionActivity data={result.data} />
 				{:else}
-					<ErrorState error={result.error} />
+					<Panel title="Contribution activity" icon={CalendarDays} error={result.error} />
 				{/if}
 			{/await}
 		{/if}
@@ -107,19 +117,17 @@
 				{#if result.ok}
 					<ActivityRhythm data={result.data} />
 				{:else}
-					<ErrorState error={result.error} />
+					<Panel title="Activity rhythm" icon={Clock} error={result.error} />
 				{/if}
 			{/await}
 		{/if}
 
 		{#await data.overview}
 			<Panel title="Repos created per year" icon={FolderGit2} loading />
-			<div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-1">
-				<Panel title="Top languages" icon={Code} loading />
-				<Panel title="Licenses" icon={Scale} loading />
-			</div>
+			<Panel title="Licenses" icon={Scale} loading />
 			<Panel title="Repo activity" icon={Activity} loading />
 			<Panel title="Topics" icon={Tags} loading />
+			<Panel title="Top languages" icon={Code} loading />
 		{:then result}
 			{#if result.ok}
 				<RepoInsights
@@ -128,7 +136,7 @@
 					repoLanguages={data.repoLanguages}
 				/>
 			{:else}
-				<ErrorState error={result.error} />
+				<Panel title="Repository insights" icon={Activity} error={result.error} />
 			{/if}
 		{/await}
 	</div>
@@ -138,6 +146,8 @@
 	{:then result}
 		{#if result.ok}
 			<PortfolioPanel user={data.user} repos={result.data.ownedRepos} />
+		{:else}
+			<Panel title="Portfolio" icon={ScatterChart} error={result.error} />
 		{/if}
 	{/await}
 
@@ -149,6 +159,11 @@
 	{:then result}
 		{#if result.ok}
 			<RepoFlowPanels user={data.user} repos={result.data.ownedRepos} />
+		{:else}
+			<div class="grid gap-5 sm:grid-cols-2">
+				<Panel title="Issues" icon={CircleDot} error={result.error} />
+				<Panel title="Pull requests" icon={GitPullRequest} error={result.error} />
+			</div>
 		{/if}
 	{/await}
 
@@ -161,6 +176,11 @@
 		{:then result}
 			{#if result.ok}
 				<PeoplePanels user={data.user} organizations={result.data.profile.organizations} />
+			{:else}
+				<div class="grid gap-5 lg:grid-cols-3 lg:items-start">
+					<Panel title="Followers" icon={Users} error={result.error} />
+					<Panel title="Latest stargazers" icon={Star} error={result.error} />
+				</div>
 			{/if}
 		{/await}
 	{/if}

@@ -13,11 +13,19 @@
 	let yKey = $state('stars');
 	const metrics = ownedMetrics(() => user);
 
-	const byKey = (key: string) => SCATTER_AXES.find((option) => option.key === key) ?? SCATTER_AXES[0];
+	const byKey = (key: string) =>
+		SCATTER_AXES.find((option) => option.key === key) ?? SCATTER_AXES[0];
 	const xAxis = $derived(byKey(xKey));
 	const yAxis = $derived(byKey(yKey));
-	// Lazy axes stay disabled until both maps land, so they never plot partial data
-	const loaded = $derived(metrics.loaded);
+	const available = (key: string) =>
+		key === 'contributors' ? !!metrics.contributors : !byKey(key).lazy || !!metrics.stats;
+	const extraError = $derived(metrics.statsError ?? metrics.contributorsError);
+	const sampled = $derived(
+		(xAxis.key === 'contributors' || yAxis.key === 'contributors'
+			? metrics.contributorSampled
+			: false) ||
+			((xAxis.lazy || yAxis.lazy) && metrics.statsSampled)
+	);
 	const points = $derived(
 		portfolioScatter(repos, xAxis, yAxis, {
 			stats: metrics.stats,
@@ -34,11 +42,17 @@
 			value={axis === 'y' ? yKey : xKey}
 			onValueChange={(next) => (axis === 'y' ? (yKey = next) : (xKey = next))}
 		>
-			<Select.Trigger class="h-8 w-auto text-xs">{(axis === 'y' ? yAxis : xAxis).label}</Select.Trigger>
+			<Select.Trigger class="h-8 w-auto text-xs"
+				>{(axis === 'y' ? yAxis : xAxis).label}</Select.Trigger
+			>
 			<Select.Content>
 				{#each SCATTER_AXES as option (option.key)}
-					<Select.Item value={option.key} disabled={option.lazy && !loaded}>
-						{option.label}{option.lazy && !loaded ? ' (loading)' : ''}
+					<Select.Item value={option.key} disabled={!available(option.key)}>
+						{option.label}{option.lazy && !available(option.key)
+							? extraError
+								? ' (unavailable)'
+								: ' (loading)'
+							: ''}
 					</Select.Item>
 				{/each}
 			</Select.Content>
@@ -49,7 +63,7 @@
 <Panel title="Portfolio" icon={ScatterChart} empty={!points.length}>
 	<div class="mb-3 flex flex-wrap items-center justify-between gap-2">
 		<p class="text-muted-foreground text-xs">
-			{yAxis.label} vs {xAxis.label} · dot size = forks
+			{yAxis.label} vs {xAxis.label} · dot size = forks{sampled ? ' · sampled repos' : ''}
 		</p>
 		<div class="flex items-center gap-2">
 			{@render picker('y')}

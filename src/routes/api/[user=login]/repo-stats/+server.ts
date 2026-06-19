@@ -1,15 +1,15 @@
 import { json } from '@sveltejs/kit';
-import { getOwnedRepoStats, type RepoStatsMap } from '$lib/server/github/repo-stats';
-import { logError } from '$lib/errors';
+import { getOwnedRepoStats } from '$lib/server/github/repo-stats';
+import { apiError } from '$lib/server/response';
 import type { RequestHandler } from './$types';
 
 // Heavier per-repo counts for the owned repos, loaded lazily after the list renders
-export const GET: RequestHandler = async ({ params, setHeaders }) => {
-	setHeaders({ 'cache-control': 'public, max-age=300' });
+export const GET: RequestHandler = async ({ params }) => {
 	try {
-		return json({ repos: await getOwnedRepoStats(params.user) });
+		return json(await getOwnedRepoStats(params.user), {
+			headers: { 'cache-control': 'public, max-age=300' }
+		});
 	} catch (caught) {
-		logError('repo-stats-endpoint', caught);
-		return json({ repos: {} as RepoStatsMap });
+		return apiError('repo-stats-endpoint', caught);
 	}
 };

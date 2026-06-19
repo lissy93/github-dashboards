@@ -44,8 +44,9 @@
 	<Panel
 		title="Followers"
 		icon={Users}
-		loading={!data}
-		empty={!!data && !followerRows.length}
+		loading={!social.loaded}
+		error={social.error}
+		empty={social.loaded && !social.error && !followerRows.length}
 		emptyText="No followers yet"
 	>
 		{#snippet actions()}
@@ -75,7 +76,8 @@
 		title="Latest stargazers"
 		icon={Star}
 		loading={!stars.loaded}
-		empty={stars.loaded && !starRows.length}
+		error={stars.error}
+		empty={stars.loaded && !stars.error && !starRows.length}
 		emptyText="No recent stars"
 	>
 		{#if starRows.length}

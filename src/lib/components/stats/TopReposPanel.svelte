@@ -15,8 +15,14 @@
 	const metric = $derived(
 		REPO_METRICS.find((option) => option.key === metricKey) ?? REPO_METRICS[0]
 	);
-	// Lazy metrics stay disabled until both maps land, so they never rank on partial data
-	const loaded = $derived(metrics.loaded);
+	const available = (key: string) =>
+		key === 'contributors'
+			? !!metrics.contributors
+			: !REPO_METRICS.find((item) => item.key === key)?.lazy || !!metrics.stats;
+	const extraError = $derived(metrics.statsError ?? metrics.contributorsError);
+	const sampled = $derived(
+		metric.key === 'contributors' ? metrics.contributorSampled : metric.lazy && metrics.statsSampled
+	);
 	const leaders = $derived(
 		topRepos(repos, metric, { stats: metrics.stats, contributors: metrics.contributors })
 	);
@@ -24,13 +30,19 @@
 
 <Panel title="Top repos" icon={Trophy}>
 	<div class="mb-3 flex items-center justify-between gap-2">
-		<p class="text-muted-foreground text-xs">{metric.label}</p>
+		<p class="text-muted-foreground text-xs">
+			{metric.label}{sampled ? ' · sampled repos' : ''}
+		</p>
 		<Select.Root type="single" bind:value={metricKey}>
 			<Select.Trigger class="h-8 w-auto text-xs">{metric.short}</Select.Trigger>
 			<Select.Content>
 				{#each REPO_METRICS as option (option.key)}
-					<Select.Item value={option.key} disabled={option.lazy && !loaded}>
-						{option.short}{option.lazy && !loaded ? ' (loading)' : ''}
+					<Select.Item value={option.key} disabled={!available(option.key)}>
+						{option.short}{option.lazy && !available(option.key)
+							? extraError
+								? ' (unavailable)'
+								: ' (loading)'
+							: ''}
 					</Select.Item>
 				{/each}
 			</Select.Content>

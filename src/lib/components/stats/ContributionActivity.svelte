@@ -58,7 +58,9 @@
 				aria-expanded={expanded}
 				onclick={() => (expanded = !expanded)}
 			>
-				{expanded ? 'Show less' : `Show ${rest.length} more ${rest.length === 1 ? 'year' : 'years'}`}
+				{expanded
+					? 'Show less'
+					: `Show ${rest.length} more ${rest.length === 1 ? 'year' : 'years'}`}
 				<ChevronDown class={cn('size-3.5 transition-transform', expanded && 'rotate-180')} />
 			</button>
 		{/if}

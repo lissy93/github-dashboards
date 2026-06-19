@@ -1,11 +1,9 @@
 import { graphql } from '$lib/server/github/client';
 import { enrichOwnedRepos } from '$lib/server/github/enrich';
-import type { RepoStats } from '$lib/types';
+import type { OwnedRepoData, RepoStats } from '$lib/types';
 
 // Heavier counts move slowly, so cache them longer than the live overview
 const TTL = 6 * 3600;
-
-export type RepoStatsMap = Record<string, RepoStats>;
 
 // One repo per query so the heavier counts never trip the GraphQL timeout
 const QUERY = `
@@ -48,6 +46,6 @@ async function fetchStats(owner: string, name: string): Promise<RepoStats | null
 }
 
 // Heavier counts for the owned repos, cached as one entry with a bounded refresh
-export function getOwnedRepoStats(login: string): Promise<RepoStatsMap> {
-	return enrichOwnedRepos('repo-stats:v2', login, TTL, (repo) => fetchStats(repo.owner, repo.name));
+export function getOwnedRepoStats(login: string): Promise<OwnedRepoData<RepoStats>> {
+	return enrichOwnedRepos('repo-stats:v3', login, TTL, (repo) => fetchStats(repo.owner, repo.name));
 }

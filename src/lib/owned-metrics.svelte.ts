@@ -1,23 +1,41 @@
-import { loadOwnedMap } from '$lib/owned-maps';
-import type { RepoStats } from '$lib/types';
+import { loadJson } from '$lib/owned-maps';
+import type { DisplayError } from '$lib/errors';
+import type { OwnedRepoData, RepoStats } from '$lib/types';
 
-// Lazily load the heavier per-repo maps a panel ranks or plots by, shared so
-// several panels mounting together resolve from one request each. Pass a getter
-// so the maps reload when the viewed user changes without a remount
+// Share the heavier per-repo maps across every stats panel
 export function ownedMetrics(user: () => string) {
 	let stats = $state<Record<string, RepoStats>>();
 	let contributors = $state<Record<string, number>>();
+	let statsError = $state<DisplayError>();
+	let contributorsError = $state<DisplayError>();
+	let statsCoverage = $state<OwnedRepoData<RepoStats>>();
+	let contributorCoverage = $state<OwnedRepoData<number>>();
+	let statsLoaded = $state(false);
 
 	$effect(() => {
 		const login = user();
 		let active = true;
 		stats = undefined;
 		contributors = undefined;
-		loadOwnedMap<Record<string, RepoStats>>(login, 'repo-stats').then((map) => {
-			if (active) stats = map ?? {};
+		statsCoverage = undefined;
+		contributorCoverage = undefined;
+		statsError = undefined;
+		contributorsError = undefined;
+		statsLoaded = false;
+		loadJson<OwnedRepoData<RepoStats>>(login, 'repo-stats').then((result) => {
+			if (!active) return;
+			statsLoaded = true;
+			if (result.ok) {
+				statsCoverage = result.data;
+				stats = result.data.repos;
+			} else statsError = result.error;
 		});
-		loadOwnedMap<Record<string, number>>(login, 'contributors').then((map) => {
-			if (active) contributors = map ?? {};
+		loadJson<OwnedRepoData<number>>(login, 'contributors').then((result) => {
+			if (!active) return;
+			if (result.ok) {
+				contributorCoverage = result.data;
+				contributors = result.data.repos;
+			} else contributorsError = result.error;
 		});
 		return () => (active = false);
 	});
@@ -29,9 +47,20 @@ export function ownedMetrics(user: () => string) {
 		get contributors() {
 			return contributors;
 		},
-		// Both maps in, so lazy metrics never rank or plot on partial data
-		get loaded() {
-			return stats !== undefined && contributors !== undefined;
+		get statsError() {
+			return statsError;
+		},
+		get contributorsError() {
+			return contributorsError;
+		},
+		get statsLoaded() {
+			return statsLoaded;
+		},
+		get statsSampled() {
+			return statsCoverage?.sampled ?? false;
+		},
+		get contributorSampled() {
+			return contributorCoverage?.sampled ?? false;
 		}
 	};
 }

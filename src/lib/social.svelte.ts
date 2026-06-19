@@ -1,26 +1,24 @@
 import { loadJson } from '$lib/owned-maps';
+import type { DisplayError } from '$lib/errors';
 import type { UserSocial } from '$lib/types';
 
-const EMPTY: UserSocial = {
-	topFollowers: [],
-	newestFollowers: [],
-	followersTotal: 0,
-	followersSampled: 0,
-	sponsorsTotal: 0,
-	sponsors: []
-};
-
-// Lazily load a user's notable followers and sponsors after the page renders,
-// reloading when the viewed user changes without a remount
+// Load followers and sponsors without holding up the page
 export function userSocial(user: () => string) {
 	let data = $state<UserSocial>();
+	let error = $state<DisplayError>();
+	let loaded = $state(false);
 
 	$effect(() => {
 		const login = user();
 		let active = true;
 		data = undefined;
-		loadJson<UserSocial>(login, 'social').then((value) => {
-			if (active) data = value ?? EMPTY;
+		error = undefined;
+		loaded = false;
+		loadJson<UserSocial>(login, 'social').then((result) => {
+			if (!active) return;
+			loaded = true;
+			if (result.ok) data = result.data;
+			else error = result.error;
 		});
 		return () => (active = false);
 	});
@@ -29,8 +27,11 @@ export function userSocial(user: () => string) {
 		get data() {
 			return data;
 		},
+		get error() {
+			return error;
+		},
 		get loaded() {
-			return data !== undefined;
+			return loaded;
 		}
 	};
 }

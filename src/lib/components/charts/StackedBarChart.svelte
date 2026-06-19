@@ -29,8 +29,7 @@
 	};
 
 	const max = $derived(niceMax(Math.max(1, ...bars.map((bar) => bar.total))));
-	// Gridlines and y-axis ticks at clean steps. Both callers count whole things,
-	// so round the step to a whole number rather than label a "0.5" line
+	// Keep count-based grid steps on whole numbers
 	const Y_TICKS = 5;
 	const step = $derived(Math.max(1, Math.round(niceStep(max, Y_TICKS))));
 	const yTicks = $derived(
@@ -45,8 +44,7 @@
 	const hidden = $derived(active.length - legend.length);
 	const tip = chartTip();
 
-	// Hovering a column shows that year's split plus its total. Drop rows that would
-	// read as zero, so tiny shares rounded away by format don't list as "0"
+	// Show the column split, dropping values which format to zero
 	const zero = $derived(format(0));
 	const barTip = (bar: StackBar) => ({
 		title: bar.label,

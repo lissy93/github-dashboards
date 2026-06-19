@@ -442,6 +442,16 @@ describe('portfolioScatter', () => {
 		expect(out[0].rows?.filter((row) => row.label === 'Forks')).toHaveLength(1);
 	});
 
+	it('drops repos missing a selected lazy metric instead of plotting false zeroes', () => {
+		const repos = [
+			repo({ name: 'covered', nameWithOwner: 'o/covered' }),
+			repo({ name: 'missing', nameWithOwner: 'o/missing' })
+		];
+		const maps = { stats: { 'o/covered': { commits: 12 } as never } };
+		const out = portfolioScatter(repos, byKey('created'), byKey('commits'), maps);
+		expect(out.map((point) => point.label)).toEqual(['covered']);
+	});
+
 	it('falls back to no colour when a repo has no language', () => {
 		expect(portfolioScatter([repo({})], byKey('created'), byKey('stars'))[0].color).toBeUndefined();
 	});
@@ -471,6 +481,18 @@ describe('issueFlow and prFlow', () => {
 	it('counts merged and closed PRs together as resolved', () => {
 		const repos = [repo({ nameWithOwner: 'o/a', openPRs: 2 })];
 		const out = prFlow(repos, { 'o/a': stats({ mergedPRs: 6, closedPRs: 2 }) });
+		expect(out.total).toBe(10);
+		expect(out.rate).toBe(80);
+	});
+
+	it('uses the same covered repos for both sides of a sampled rate', () => {
+		const repos = [
+			repo({ nameWithOwner: 'o/covered', openIssues: 2 }),
+			repo({ nameWithOwner: 'o/missing', openIssues: 100 })
+		];
+		const out = issueFlow(repos, {
+			'o/covered': stats({ closedIssues: 8 })
+		});
 		expect(out.total).toBe(10);
 		expect(out.rate).toBe(80);
 	});

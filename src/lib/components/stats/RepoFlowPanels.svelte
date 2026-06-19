@@ -12,16 +12,21 @@
 	const metrics = ownedMetrics(() => user);
 	const issues = $derived(metrics.stats ? issueFlow(repos, metrics.stats) : null);
 	const prs = $derived(metrics.stats ? prFlow(repos, metrics.stats) : null);
+	const sampleText = $derived(metrics.statsSampled ? 'Sampled repos' : undefined);
 </script>
 
 <div class="grid gap-5 sm:grid-cols-2">
 	<Panel
 		title="Issues"
 		icon={CircleDot}
-		loading={!issues}
+		loading={!metrics.statsLoaded}
+		error={metrics.statsError}
 		empty={issues?.total === 0}
 		emptyText="No issues yet"
 	>
+		{#snippet actions()}
+			{#if sampleText}<span class="text-muted-foreground text-xs">{sampleText}</span>{/if}
+		{/snippet}
 		{#if issues}
 			<RadialGauge
 				data={issues.slices}
@@ -34,10 +39,14 @@
 	<Panel
 		title="Pull requests"
 		icon={GitPullRequest}
-		loading={!prs}
+		loading={!metrics.statsLoaded}
+		error={metrics.statsError}
 		empty={prs?.total === 0}
 		emptyText="No pull requests yet"
 	>
+		{#snippet actions()}
+			{#if sampleText}<span class="text-muted-foreground text-xs">{sampleText}</span>{/if}
+		{/snippet}
 		{#if prs}
 			<RadialGauge
 				data={prs.slices}

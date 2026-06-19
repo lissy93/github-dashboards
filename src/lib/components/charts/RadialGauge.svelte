@@ -41,7 +41,11 @@
 			.filter((slice) => slice.value > 0)
 			.map((slice, index) => {
 				const fraction = total > 0 ? slice.value / total : 0;
-				const segment = { ...slice, color: slice.color ?? seriesColor(index), d: arc(cumulative, cumulative + fraction) };
+				const segment = {
+					...slice,
+					color: slice.color ?? seriesColor(index),
+					d: arc(cumulative, cumulative + fraction)
+				};
 				cumulative += fraction;
 				return segment;
 			});
@@ -70,7 +74,14 @@
 				onpointerleave={tip.hide}
 			/>
 		{/each}
-		<text x="50" y="38" text-anchor="middle" font-size="15" font-weight="600" class="fill-foreground">
+		<text
+			x="50"
+			y="38"
+			text-anchor="middle"
+			font-size="15"
+			font-weight="600"
+			class="fill-foreground"
+		>
 			{centerValue}
 		</text>
 		<text x="50" y="47" text-anchor="middle" font-size="5.5" class="fill-muted-foreground">

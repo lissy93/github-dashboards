@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { TriangleAlert } from '@lucide/svelte';
 	import TaskListPage from '$lib/components/tasks/TaskListPage.svelte';
-	import Icon from '$lib/components/common/Icon.svelte';
+	import ErrorState from '$lib/components/common/ErrorState.svelte';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
@@ -28,13 +27,9 @@
 		</div>
 	{:then result}
 		{#if result.ok}
-			<TaskListPage bucket={data.bucket} list={result.list} />
+			<TaskListPage bucket={data.bucket} list={result.data} />
 		{:else}
-			<div class="mx-auto max-w-md space-y-3 py-20 text-center">
-				<Icon icon={TriangleAlert} size={28} class="text-warning mx-auto" />
-				<h2 class="text-lg font-medium capitalize">{result.error.title}</h2>
-				<p class="text-muted-foreground text-sm">{result.error.message}</p>
-			</div>
+			<ErrorState error={result.error} />
 		{/if}
 	{/await}
 </div>

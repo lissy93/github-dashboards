@@ -2,6 +2,7 @@ import { rest } from '$lib/server/github/client';
 import { getUserOverview } from '$lib/server/github/user';
 import { cached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
+import { AppError } from '$lib/errors';
 import { createLogger } from '$lib/logger';
 import type { Repo, RecentStar } from '$lib/types';
 
@@ -30,14 +31,18 @@ export function getLatestStargazers(login: string): Promise<RecentStar[]> {
 				.sort((first, second) => second.stars - first.stars)
 				.slice(0, TOP_REPOS);
 			const perRepo = await mapLimit(targets, CONCURRENCY, (repo) => newestForRepo(repo));
-			return mergeNewest(perRepo.flat());
+			// A flaky repo just drops out, but don't cache "no stars" when they all fall over
+			if (targets.length && perRepo.every((result) => result === null)) {
+				throw new AppError('upstream', 'Stargazers refresh failed', { expose: false });
+			}
+			return mergeNewest(perRepo.flatMap((result) => result ?? []));
 		},
 		TTL
 	);
 }
 
-// The newest stargazers of one repo: its last reachable page, newest entry last
-async function newestForRepo(repo: Repo): Promise<RecentStar[]> {
+// Newest stargazers for one repo from its last reachable page, null if the fetch fails
+async function newestForRepo(repo: Repo): Promise<RecentStar[] | null> {
 	const lastPage = Math.ceil(repo.stars / PER_PAGE);
 	// Past the pagination cap the reachable tail is old, not recent, so skip it
 	if (lastPage > PAGE_CAP) return [];
@@ -55,7 +60,7 @@ async function newestForRepo(repo: Repo): Promise<RecentStar[]> {
 		}));
 	} catch (error) {
 		log.warn(`stargazers failed for ${repo.nameWithOwner}`, error);
-		return [];
+		return null;
 	}
 }
 

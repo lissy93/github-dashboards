@@ -11,8 +11,6 @@ import type {
 
 // Contributions move slowly once a year closes, so cache them for a few hours
 const TTL = 4 * 3600;
-// GitHub launched in 2008, cap the historic span so very old accounts stay bounded
-const MAX_YEARS = 18;
 const YEAR_CONCURRENCY = 4;
 
 const QUERY = `
@@ -84,10 +82,10 @@ async function fetchYear(login: string, year: number): Promise<YearCalendar> {
 	return { year, total, days, ...totals };
 }
 
-// Calendar years from the account's join year to now, capped to MAX_YEARS
+// Calendar years from the account's join year to now
 function yearRange(createdAt: string): number[] {
 	const now = new Date().getUTCFullYear();
-	const first = Math.max(new Date(createdAt).getUTCFullYear(), now - MAX_YEARS + 1);
+	const first = new Date(createdAt).getUTCFullYear();
 	return Array.from({ length: now - first + 1 }, (_, index) => first + index);
 }
 
@@ -105,7 +103,7 @@ function sumTotals(years: YearCalendar[]): ContributionTotals {
 	);
 }
 
-const statsKey = (login: string) => `user:contributions:2:${login.toLowerCase()}`;
+const statsKey = (login: string) => `user:contributions:3:${login.toLowerCase()}`;
 
 // Whether contributions are cached, so the page renders inline vs streams
 export const isContributionsCached = (login: string) => isCached(statsKey(login));

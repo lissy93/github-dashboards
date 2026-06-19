@@ -72,6 +72,8 @@ export type UserOverview = {
 	profile: UserProfile;
 	ownedRepos: Repo[];
 	contributedRepos: Repo[];
+	ownedReposCapped: boolean;
+	contributedReposCapped: boolean;
 };
 
 // One day in the contribution calendar, count is total contributions that day
@@ -98,6 +100,13 @@ export type UserContributions = {
 	total: number;
 	totals: ContributionTotals;
 	years: YearCalendar[];
+};
+
+// A bounded per-repo dataset with enough context to label sampled results honestly
+export type OwnedRepoData<T> = {
+	repos: Record<string, T>;
+	total: number;
+	sampled: boolean;
 };
 
 // Total bytes and repo count for one language across a user's repos

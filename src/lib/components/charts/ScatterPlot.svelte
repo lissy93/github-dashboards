@@ -68,8 +68,16 @@
 		const plotW = width - PAD.left - PAD.right;
 		const plotH = H - PAD.top - PAD.bottom;
 		const baseline = PAD.top + plotH;
-		const xs = buildAxis(data.map((point) => point.x), xTime, xFormat);
-		const ys = buildAxis(data.map((point) => point.y), yTime, yFormat);
+		const xs = buildAxis(
+			data.map((point) => point.x),
+			xTime,
+			xFormat
+		);
+		const ys = buildAxis(
+			data.map((point) => point.y),
+			yTime,
+			yFormat
+		);
 		const maxR = Math.max(1, ...data.map((point) => point.r));
 		const rOf = (value: number) => R.min + Math.sqrt(value / maxR) * (R.max - R.min);
 		const points = data.map((point) => ({

@@ -44,13 +44,14 @@ const baseHeaders = {
 	Accept: 'application/vnd.github+json'
 };
 
-// Map a GitHub response to an error code, a 403 with quota left is forbidden
+// GitHub response to error code, a 403 with Retry-After is a rate limit not forbidden
 function codeFor(res: Response): ErrorCode {
 	const { status } = res;
 	if (status === 401) return 'unauthorized';
 	if (status === 404) return 'not_found';
-	if (status === 429 || (status === 403 && res.headers.get('x-ratelimit-remaining') === '0'))
-		return 'rate_limited';
+	const rateLimited =
+		res.headers.get('x-ratelimit-remaining') === '0' || res.headers.has('retry-after');
+	if (status === 429 || (status === 403 && rateLimited)) return 'rate_limited';
 	if (status === 403) return 'forbidden';
 	return 'upstream';
 }
@@ -135,9 +136,15 @@ export async function graphql<T>(
 
 	const body = (await res.json()) as { data?: T; errors?: { message: string; type?: string }[] };
 	if (body.errors?.length) {
-		const notFound = body.errors.some((error) => error.type === 'NOT_FOUND');
+		// GraphQL still says 200 when it rate-limits, so read the error type for the code
+		const types = new Set(body.errors.map((error) => error.type));
 		const message = body.errors.map((error) => error.message).join('; ');
-		throw new AppError(notFound ? 'not_found' : 'upstream', message);
+		const code = types.has('NOT_FOUND')
+			? 'not_found'
+			: types.has('RATE_LIMITED')
+				? 'rate_limited'
+				: 'upstream';
+		throw new AppError(code, message);
 	}
 	if (!body.data) throw new AppError('upstream', 'GitHub returned no data');
 	return body.data;

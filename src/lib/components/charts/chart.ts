@@ -10,8 +10,7 @@ export const CHART_SERIES = [
 // Pick a series colour by index, wrapping when there are more slices than tokens
 export const seriesColor = (index: number) => CHART_SERIES[index % CHART_SERIES.length];
 
-// Wider categorical palette for stacked series: the base tokens, then paler mixes,
-// so up to ten bands stay distinct without leaving the oklch token system
+// Extend the chart tokens with lighter mixes for larger stacks
 export const STACK_SERIES = [
 	...CHART_SERIES,
 	...CHART_SERIES.map((token) => `color-mix(in oklch, ${token} 50%, var(--card))`)
@@ -28,8 +27,7 @@ export const HEATMAP_LEVELS = [
 	'var(--chart-2)'
 ];
 
-// Path through points: straight segments, or a Catmull-Rom spline for gentle,
-// recharts "natural"-style smoothing that still passes through every point
+// Draw straight points or a gentle Catmull-Rom spline
 export function splinePath(points: { x: number; y: number }[], smooth = false): string {
 	if (!points.length) return '';
 	if (!smooth || points.length < 3)
@@ -61,8 +59,7 @@ export function niceMax(value: number): number {
 	return 10 * magnitude;
 }
 
-// A clean gridline step sized for roughly `ticks` lines, so the axis top sits
-// just above the data instead of jumping to the next coarse round number
+// Pick a tidy grid step without wasting too much vertical space
 export function niceStep(max: number, ticks: number): number {
 	if (max <= 0) return 1;
 	const rough = max / ticks;

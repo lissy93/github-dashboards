@@ -50,8 +50,7 @@ function authored(repos: Repo[]): Repo[] {
 	return repos.filter((repo) => !repo.isFork);
 }
 
-// Repos worth ranking: authored repos plus any fork the user grew their own audience
-// on. A fork starts at zero stars, so stars here mean people value this copy specifically
+// Keep authored repos and forks which grew their own audience
 function notable(repos: Repo[]): Repo[] {
 	return repos.filter((repo) => !repo.isFork || repo.stars > 0);
 }
@@ -200,7 +199,12 @@ export function topRepos(repos: Repo[], metric: RepoMetric, maps: MetricMaps, li
 
 // Per-repo cumulative stars on a shared day axis, top repos plus an Other band
 export type StarSeries = { label: string; values: number[] };
-export type StarBreakdown = { days: string[]; series: StarSeries[] };
+export type StarBreakdown = {
+	days: string[];
+	series: StarSeries[];
+	coveredRepos?: number;
+	totalRepos?: number;
+};
 // Trimmed to the visible range, with the running total per day
 export type StarStack = StarBreakdown & { total: number[] };
 
@@ -239,8 +243,7 @@ function levelFor(count: number, max: number): number {
 // A year needs at least this many contributions to keep its own calendar
 const YEAR_MIN_CONTRIBUTIONS = 100;
 
-// Drop near-empty years from the calendar, but only once a busy year exists,
-// so light accounts still see their full history
+// Hide near-empty years only when the account has busier history
 export function visibleContributionYears(years: YearCalendar[]): YearCalendar[] {
 	const hasBusyYear = years.some((year) => year.total > YEAR_MIN_CONTRIBUTIONS);
 	if (!hasBusyYear) return years;
@@ -262,8 +265,7 @@ export function contributionTypes(totals: ContributionTotals): Slice[] {
 export type Fact = { label: string; value: string; hint: string };
 type Streak = { length: number; start: string; end: string };
 
-// Every calendar day mapped to its count, deduping the days GitHub repeats at
-// year boundaries, so the dates form one continuous run for streak counting
+// Dedupe boundary dates into one continuous calendar
 function dailyCounts(years: YearCalendar[]): Map<string, number> {
 	const byDate = new Map<string, number>();
 	for (const year of years) {
@@ -449,9 +451,7 @@ const FALLBACK_COLORS = [
 ];
 const NO_LANGUAGE = 'Other';
 
-// One repo's languages and the fraction of that repo each represents, summing to 1.
-// Multi-language repos split by byte share; repos with no breakdown fall back to
-// their primary language, or one muted Other bucket when even that is missing
+// Split one repo across languages, falling back to its primary language
 function repoShares(
 	repo: Repo,
 	repoLangs: Record<string, RepoLang[]>
@@ -465,10 +465,7 @@ function repoShares(
 	return [[NO_LANGUAGE, 'var(--muted-foreground)', 1]];
 }
 
-// Owned repos bucketed by creation year, each bar one repo tall per repo and split
-// across the languages of those repos. Forks are dropped like the other footprint
-// stats; every language gets its own series; gap years stay in so the axis reads
-// linearly. Bar totals stay equal to the repos created that year
+// Bucket authored repos by year and split each one across its languages
 export function reposPerYear(
 	repos: Repo[],
 	repoLangs: Record<string, RepoLang[]>
@@ -628,34 +625,42 @@ export function portfolioScatter(
 	yAxis: ScatterAxis,
 	maps: MetricMaps = {}
 ): ScatterPoint[] {
-	return authored(repos).map((repo) => {
-		const input = {
-			stats: maps.stats?.[repo.nameWithOwner],
-			contributors: maps.contributors?.[repo.nameWithOwner]
-		};
-		const x = xAxis.value(repo, input);
-		const y = yAxis.value(repo, input);
-		const rows: TipRow[] = [];
-		const seen = new Set<string>();
-		// Dedupe so a repeated axis or the forks size detail only lists once
-		const add = (label: string, value: string) => {
-			if (seen.has(label)) return;
-			seen.add(label);
-			rows.push({ label, value });
-		};
-		add(yAxis.label, axisDisplay(yAxis, y));
-		add(xAxis.label, axisDisplay(xAxis, x));
-		add('Forks', formatNumber(repo.forks));
-		add('Language', repo.language?.name ?? 'n/a');
-		return {
-			label: repo.name,
-			x,
-			y,
-			r: repo.forks,
-			color: repo.language?.color ?? undefined,
-			rows
-		};
-	});
+	const hasValue = (repo: Repo, axis: ScatterAxis) => {
+		if (!axis.lazy) return true;
+		return axis.key === 'contributors'
+			? maps.contributors?.[repo.nameWithOwner] !== undefined
+			: maps.stats?.[repo.nameWithOwner] !== undefined;
+	};
+	return authored(repos)
+		.filter((repo) => hasValue(repo, xAxis) && hasValue(repo, yAxis))
+		.map((repo) => {
+			const input = {
+				stats: maps.stats?.[repo.nameWithOwner],
+				contributors: maps.contributors?.[repo.nameWithOwner]
+			};
+			const x = xAxis.value(repo, input);
+			const y = yAxis.value(repo, input);
+			const rows: TipRow[] = [];
+			const seen = new Set<string>();
+			// Dedupe so a repeated axis or the forks size detail only lists once
+			const add = (label: string, value: string) => {
+				if (seen.has(label)) return;
+				seen.add(label);
+				rows.push({ label, value });
+			};
+			add(yAxis.label, axisDisplay(yAxis, y));
+			add(xAxis.label, axisDisplay(xAxis, x));
+			add('Forks', formatNumber(repo.forks));
+			add('Language', repo.language?.name ?? 'n/a');
+			return {
+				label: repo.name,
+				x,
+				y,
+				r: repo.forks,
+				color: repo.language?.color ?? undefined,
+				rows
+			};
+		});
 }
 
 // Open vs closed split for the resolution gauges, with the closed share up front
@@ -688,9 +693,9 @@ function flow(open: number, closed: number): FlowStat {
 export function issueFlow(repos: Repo[], stats: Record<string, RepoStats>): FlowStat {
 	let open = 0;
 	let closed = 0;
-	for (const repo of authored(repos)) {
+	for (const repo of authored(repos).filter((repo) => stats[repo.nameWithOwner])) {
 		open += repo.openIssues;
-		closed += stats[repo.nameWithOwner]?.closedIssues ?? 0;
+		closed += stats[repo.nameWithOwner].closedIssues;
 	}
 	return flow(open, closed);
 }
@@ -699,10 +704,10 @@ export function issueFlow(repos: Repo[], stats: Record<string, RepoStats>): Flow
 export function prFlow(repos: Repo[], stats: Record<string, RepoStats>): FlowStat {
 	let open = 0;
 	let closed = 0;
-	for (const repo of authored(repos)) {
+	for (const repo of authored(repos).filter((repo) => stats[repo.nameWithOwner])) {
 		open += repo.openPRs;
 		const entry = stats[repo.nameWithOwner];
-		closed += (entry?.mergedPRs ?? 0) + (entry?.closedPRs ?? 0);
+		closed += entry.mergedPRs + entry.closedPRs;
 	}
 	return flow(open, closed);
 }

@@ -9,15 +9,6 @@ const TOP_FOLLOWERS = 12;
 const SPONSORS = 24;
 const TTL = 6 * 3600;
 
-export const EMPTY_SOCIAL: UserSocial = {
-	topFollowers: [],
-	newestFollowers: [],
-	followersTotal: 0,
-	followersSampled: 0,
-	sponsorsTotal: 0,
-	sponsors: []
-};
-
 type RawFollower = {
 	login: string;
 	name: string | null;
@@ -93,8 +84,7 @@ async function fetchFollowers(login: string): Promise<{ all: RawFollower[]; tota
 
 type RestFollower = { login: string; avatar_url: string };
 
-// REST returns followers oldest-first, so the connection's last page holds the newest.
-// We know the total, so we jump straight to that page and reverse it
+// Jump to the oldest-first feed's last page for the newest followers
 async function fetchNewestFollowers(login: string, total: number): Promise<NotableFollower[]> {
 	if (total === 0) return [];
 	const lastPage = Math.ceil(total / PER_PAGE);

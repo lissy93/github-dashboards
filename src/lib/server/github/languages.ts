@@ -3,6 +3,7 @@ import { getUserOverview } from '$lib/server/github/user';
 import { cached, isCached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
 import { createLogger } from '$lib/logger';
+import { AppError } from '$lib/errors';
 import type { LanguageUsage, RepoLang, Repo } from '$lib/types';
 
 const log = createLogger('languages');
@@ -58,44 +59,37 @@ function chunk<T>(items: T[], size: number): T[][] {
 	return groups;
 }
 
-const repoLangKey = (login: string) => `user:repo-languages:1:${login.toLowerCase()}`;
-const langKey = (login: string) => `user:languages:2:${login.toLowerCase()}`;
+type LanguageData = {
+	repos: Record<string, RepoLang[]>;
+	totals: LanguageUsage[];
+};
 
-// Whether per-repo language bytes are cached, so the page can render them inline
-export const isRepoLanguagesCached = (login: string) => isCached(repoLangKey(login));
+const languageKey = (login: string) => `user:language-data:3:${login.toLowerCase()}`;
 
-// Whether language totals are cached, so the page can render them inline
-export const isLanguagesCached = (login: string) => isCached(langKey(login));
+// Both language views share one cache entry so they can never refresh out of step
+export const isRepoLanguagesCached = (login: string) => isCached(languageKey(login));
+export const isLanguagesCached = isRepoLanguagesCached;
 
-// Language byte breakdown for each of a user's own non-fork repos, keyed by repo.
-// The heavy fetch both the totals and the per-year chart share, batched and cached
-export function getRepoLanguages(login: string): Promise<Record<string, RepoLang[]>> {
+// Fetch the per-repo map and aggregate totals as one atomic cached dataset
+function getLanguageData(login: string): Promise<LanguageData> {
 	return cached(
-		repoLangKey(login),
+		languageKey(login),
 		async () => {
 			const { ownedRepos } = await getUserOverview(login);
-			// Every authored repo counts, forks are someone else's code so drop them
 			const repos = ownedRepos.filter((repo) => !repo.isFork);
 			const map: Record<string, RepoLang[]> = {};
+			let failures = 0;
 			await mapLimit(chunk(repos, CHUNK), CHUNK_CONCURRENCY, async (group) => {
 				try {
 					Object.assign(map, await fetchChunk(group));
 				} catch (error) {
+					failures += 1;
 					log.warn('language chunk failed', error);
 				}
 			});
-			return map;
-		},
-		TTL
-	);
-}
-
-// Byte totals per language across a user's repos, derived from the per-repo map
-export function getOwnedLanguages(login: string): Promise<LanguageUsage[]> {
-	return cached(
-		langKey(login),
-		async () => {
-			const map = await getRepoLanguages(login);
+			if (failures) {
+				throw new AppError('upstream', 'Language refresh was incomplete', { expose: false });
+			}
 			const totals = new Map<string, LanguageUsage>();
 			for (const langs of Object.values(map)) {
 				for (const lang of langs) {
@@ -110,8 +104,21 @@ export function getOwnedLanguages(login: string): Promise<LanguageUsage[]> {
 					totals.set(lang.name, entry);
 				}
 			}
-			return [...totals.values()].sort((first, second) => second.bytes - first.bytes);
+			return {
+				repos: map,
+				totals: [...totals.values()].sort((first, second) => second.bytes - first.bytes)
+			};
 		},
 		TTL
 	);
+}
+
+// Per-repo language bytes for the creation-year chart
+export async function getRepoLanguages(login: string): Promise<Record<string, RepoLang[]>> {
+	return (await getLanguageData(login)).repos;
+}
+
+// Byte totals per language across the user's authored repos
+export async function getOwnedLanguages(login: string): Promise<LanguageUsage[]> {
+	return (await getLanguageData(login)).totals;
 }

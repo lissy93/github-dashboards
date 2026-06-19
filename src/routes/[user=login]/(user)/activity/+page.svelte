@@ -62,8 +62,8 @@
 				/>
 				<div class="bg-card overflow-hidden rounded-md border">
 					<Feed
-						initial={result.page.events}
-						initialCursor={result.page.nextCursor}
+						initial={result.data.events}
+						initialCursor={result.data.nextCursor}
 						{fetchPage}
 						key={(event) => event.id}
 						{resetKey}

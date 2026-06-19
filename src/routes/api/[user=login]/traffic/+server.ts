@@ -22,13 +22,18 @@ export const GET: RequestHandler = async ({ params, setHeaders }) => {
 
 		const repos: TrafficMap = {};
 		await mapLimit(targets, CONCURRENCY, async (repo) => {
-			const summary = await getRepoTrafficSummary(repo.owner, repo.name);
-			if (summary.available)
-				repos[repo.nameWithOwner] = {
-					views: summary.views.count,
-					uniques: summary.views.uniques,
-					clones: summary.clones.count
-				};
+			// Don't let one repo blank the rest, each is cached on its own anyway
+			try {
+				const summary = await getRepoTrafficSummary(repo.owner, repo.name);
+				if (summary.available)
+					repos[repo.nameWithOwner] = {
+						views: summary.views.count,
+						uniques: summary.views.uniques,
+						clones: summary.clones.count
+					};
+			} catch (caught) {
+				logError('traffic-endpoint-repo', caught);
+			}
 		});
 
 		return json({ available: true, repos });
