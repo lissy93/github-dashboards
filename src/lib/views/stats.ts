@@ -6,6 +6,7 @@ import type {
 	ContributionTotals,
 	LanguageUsage,
 	Repo,
+	RepoStats,
 	UserContributions,
 	YearCalendar
 } from '$lib/types';
@@ -73,22 +74,138 @@ export function languageBreakdown(usage: LanguageUsage[], limit = 8): Slice[] {
 	return rollUp(slices, limit);
 }
 
-// Most-starred owned repos, tooltip carries forks, language and recency
-export function topRepos(repos: Repo[], limit = 8): Slice[] {
+// Lazily loaded per-repo maps that the heavier metrics rank by, keyed by nameWithOwner
+export type MetricMaps = {
+	stats?: Record<string, RepoStats>;
+	contributors?: Record<string, number>;
+};
+type MetricInput = { stats?: RepoStats; contributors?: number };
+
+// Ways to rank owned repos. Cheap metrics read the repo, lazy ones read the maps
+export type RepoMetric = {
+	key: string;
+	label: string;
+	short: string;
+	lazy?: boolean;
+	value: (repo: Repo, data: MetricInput) => number;
+	format?: (value: number) => string;
+};
+
+export const REPO_METRICS: RepoMetric[] = [
+	{ key: 'stars', label: 'Most starred repos', short: 'Stars', value: (repo) => repo.stars },
+	{ key: 'forks', label: 'Most forked repos', short: 'Forks', value: (repo) => repo.forks },
+	{
+		key: 'watchers',
+		label: 'Most watched repos',
+		short: 'Watchers',
+		value: (repo) => repo.watchers
+	},
+	{
+		key: 'size',
+		label: 'Largest repos',
+		short: 'Size',
+		value: (repo) => repo.diskUsage,
+		format: formatSize
+	},
+	{
+		key: 'open',
+		label: 'Most open issues and PRs',
+		short: 'Open issues + PRs',
+		value: (repo) => repo.openIssues + repo.openPRs
+	},
+	{
+		key: 'issues',
+		label: 'Most open issues',
+		short: 'Open issues',
+		value: (repo) => repo.openIssues
+	},
+	{ key: 'prs', label: 'Most open PRs', short: 'Open PRs', value: (repo) => repo.openPRs },
+	{
+		key: 'commits',
+		label: 'Most commits',
+		short: 'Commits',
+		lazy: true,
+		value: (_repo, data) => data.stats?.commits ?? 0
+	},
+	{
+		key: 'contributors',
+		label: 'Most contributors',
+		short: 'Contributors',
+		lazy: true,
+		value: (_repo, data) => data.contributors ?? 0
+	},
+	{
+		key: 'mergedPRs',
+		label: 'Most merged PRs',
+		short: 'Merged PRs',
+		lazy: true,
+		value: (_repo, data) => data.stats?.mergedPRs ?? 0
+	},
+	{
+		key: 'closedIssues',
+		label: 'Most closed issues',
+		short: 'Closed issues',
+		lazy: true,
+		value: (_repo, data) => data.stats?.closedIssues ?? 0
+	},
+	{
+		key: 'releases',
+		label: 'Most releases',
+		short: 'Releases',
+		lazy: true,
+		value: (_repo, data) => data.stats?.releaseCount ?? 0
+	}
+];
+
+// Top owned repos for a metric, tooltip carries the metric, language and recency
+export function topRepos(repos: Repo[], metric: RepoMetric, maps: MetricMaps, limit = 8): Slice[] {
+	const show = metric.format ?? formatNumber;
+	const valueOf = (repo: Repo) =>
+		metric.value(repo, {
+			stats: maps.stats?.[repo.nameWithOwner],
+			contributors: maps.contributors?.[repo.nameWithOwner]
+		});
 	return authored(repos)
-		.filter((repo) => repo.stars > 0)
-		.sort((first, second) => second.stars - first.stars)
+		.map((repo) => ({ repo, value: valueOf(repo) }))
+		.filter((entry) => entry.value > 0)
+		.sort((first, second) => second.value - first.value)
 		.slice(0, limit)
-		.map((repo) => ({
+		.map(({ repo, value }) => ({
 			label: repo.name,
-			value: repo.stars,
+			value,
 			rows: [
-				{ label: 'Stars', value: formatNumber(repo.stars) },
-				{ label: 'Forks', value: formatNumber(repo.forks) },
+				{ label: metric.short, value: show(value) },
 				{ label: 'Language', value: repo.language?.name ?? 'n/a' },
 				{ label: 'Updated', value: relativeTime(repo.pushedAt) }
 			]
 		}));
+}
+
+// Per-repo cumulative stars on a shared day axis, top repos plus an Other band
+export type StarSeries = { label: string; values: number[] };
+export type StarBreakdown = { days: string[]; series: StarSeries[] };
+// Trimmed to the visible range, with the running total per day
+export type StarStack = StarBreakdown & { total: number[] };
+
+// Big accounts skip the slow early tail and begin at 1% of their current total
+const MILESTONE_MIN = 10000;
+
+function milestoneStart(total: number[]): number {
+	const current = total.at(-1) ?? 0;
+	if (current <= MILESTONE_MIN) return 0;
+	const start = total.findIndex((value) => value >= current * 0.01);
+	return start < 0 ? 0 : start;
+}
+
+// Stacked star history trimmed to its visible range, carrying the per-day total
+export function starHistory({ days, series }: StarBreakdown): StarStack {
+	const total = days.map((_, index) => series.reduce((sum, item) => sum + item.values[index], 0));
+	const start = milestoneStart(total);
+	return {
+		days: days.slice(start),
+		series: series.map((item) => ({ ...item, values: item.values.slice(start) })),
+		total: total.slice(start)
+	};
 }
 
 // Bucket each day into one of five intensity levels off the busiest day

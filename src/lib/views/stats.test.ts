@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
 	languageBreakdown,
 	topRepos,
+	REPO_METRICS,
+	starHistory,
 	contributionLevels,
 	contributionsPerYear,
 	visibleContributionYears,
@@ -70,17 +72,76 @@ describe('languageBreakdown', () => {
 	});
 });
 
+describe('starHistory', () => {
+	it('totals the series per day and keeps the full range for small accounts', () => {
+		const stack = starHistory({
+			days: ['2020-01-01', '2021-01-01'],
+			series: [
+				{ label: 'a', values: [5, 30] },
+				{ label: 'b', values: [0, 10] }
+			]
+		});
+		expect(stack.days).toEqual(['2020-01-01', '2021-01-01']);
+		expect(stack.total).toEqual([5, 40]);
+		expect(stack.series[1]).toEqual({ label: 'b', values: [0, 10] });
+	});
+
+	it('trims to the 1% milestone only for accounts over 10k stars', () => {
+		const stack = starHistory({
+			days: ['2019-01-01', '2020-01-01', '2021-01-01'],
+			series: [{ label: 'a', values: [50, 300, 30000] }]
+		});
+		expect(stack.days).toEqual(['2020-01-01', '2021-01-01']);
+		expect(stack.total).toEqual([300, 30000]);
+	});
+
+	it('handles an empty breakdown', () => {
+		expect(starHistory({ days: [], series: [] })).toEqual({ days: [], series: [], total: [] });
+	});
+});
+
 describe('topRepos', () => {
-	it('ranks by stars, drops zero-star and forked repos', () => {
+	const byKey = (key: string) => REPO_METRICS.find((metric) => metric.key === key)!;
+
+	it('ranks by stars, drops zero-metric and forked repos', () => {
 		const repos = [
 			repo({ name: 'big', stars: 50 }),
 			repo({ name: 'mid', stars: 20 }),
 			repo({ name: 'empty', stars: 0 }),
 			repo({ name: 'forked', stars: 99, isFork: true })
 		];
-		const out = topRepos(repos);
+		const out = topRepos(repos, byKey('stars'), {});
 		expect(out.map((row) => row.label)).toEqual(['big', 'mid']);
 		expect(out[0].rows?.[0]).toEqual({ label: 'Stars', value: '50' });
+	});
+
+	it('ranks by another metric and formats its value', () => {
+		const repos = [
+			repo({ name: 'small', diskUsage: 512 }),
+			repo({ name: 'huge', diskUsage: 4096 }),
+			repo({ name: 'zero', diskUsage: 0 })
+		];
+		const out = topRepos(repos, byKey('size'), {});
+		expect(out.map((row) => row.label)).toEqual(['huge', 'small']);
+		expect(out[0].value).toBe(4096);
+		expect(out[0].rows?.[0]).toEqual({ label: 'Size', value: '4 MB' });
+	});
+
+	it('ranks a lazy metric off the loaded maps, keyed by nameWithOwner', () => {
+		const repos = [
+			repo({ name: 'a', nameWithOwner: 'o/a' }),
+			repo({ name: 'b', nameWithOwner: 'o/b' }),
+			repo({ name: 'c', nameWithOwner: 'o/c' })
+		];
+		const contributors = { 'o/a': 3, 'o/b': 9 };
+		const out = topRepos(repos, byKey('contributors'), { contributors });
+		expect(out.map((row) => row.label)).toEqual(['b', 'a']);
+		expect(out[0].rows?.[0]).toEqual({ label: 'Contributors', value: '9' });
+	});
+
+	it('returns nothing for a lazy metric before its map loads', () => {
+		const repos = [repo({ name: 'a' }), repo({ name: 'b' })];
+		expect(topRepos(repos, byKey('commits'), {})).toEqual([]);
 	});
 });
 

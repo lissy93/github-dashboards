@@ -10,8 +10,15 @@
 		data,
 		colored = false,
 		color = 'var(--chart-1)',
-		valueLabel = 'Value'
-	}: { data: Slice[]; colored?: boolean; color?: string; valueLabel?: string } = $props();
+		valueLabel = 'Value',
+		format = compactNumber
+	}: {
+		data: Slice[];
+		colored?: boolean;
+		color?: string;
+		valueLabel?: string;
+		format?: (value: number) => string;
+	} = $props();
 
 	const max = $derived(Math.max(1, ...data.map((row) => row.value)));
 	const fill = (row: Slice, index: number) => (colored ? (row.color ?? seriesColor(index)) : color);
@@ -36,7 +43,7 @@
 					style="width: {(row.value / max) * 100}%; background-color: {fill(row, index)}"
 				></span>
 			</span>
-			<span class="text-right font-medium tabular-nums">{compactNumber(row.value)}</span>
+			<span class="text-right font-medium tabular-nums">{format(row.value)}</span>
 		</li>
 	{/each}
 </ul>

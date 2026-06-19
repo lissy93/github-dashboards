@@ -1,18 +1,21 @@
 <script lang="ts">
-	import { Code, Trophy } from '@lucide/svelte';
+	import { Code } from '@lucide/svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
 	import Donut from '$lib/components/charts/Donut.svelte';
-	import HBarList from '$lib/components/charts/HBarList.svelte';
-	import { languageBreakdown, topRepos } from '$lib/views/stats';
+	import TopReposPanel from './TopReposPanel.svelte';
+	import { languageBreakdown } from '$lib/views/stats';
 	import type { LanguagesResult } from '$lib/views/overview';
 	import type { Repo } from '$lib/types';
 
 	let {
+		user,
 		repos,
 		languages
-	}: { repos: Repo[]; languages: Promise<LanguagesResult> | LanguagesResult } = $props();
-
-	const leaders = $derived(topRepos(repos));
+	}: {
+		user: string;
+		repos: Repo[];
+		languages: Promise<LanguagesResult> | LanguagesResult;
+	} = $props();
 </script>
 
 <div class="grid gap-5 lg:grid-cols-2">
@@ -28,7 +31,5 @@
 		{/if}
 	{/await}
 
-	<Panel title="Most starred" icon={Trophy} empty={!leaders.length}>
-		<HBarList data={leaders} color="var(--chart-4)" valueLabel="Stars" />
-	</Panel>
+	<TopReposPanel {user} {repos} />
 </div>

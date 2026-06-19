@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { ChartColumn, CalendarDays, Clock, Sparkles } from '@lucide/svelte';
 	import RepoStatsSection from '$lib/components/stats/RepoStatsSection.svelte';
+	import StarHistoryPanel from '$lib/components/stats/StarHistoryPanel.svelte';
 	import ContributionsSection from '$lib/components/stats/ContributionsSection.svelte';
 	import ContributionActivity from '$lib/components/stats/ContributionActivity.svelte';
 	import ActivityRhythm from '$lib/components/stats/ActivityRhythm.svelte';
@@ -34,6 +35,8 @@
 	{:then [overview, contributions, languages]}
 		<StatStrip {overview} {contributions} {languages} />
 	{/await}
+
+	<StarHistoryPanel user={data.user} />
 
 	{#if data.contributions || data.rhythm}
 		<div class="grid gap-5 lg:grid-cols-2 lg:items-start">
@@ -77,11 +80,15 @@
 		<div class="grid gap-5 lg:grid-cols-2">
 			<Panel class="lg:col-span-2" title="Totals" icon={ChartColumn} loading />
 			<Panel title="Top languages" icon={ChartColumn} loading />
-			<Panel title="Most starred" icon={ChartColumn} loading />
+			<Panel title="Top Repos" icon={ChartColumn} loading />
 		</div>
 	{:then result}
 		{#if result.ok}
-			<RepoStatsSection repos={result.data.ownedRepos} languages={data.languages} />
+			<RepoStatsSection
+				user={data.user}
+				repos={result.data.ownedRepos}
+				languages={data.languages}
+			/>
 		{:else}
 			<ErrorState error={result.error} />
 		{/if}

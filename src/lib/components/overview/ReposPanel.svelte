@@ -6,6 +6,7 @@
 	import StarWindow from '$lib/components/repo/StarWindow.svelte';
 	import { repoConfig, type RepoTrafficData } from '$lib/views/repos';
 	import { paths, STAR_WINDOW_DEFAULT } from '$lib/config';
+	import { loadOwnedMap } from '$lib/owned-maps';
 	import { createLogger } from '$lib/logger';
 	import type { Repo, RepoExtras, RepoStats } from '$lib/types';
 
@@ -72,25 +73,21 @@
 		}
 	}
 
-	// Fetch a lazy endpoint and hand its repos map to the setter, logging failures
-	async function loadRepos<T>(endpoint: string, apply: (repos: T) => void) {
-		try {
-			const response = await fetch(`/api/${user}/${endpoint}`);
-			const body: { repos?: T } = await response.json();
-			if (body.repos) apply(body.repos);
-		} catch (error) {
-			log.warn(`failed to load ${endpoint}`, error);
-		}
+	// Pull a lazy owned-repos map and apply it once it lands, ignoring a miss
+	function loadInto<T>(endpoint: string, apply: (repos: T) => void) {
+		loadOwnedMap<T>(user, endpoint).then((repos) => {
+			if (repos) apply(repos);
+		});
 	}
 
 	onMount(() => {
 		loadTraffic();
-		loadRepos<Record<string, number>>('contributors', (value) => (contributors = value));
-		loadRepos<Record<string, Record<string, number | null>>>(
+		loadInto<Record<string, number>>('contributors', (value) => (contributors = value));
+		loadInto<Record<string, Record<string, number | null>>>(
 			'stars',
 			(value) => (starBaselines = value)
 		);
-		loadRepos<Record<string, RepoStats>>('repo-stats', (value) => (repoStats = value));
+		loadInto<Record<string, RepoStats>>('repo-stats', (value) => (repoStats = value));
 	});
 </script>
 
