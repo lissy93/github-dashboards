@@ -241,7 +241,9 @@ jobs:
     name: 🔒 Dependency Audit
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.lockfile == 'true' && github.event_name == 'pull_request'
+    if: >-
+      needs.changes.outputs.lockfile == 'true' && github.event_name == 'pull_request' &&
+      github.event.repository.private == false
     permissions:
       contents: read
     steps:
