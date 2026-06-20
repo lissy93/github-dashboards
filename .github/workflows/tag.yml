@@ -31,6 +31,7 @@ concurrency:
 
 permissions:
   contents: write
+  pull-requests: read
 
 env:
   IS_MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
@@ -118,7 +119,7 @@ jobs:
         if: env.IS_MANUAL == 'true' || steps.check_pr.outputs.needs_tag == 'true'
         uses: actions/checkout@v6 # zizmor: ignore[artipacked] credentials needed to push the tag
         with:
-          token: ${{ secrets.BOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.BOT_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: 👤 Configure git identity
         if: env.IS_MANUAL == 'true' || steps.check_pr.outputs.needs_tag == 'true'
