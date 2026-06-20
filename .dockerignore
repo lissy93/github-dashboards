@@ -1,0 +1,17 @@
+.git
+.github
+node_modules
+build
+.svelte-kit
+.output
+.vercel
+.netlify
+.wrangler
+.env
+.env.*
+!.env.example
+alicia-notes
+*.md
+.vscode
+.DS_Store
+Thumbs.db

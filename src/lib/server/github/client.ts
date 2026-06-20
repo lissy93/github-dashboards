@@ -38,11 +38,14 @@ function release(): void {
 	else active--;
 }
 
-const baseHeaders = {
-	Authorization: `Bearer ${config.GITHUB_TOKEN}`,
-	'User-Agent': 'goard',
-	Accept: 'application/vnd.github+json'
-};
+// headers sent with every GitHub request
+function baseHeaders(): Record<string, string> {
+	return {
+		Authorization: `Bearer ${config.GITHUB_TOKEN}`,
+		'User-Agent': 'goard',
+		Accept: 'application/vnd.github+json'
+	};
+}
 
 // GitHub response to error code, a 403 with Retry-After is a rate limit not forbidden
 function codeFor(res: Response): ErrorCode {
@@ -83,7 +86,7 @@ async function call(url: string, init: RequestInit = {}, label = 'request'): Pro
 			try {
 				const res = await fetch(url, {
 					...init,
-					headers: { ...baseHeaders, ...init.headers },
+					headers: { ...baseHeaders(), ...init.headers },
 					signal: AbortSignal.timeout(TIMEOUT_MS)
 				});
 				if (RETRYABLE_STATUS.has(res.status) && attempt < MAX_ATTEMPTS) {
