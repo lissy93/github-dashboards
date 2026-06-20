@@ -15,7 +15,8 @@
 		CircleDot,
 		GitPullRequest,
 		Users,
-		Star
+		Star,
+		GitBranch
 	} from '@lucide/svelte';
 	import StarHistoryPanel from '$lib/components/stats/StarHistoryPanel.svelte';
 	import ActivityRhythm from '$lib/components/stats/ActivityRhythm.svelte';
@@ -28,6 +29,7 @@
 	import PortfolioPanel from '$lib/components/stats/PortfolioPanel.svelte';
 	import FunFacts from '$lib/components/stats/FunFacts.svelte';
 	import StatStrip from '$lib/components/stats/StatStrip.svelte';
+	import ProjectLifecycle from '$lib/components/stats/ProjectLifecycle.svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { Skeleton } from '$lib/components/ui/skeleton';
@@ -184,6 +186,27 @@
 			{/if}
 		{/await}
 	{/if}
+
+	{#await data.overview}
+		<Panel title="Project lifecycles" icon={GitBranch} loading />
+	{:then result}
+		{#if result.ok}
+			{#if data.lifecycleActivity}
+				{#await data.lifecycleActivity}
+					<Panel title="Project lifecycles" icon={GitBranch} loading />
+				{:then activity}
+					<ProjectLifecycle
+						repos={result.data.ownedRepos}
+						activity={activity.ok ? activity.data : undefined}
+					/>
+				{/await}
+			{:else}
+				<ProjectLifecycle repos={result.data.ownedRepos} />
+			{/if}
+		{:else}
+			<Panel title="Project lifecycles" icon={GitBranch} error={result.error} />
+		{/if}
+	{/await}
 
 	{#if data.facts}
 		{#await data.facts}

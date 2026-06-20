@@ -13,6 +13,8 @@ import {
 	licenseBreakdown,
 	repoRecency,
 	reposPerYear,
+	lifecycleSegments,
+	projectLifecycles,
 	portfolioScatter,
 	SCATTER_AXES,
 	issueFlow,
@@ -246,7 +248,8 @@ describe('funFacts', () => {
 	const contributions = (years: YearCalendar[]): UserContributions => ({
 		total: years.reduce((sum, year) => sum + year.total, 0),
 		totals: { commits: 0, issues: 0, prs: 0, reviews: 0, restricted: 0 },
-		years
+		years,
+		commitMonths: {}
 	});
 
 	const days2026 = run('2026-06-10', [2, 0, 3, 3, 3, 3, 0, 5, 5]);
@@ -270,6 +273,12 @@ describe('funFacts', () => {
 		// Trailing run is Jun 17 to 18, the longest is the four day Jun 12 to 15 run
 		expect(find(facts, 'Current streak')?.value).toBe('2 days');
 		expect(find(facts, 'Longest streak')?.value).toBe('4 days');
+	});
+
+	it('reports active days as a share of the returned calendar', () => {
+		const fact = find(funFacts(data, rhythm, languages), 'Active days');
+		expect(fact?.value).toBe('78%');
+		expect(fact?.hint).toBe('7 of 9 days, 24 contributions');
 	});
 
 	it('reports the biggest day, best year and top language', () => {
@@ -363,6 +372,86 @@ describe('repoRecency', () => {
 			['Over 2 years', 1]
 		]);
 		expect(out[0].rows?.[1]).toEqual({ label: 'Last push', value: 'Pushed within 30 days' });
+	});
+});
+
+describe('projectLifecycles', () => {
+	it('maps authored repos into valid spans, most starred first', () => {
+		const repos = [
+			repo({
+				name: 'small',
+				url: '/small',
+				stars: 2,
+				createdAt: '2021-01-01T00:00:00Z',
+				pushedAt: '2022-01-01T00:00:00Z'
+			}),
+			repo({
+				name: 'big',
+				url: '/big',
+				stars: 20,
+				createdAt: '2020-01-01T00:00:00Z',
+				pushedAt: '2024-01-01T00:00:00Z',
+				language: { name: 'Go', color: '#00ADD8' }
+			}),
+			repo({ name: 'fork', isFork: true })
+		];
+		const out = projectLifecycles(repos);
+		expect(out.rows.map((row) => row.name)).toEqual(['big', 'small']);
+		expect(out.rows[0]).toMatchObject({
+			url: '/big',
+			stars: 20,
+			language: 'Go',
+			color: '#00ADD8'
+		});
+		expect(out.start).toBe(Date.parse('2020-01-01T00:00:00Z'));
+		expect(out.end).toBe(Date.parse('2024-01-01T00:00:00Z'));
+	});
+
+	it('clamps pushes before creation and drops invalid creation dates', () => {
+		const out = projectLifecycles([
+			repo({
+				name: 'clamped',
+				createdAt: '2024-01-01T00:00:00Z',
+				pushedAt: '2023-01-01T00:00:00Z'
+			}),
+			repo({ name: 'invalid', createdAt: 'nope' })
+		]);
+		expect(out.rows).toHaveLength(1);
+		expect(out.rows[0].end).toBe(out.rows[0].start);
+	});
+
+	it('dims tracked gaps over three months while keeping shorter gaps active', () => {
+		const start = Date.parse('2020-01-01T00:00:00Z');
+		const end = Date.parse('2020-10-01T00:00:00Z');
+		const segments = lifecycleSegments(start, end, ['2020-02-01', '2020-06-01', '2020-08-01']);
+		expect(segments.map((segment) => segment.active)).toEqual([true, false, true]);
+		// The active month itself stays lit, so the dim only covers the empty Mar to May run
+		expect(segments[1]).toMatchObject({
+			start: Date.parse('2020-03-01'),
+			end: Date.parse('2020-06-01')
+		});
+	});
+
+	it('keeps the creation month active even when its marker predates the exact created time', () => {
+		const start = Date.parse('2023-03-15T00:00:00Z');
+		const end = Date.parse('2023-10-01T00:00:00Z');
+		const segments = lifecycleSegments(start, end, ['2023-03-01', '2023-08-01']);
+		expect(segments[0]).toMatchObject({ start, active: true });
+		expect(segments.map((segment) => segment.active)).toEqual([true, false, true]);
+	});
+
+	it('keeps org lifecycles solid when tracked activity is not supplied', () => {
+		const start = Date.parse('2020-01-01T00:00:00Z');
+		const end = Date.parse('2022-01-01T00:00:00Z');
+		expect(lifecycleSegments(start, end)).toEqual([{ start, end, active: true }]);
+	});
+
+	it('returns an empty domain when there are no authored repos', () => {
+		expect(projectLifecycles([repo({ isFork: true })])).toEqual({
+			rows: [],
+			start: 0,
+			end: 0
+		});
 	});
 });
 

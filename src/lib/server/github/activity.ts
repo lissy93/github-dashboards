@@ -4,6 +4,7 @@ import { cached, isCached } from '$lib/server/cache';
 import { logError } from '$lib/errors';
 import { db } from '$lib/server/db';
 import { activityEvent } from '$lib/server/db/schema';
+import { getUserContributions } from '$lib/server/github/user-stats';
 import {
 	mapEvent,
 	prToActivities,
@@ -28,6 +29,7 @@ import type {
 	ActivityPage,
 	ActivityRhythm,
 	ActivityType,
+	RepoActivityMonths,
 	Reactions
 } from '$lib/types';
 
@@ -40,8 +42,7 @@ const SYNC_TTL = 120;
 // Deep history is heavy, so reseed at most daily to refresh titles and new items
 const BACKFILL_TTL = 86400;
 
-// Store rows idempotently. Drops rows missing required columns, dedupes the
-// batch, and fills title/body the thin events feed omits without clobbering
+// Store valid rows once and fill details the event feed omits
 async function store(login: string, events: ActivityEvent[]): Promise<void> {
 	const byId = new Map(
 		events.filter((event) => event.id && event.url).map((event) => [event.id, event])
@@ -130,8 +131,7 @@ const DISCUSSION_QUERY = `
 	}
 `;
 
-// This connection has no orderBy, so page backwards to get the newest first,
-// aliasing the cursor fields so the shared pager reads them the same way
+// Page backwards where GitHub offers no ordering
 const DISCUSSION_COMMENT_QUERY = `
 	query BackfillDiscussionComments($login: String!, $cursor: String) {
 		user(login: $login) {
@@ -209,8 +209,7 @@ async function fetchReviews(login: string): Promise<ReviewItem[]> {
 	return nodes.filter((node) => node.pullRequestReview);
 }
 
-// Run one backfill source, never rejecting so a single flaky connection can not
-// waste the others nor force the whole backfill to re-run on the next scroll
+// Isolate backfill sources so one failure does not waste the others
 async function source<T>(label: string, fetch: () => Promise<T[]>): Promise<T[]> {
 	try {
 		return await fetch();
@@ -220,8 +219,7 @@ async function source<T>(label: string, fetch: () => Promise<T[]>): Promise<T[]>
 	}
 }
 
-// Seed deep history from authored PRs, issues, discussions, comments and reviews,
-// reseeded daily. Heavy, so it runs lazily once a user scrolls, not on page load
+// Seed deeper authored activity at most once a day
 export function backfillActivity(login: string): Promise<{ stored: number }> {
 	return cached(
 		`activity:backfill:${login.toLowerCase()}`,
@@ -279,8 +277,7 @@ export const isRhythmReady = (login: string) => isCached(rhythmKey(login));
 const utc = (part: string) =>
 	sql<number>`extract(${sql.raw(part)} from (${activityEvent.createdAt} at time zone 'UTC'))::int`;
 
-// When a user is active across the tracked timeline: a weekday-by-hour punch card,
-// seeded from the same feed and backfill the activity timeline uses
+// Build the weekday-by-hour punch card from tracked activity
 export function getActivityRhythm(login: string): Promise<ActivityRhythm> {
 	return cached(
 		rhythmKey(login),
@@ -308,6 +305,53 @@ export function getActivityRhythm(login: string): Promise<ActivityRhythm> {
 				})
 			);
 			return { total, punch, peak };
+		},
+		RHYTHM_TTL
+	);
+}
+
+const lifecycleKey = (login: string) => `activity:lifecycle:v5:${login.toLowerCase()}`;
+
+// Whether lifecycle activity is cached, so the stats page can stream cold work
+export const isLifecycleActivityReady = (login: string) => isCached(lifecycleKey(login));
+
+// Merge stored events with commit contribution months, deduped per repo
+export function mergeLifecycleMonths(
+	events: RepoActivityMonths,
+	commits: RepoActivityMonths
+): RepoActivityMonths {
+	const out: Record<string, Set<string>> = {};
+	for (const source of [events, commits]) {
+		for (const [repo, months] of Object.entries(source)) {
+			const target = (out[repo.toLowerCase()] ??= new Set());
+			for (const month of months) target.add(month);
+		}
+	}
+	return Object.fromEntries(
+		Object.entries(out).map(([repo, months]) => [repo, [...months].sort()])
+	);
+}
+
+// Monthly repo activity from stored events and GitHub commit contributions
+export function getLifecycleActivity(login: string): Promise<RepoActivityMonths> {
+	return cached(
+		lifecycleKey(login),
+		async () => {
+			await Promise.allSettled([syncActivity(login), backfillActivity(login)]);
+			const contributions = await getUserContributions(login);
+			const month = sql<string>`to_char(date_trunc('month', ${activityEvent.createdAt}), 'YYYY-MM-01')`;
+			const rows = await db
+				.select({ repo: activityEvent.repo, month })
+				.from(activityEvent)
+				.where(eq(activityEvent.user, login.toLowerCase()))
+				.groupBy(activityEvent.repo, month)
+				.orderBy(activityEvent.repo, month);
+			const events: RepoActivityMonths = {};
+			for (const row of rows) {
+				const key = row.repo.toLowerCase();
+				(events[key] ??= []).push(row.month);
+			}
+			return mergeLifecycleMonths(events, contributions.commitMonths);
 		},
 		RHYTHM_TTL
 	);

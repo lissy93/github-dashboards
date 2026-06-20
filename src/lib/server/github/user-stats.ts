@@ -5,6 +5,7 @@ import { mapLimit } from '$lib/server/concurrency';
 import type {
 	ContributionDay,
 	ContributionTotals,
+	RepoActivityMonths,
 	UserContributions,
 	YearCalendar
 } from '$lib/types';
@@ -12,6 +13,8 @@ import type {
 // Contributions move slowly once a year closes, so cache them for a few hours
 const TTL = 4 * 3600;
 const YEAR_CONCURRENCY = 4;
+const MAX_REPOSITORIES = 100;
+const CONTRIBUTION_DAYS = 100;
 
 const QUERY = `
 	query YearContributions($login: String!, $from: DateTime!, $to: DateTime!) {
@@ -25,10 +28,33 @@ const QUERY = `
 				contributionCalendar {
 					weeks { contributionDays { date contributionCount } }
 				}
+				commitContributionsByRepository(maxRepositories: ${MAX_REPOSITORIES}) {
+					repository { nameWithOwner }
+					first: contributions(first: ${CONTRIBUTION_DAYS}) {
+						nodes { occurredAt }
+						pageInfo { hasNextPage }
+					}
+					last: contributions(last: ${CONTRIBUTION_DAYS}) {
+						nodes { occurredAt }
+						pageInfo { hasPreviousPage }
+					}
+				}
 			}
 		}
 	}
 `;
+
+type RawCommitGroup = {
+	repository: { nameWithOwner: string };
+	first: {
+		nodes: { occurredAt: string }[];
+		pageInfo: { hasNextPage: boolean };
+	};
+	last: {
+		nodes: { occurredAt: string }[];
+		pageInfo: { hasPreviousPage: boolean };
+	};
+};
 
 type RawCollection = {
 	totalCommitContributions: number;
@@ -39,6 +65,7 @@ type RawCollection = {
 	contributionCalendar: {
 		weeks: { contributionDays: { date: string; contributionCount: number }[] }[];
 	};
+	commitContributionsByRepository: RawCommitGroup[];
 };
 
 const EMPTY_TOTALS: ContributionTotals = {
@@ -66,8 +93,33 @@ function flattenDays(raw: RawCollection): ContributionDay[] {
 	);
 }
 
-// One calendar year of daily contributions and split totals
-async function fetchYear(login: string, year: number): Promise<YearCalendar> {
+type FetchedYear = {
+	calendar: YearCalendar;
+	commitMonths: RepoActivityMonths;
+};
+
+const monthOf = (iso: string) => `${iso.slice(0, 7)}-01`;
+const allMonths = (year: number) =>
+	Array.from({ length: 12 }, (_, month) => `${year}-${String(month + 1).padStart(2, '0')}-01`);
+
+// Extract commit months, keeping busy truncated repos conservatively active all year
+export function commitMonthsOf(groups: RawCommitGroup[], year: number): RepoActivityMonths {
+	const out: RepoActivityMonths = {};
+	for (const group of groups) {
+		const first = new Set(group.first.nodes.map((node) => node.occurredAt));
+		const last = new Set(group.last.nodes.map((node) => node.occurredAt));
+		const dates = new Set([...first, ...last]);
+		const overlaps = [...first].some((date) => last.has(date));
+		const truncated =
+			group.first.pageInfo.hasNextPage && group.last.pageInfo.hasPreviousPage && !overlaps;
+		const key = group.repository.nameWithOwner.toLowerCase();
+		out[key] = truncated ? allMonths(year) : [...new Set([...dates].map(monthOf))].sort();
+	}
+	return out;
+}
+
+// One calendar year of contribution totals and per-repo commit months
+async function fetchYear(login: string, year: number): Promise<FetchedYear> {
 	const yearEnd = new Date(Date.UTC(year, 11, 31, 23, 59, 59));
 	const to = yearEnd > new Date() ? new Date() : yearEnd;
 	const from = new Date(Date.UTC(year, 0, 1));
@@ -79,7 +131,10 @@ async function fetchYear(login: string, year: number): Promise<YearCalendar> {
 	const totals = collection ? totalsOf(collection) : EMPTY_TOTALS;
 	const days = collection ? flattenDays(collection) : [];
 	const total = days.reduce((sum, day) => sum + day.count, 0);
-	return { year, total, days, ...totals };
+	return {
+		calendar: { year, total, days, ...totals },
+		commitMonths: collection ? commitMonthsOf(collection.commitContributionsByRepository, year) : {}
+	};
 }
 
 // Calendar years from the account's join year to now
@@ -103,7 +158,7 @@ function sumTotals(years: YearCalendar[]): ContributionTotals {
 	);
 }
 
-const statsKey = (login: string) => `user:contributions:3:${login.toLowerCase()}`;
+const statsKey = (login: string) => `user:contributions:4:${login.toLowerCase()}`;
 
 // Whether contributions are cached, so the page renders inline vs streams
 export const isContributionsCached = (login: string) => isCached(statsKey(login));
@@ -114,13 +169,20 @@ export function getUserContributions(login: string): Promise<UserContributions> 
 		statsKey(login),
 		async () => {
 			const { profile } = await getUserOverview(login);
-			const years = await mapLimit(yearRange(profile.createdAt), YEAR_CONCURRENCY, (year) =>
+			const fetched = await mapLimit(yearRange(profile.createdAt), YEAR_CONCURRENCY, (year) =>
 				fetchYear(login, year)
 			);
+			const years = fetched.map((year) => year.calendar);
 			years.reverse();
 			const totals = sumTotals(years);
 			const total = years.reduce((sum, year) => sum + year.total, 0);
-			return { total, totals, years };
+			const commitMonths: RepoActivityMonths = {};
+			for (const year of fetched) {
+				for (const [repo, months] of Object.entries(year.commitMonths)) {
+					(commitMonths[repo] ??= []).push(...months);
+				}
+			}
+			return { total, totals, years, commitMonths };
 		},
 		TTL
 	);

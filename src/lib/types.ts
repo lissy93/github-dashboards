@@ -100,6 +100,7 @@ export type UserContributions = {
 	total: number;
 	totals: ContributionTotals;
 	years: YearCalendar[];
+	commitMonths: RepoActivityMonths;
 };
 
 // A bounded per-repo dataset with enough context to label sampled results honestly
@@ -118,6 +119,9 @@ export type ActivityRhythm = {
 	punch: number[][];
 	peak: { weekday: number; hour: number; count: number } | null;
 };
+
+// Active months held in Goard's timeline, keyed by lower-case owner/repo
+export type RepoActivityMonths = Record<string, string[]>;
 
 // Normalised activity kinds, shared by the events feed and the GraphQL backfill
 export type ActivityType =

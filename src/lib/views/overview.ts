@@ -5,7 +5,8 @@ import type {
 	ActivityRhythm,
 	UserContributions,
 	LanguageUsage,
-	RepoLang
+	RepoLang,
+	RepoActivityMonths
 } from '$lib/types';
 import type { DisplayError } from '$lib/errors';
 
@@ -19,6 +20,7 @@ export type ContributionsResult = LoadResult<UserContributions>;
 export type LanguagesResult = LoadResult<LanguageUsage[]>;
 export type RepoLanguagesResult = LoadResult<Record<string, RepoLang[]>>;
 export type RhythmResult = LoadResult<ActivityRhythm>;
+export type LifecycleActivityResult = LoadResult<RepoActivityMonths>;
 
 // Trim each task bucket to a short preview while keeping its real total
 export function previewBuckets(data: TaskData, limit: number): TaskData {

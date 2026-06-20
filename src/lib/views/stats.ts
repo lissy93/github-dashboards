@@ -6,6 +6,7 @@ import type {
 	ContributionTotals,
 	LanguageUsage,
 	Repo,
+	RepoActivityMonths,
 	RepoLang,
 	RepoStats,
 	UserContributions,
@@ -350,6 +351,12 @@ export function funFacts(
 	const facts: Fact[] = [];
 
 	const { current, longest } = streaks(byDate);
+	const activeDays = [...byDate.values()].filter((count) => count > 0).length;
+	facts.push({
+		label: 'Active days',
+		value: `${Math.round((activeDays / byDate.size) * 100)}%`,
+		hint: `${formatNumber(activeDays)} of ${formatNumber(byDate.size)} days, ${formatNumber(contributions.total)} contributions`
+	});
 	facts.push({
 		label: 'Current streak',
 		value: dayCount(current.length),
@@ -572,6 +579,106 @@ export function repoRecency(repos: Repo[]): Slice[] {
 			{ label: 'Last push', value: band.hint }
 		]
 	})).filter((slice) => slice.value > 0);
+}
+
+export type LifecycleRow = {
+	name: string;
+	url: string;
+	createdAt: string;
+	pushedAt: string;
+	start: number;
+	end: number;
+	stars: number;
+	language: string;
+	color?: string;
+	archived: boolean;
+	segments: LifecycleSegment[];
+};
+
+export type LifecycleSegment = { start: number; end: number; active: boolean };
+export type LifecycleData = { rows: LifecycleRow[]; start: number; end: number };
+
+export const LIFECYCLE_GAP_MONTHS = 3;
+
+const monthFloor = (time: number) => {
+	const date = new Date(time);
+	return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
+};
+const nextMonth = (time: number) => {
+	const date = new Date(time);
+	return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1);
+};
+const monthStamp = (time: number) => `${new Date(time).toISOString().slice(0, 7)}-01`;
+
+// Walk the repo's months, dimming long quiet runs (the creation month counts as active)
+export function lifecycleSegments(
+	start: number,
+	end: number,
+	months?: string[]
+): LifecycleSegment[] {
+	if (!months) return [{ start, end, active: true }];
+	const active = new Set(months);
+	const flags: LifecycleSegment[] = [];
+	for (let month = monthFloor(start); month <= end; month = nextMonth(month)) {
+		const from = Math.max(start, month);
+		const to = Math.min(end, nextMonth(month));
+		if (to > from) flags.push({ start: from, end: to, active: active.has(monthStamp(month)) });
+	}
+	if (!flags.length) return [{ start, end, active: true }];
+
+	// A quiet run only dims once it reaches the gap, shorter pauses stay active
+	for (let index = 0; index < flags.length; ) {
+		if (flags[index].active) {
+			index++;
+			continue;
+		}
+		let until = index;
+		while (until < flags.length && !flags[until].active) until++;
+		if (until - index < LIFECYCLE_GAP_MONTHS)
+			for (let quiet = index; quiet < until; quiet++) flags[quiet].active = true;
+		index = until;
+	}
+
+	// Merge neighbouring months that share a state into one segment
+	const segments: LifecycleSegment[] = [];
+	for (const flag of flags) {
+		const previous = segments.at(-1);
+		if (previous?.active === flag.active) previous.end = flag.end;
+		else segments.push(flag);
+	}
+	return segments;
+}
+
+// Turn authored repos into creation-to-last-push spans, most starred first
+export function projectLifecycles(repos: Repo[], activity?: RepoActivityMonths): LifecycleData {
+	const rows = authored(repos)
+		.map((repo): LifecycleRow | null => {
+			const start = Date.parse(repo.createdAt);
+			const pushed = Date.parse(repo.pushedAt);
+			if (!Number.isFinite(start)) return null;
+			const end = Number.isFinite(pushed) ? Math.max(start, pushed) : start;
+			return {
+				name: repo.name,
+				url: repo.url,
+				createdAt: repo.createdAt,
+				pushedAt: Number.isFinite(pushed) ? repo.pushedAt : repo.createdAt,
+				start,
+				end,
+				stars: repo.stars,
+				language: repo.language?.name ?? 'Other',
+				color: repo.language?.color ?? undefined,
+				archived: repo.isArchived,
+				segments: lifecycleSegments(start, end, activity?.[repo.nameWithOwner.toLowerCase()])
+			};
+		})
+		.filter((row): row is LifecycleRow => !!row)
+		.sort((first, second) => second.stars - first.stars || second.end - first.end);
+	if (!rows.length) return { rows: [], start: 0, end: 0 };
+	return {
+		rows,
+		start: Math.min(...rows.map((row) => row.start)),
+		end: Math.max(...rows.map((row) => row.end))
+	};
 }
 
 // An axis the portfolio scatter can plot, lazy axes read the loaded metric maps
