@@ -1,0 +1,23 @@
+# Mirrors the full goard repo over to a Codeberg mirror
+# (for all you non-Microsoft folks). Runs weekly and on demand.
+name: 🪞 Mirror
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 3 * * 0' # At 03:30 on Sunday
+
+permissions:
+  contents: read
+
+jobs:
+  codeberg:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: lissy93/repo-mirror-action@v1.5.0
+        with:
+          ssh_key: ${{ secrets.CODEBERG_SSH }}
+          host: git@codeberg.org
+          user: alicia
+          repo: goard
+          force_push: false

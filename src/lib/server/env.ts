@@ -12,10 +12,22 @@ const schema = z.object({
 	TRAFFIC_OWNER: z.string().default('')
 });
 
-const parsed = schema.safeParse(env);
-if (!parsed.success) {
-	const missing = parsed.error.issues.map((issue) => issue.path.join('.')).join(', ');
-	throw new AppError('internal', `Invalid environment: ${missing}`, { expose: false });
+type Config = z.infer<typeof schema>;
+
+let cached: Config | undefined;
+
+// validate lazily so the build and tests don't need a populated env
+function load(): Config {
+	if (cached) return cached;
+	const parsed = schema.safeParse(env);
+	if (!parsed.success) {
+		const missing = parsed.error.issues.map((issue) => issue.path.join('.')).join(', ');
+		throw new AppError('internal', `Invalid environment: ${missing}`, { expose: false });
+	}
+	cached = parsed.data;
+	return cached;
 }
 
-export const config = parsed.data;
+export const config: Config = new Proxy({} as Config, {
+	get: (_target, prop) => load()[prop as keyof Config]
+});
