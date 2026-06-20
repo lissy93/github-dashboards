@@ -1,0 +1,170 @@
+# Builds goard and drafts a GitHub release with the compiled bundle,
+# a SHA256 checksum, and a SLSA build-provenance attestation
+#
+# Triggered by:
+# - Push of any X.Y.Z git tag (created by the Tag workflow)
+# - Manual dispatch with any existing tag
+
+name: 🚀 Release
+
+on:
+  push:
+    tags: ['*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing git tag to release (e.g. 1.2.0)'
+        required: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24'
+
+jobs:
+  release:
+    name: 🚀 Build & Draft Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - name: 🛎️ Checkout tag
+        uses: actions/checkout@v6
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v6 # zizmor: ignore[cache-poisoning]
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: 📥 Install dependencies
+        run: npm ci
+
+      - name: 🏗️ Build app
+        run: npm run build
+
+      - name: 📦 Package release tarball
+        id: package
+        run: |
+          set -euo pipefail
+          STAGING="goard-release-staging"
+          mkdir -p "$STAGING"
+          cp -r build              "$STAGING/"
+          cp    package.json       "$STAGING/"
+          cp    package-lock.json  "$STAGING/"
+          cp    .env.example       "$STAGING/"
+          TARBALL="goard-${TAG}.tar.gz"
+          tar -czf "$TARBALL" -C "$STAGING" .
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+          echo "size=$(du -h "$TARBALL" | cut -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: 🔢 Generate SHA256 checksum
+        id: checksum
+        env:
+          TARBALL: ${{ steps.package.outputs.tarball }}
+        run: |
+          set -euo pipefail
+          CHECKSUM="${TARBALL}.sha256"
+          sha256sum "$TARBALL" > "$CHECKSUM"
+          echo "file=$CHECKSUM" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(cut -d' ' -f1 "$CHECKSUM")" >> "$GITHUB_OUTPUT"
+
+      - name: 🪪 Generate build provenance attestation
+        id: attest
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: ${{ steps.package.outputs.tarball }}
+          show-summary: false
+
+      - name: 📤 Rename attestation bundle
+        id: attest_asset
+        env:
+          TARBALL: ${{ steps.package.outputs.tarball }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          OUT="${TARBALL}.intoto.jsonl"
+          cp "$BUNDLE" "$OUT"
+          echo "file=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: 🔎 Find previous release tag
+        id: prev
+        env:
+          CURRENT_TAG: ${{ env.TAG }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          PREV=$({ echo "$CURRENT_TAG"; git tag | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; } \
+            | sort -uV \
+            | awk -v cur="$CURRENT_TAG" '$0 == cur { print prev; exit } { prev = $0 }')
+          echo "tag=$PREV" >> "$GITHUB_OUTPUT"
+
+      - name: 📝 Create draft release
+        id: release
+        uses: softprops/action-gh-release@v3 # zizmor: ignore[superfluous-actions]
+        with:
+          tag_name: ${{ env.TAG }}
+          name: Release ${{ env.TAG }}
+          draft: true
+          prerelease: false
+          generate_release_notes: true
+          previous_tag: ${{ steps.prev.outputs.tag }}
+          fail_on_unmatched_files: true
+          files: |
+            ${{ steps.package.outputs.tarball }}
+            ${{ steps.checksum.outputs.file }}
+            ${{ steps.attest_asset.outputs.file }}
+          token: ${{ secrets.BOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: 📋 Job summary
+        if: always()
+        env:
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          PREV_TAG: ${{ steps.prev.outputs.tag }}
+          RELEASE_URL: ${{ steps.release.outputs.url }}
+          TARBALL: ${{ steps.package.outputs.tarball }}
+          SIZE: ${{ steps.package.outputs.size }}
+          SHA256: ${{ steps.checksum.outputs.sha256 }}
+          ATTEST_URL: ${{ steps.attest.outputs.attestation-url }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## 🚀 goard Release ${TAG}"
+            echo ""
+            echo "| Item | Value |"
+            echo "|------|-------|"
+            echo "| New Tag | [\`${TAG}\`](${REPO_URL}/releases/tag/${TAG}) |"
+            if [ -n "$PREV_TAG" ]; then
+              echo "| Previous Tag | [\`${PREV_TAG}\`](${REPO_URL}/releases/tag/${PREV_TAG}) |"
+            fi
+            if [ -n "$TARBALL" ]; then
+              echo "| Tarball | \`${TARBALL}\` (${SIZE:-?}) |"
+            fi
+            if [ -n "$SHA256" ]; then
+              echo "| SHA256 | \`${SHA256}\` |"
+            fi
+            if [ -n "$ATTEST_URL" ]; then
+              echo "| Attestation | ✅ [View](${ATTEST_URL}) |"
+            else
+              echo "| Attestation | ❌ Failed |"
+            fi
+            if [ -n "$RELEASE_URL" ]; then
+              echo "| Draft release | ✅ [Review and publish](${RELEASE_URL}) |"
+            else
+              echo "| Draft release | ❌ Failed |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
