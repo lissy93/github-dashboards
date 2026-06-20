@@ -20,6 +20,9 @@ jobs:
   changes:
     name: 🔎 Detect Changes
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       src: ${{ steps.filter.outputs.src }}
       docker: ${{ steps.filter.outputs.docker }}
