@@ -85,6 +85,7 @@ jobs:
 
       - name: 🪪 Generate build provenance attestation
         id: attest
+        if: github.event.repository.private == false # continute only if repo is public
         uses: actions/attest-build-provenance@v4
         with:
           subject-path: ${{ steps.package.outputs.tarball }}
@@ -92,6 +93,7 @@ jobs:
 
       - name: 📤 Rename attestation bundle
         id: attest_asset
+        if: steps.attest.outcome == 'success'
         env:
           TARBALL: ${{ steps.package.outputs.tarball }}
           BUNDLE: ${{ steps.attest.outputs.bundle-path }}
@@ -140,6 +142,7 @@ jobs:
           SIZE: ${{ steps.package.outputs.size }}
           SHA256: ${{ steps.checksum.outputs.sha256 }}
           ATTEST_URL: ${{ steps.attest.outputs.attestation-url }}
+          ATTEST_OUTCOME: ${{ steps.attest.outcome }}
         run: |
           set -euo pipefail
           {
@@ -159,6 +162,8 @@ jobs:
             fi
             if [ -n "$ATTEST_URL" ]; then
               echo "| Attestation | ✅ [View](${ATTEST_URL}) |"
+            elif [ "$ATTEST_OUTCOME" = "skipped" ]; then
+              echo "| Attestation | ⏭️ Skipped (private repo) |"
             else
               echo "| Attestation | ❌ Failed |"
             fi
