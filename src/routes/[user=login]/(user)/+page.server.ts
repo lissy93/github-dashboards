@@ -9,7 +9,7 @@ import type { PageServerLoad } from './$types';
 const TASK_PREVIEW = 5;
 const ACTIVITY_PREVIEW = 12;
 
-export const load: PageServerLoad = async ({ params, parent }) => {
+export const load: PageServerLoad = async ({ params, parent, locals }) => {
 	const user = params.user;
 	const { isOrg } = await parent();
 
@@ -37,7 +37,7 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 	return {
 		user,
 		isOrg,
-		canSeeTraffic: canSeeTraffic(user),
+		canSeeTraffic: canSeeTraffic(user, locals.user?.login),
 		overview: overviewReady ? await overview : overview,
 		task: taskReady ? await task : task,
 		activity

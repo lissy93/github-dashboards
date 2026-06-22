@@ -4,7 +4,11 @@
 	import { Input } from '$lib/components/ui/input';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import ThemeToggle from '$lib/components/layout/ThemeToggle.svelte';
+	import AuthMenu from '$lib/components/layout/AuthMenu.svelte';
 	import { APP_NAME, paths } from '$lib/config';
+	import type { SessionUser } from '$lib/types';
+
+	let { user, loginEnabled }: { user: SessionUser | null; loginEnabled: boolean } = $props();
 
 	let query = $state('');
 
@@ -31,5 +35,6 @@
 			<Input bind:value={query} placeholder="Go to user or org" class="h-9 pl-8" />
 		</form>
 		<ThemeToggle />
+		<AuthMenu {user} {loginEnabled} />
 	</div>
 </header>

@@ -12,9 +12,10 @@ export type TrafficMap = Record<string, { views: number; uniques: number; clones
 
 // Per-repo traffic for the owner's repos, used to enable the Traffic sort.
 // Gated to the owner since traffic is private, and bounded to stay within limits.
-export const GET: RequestHandler = async ({ params, setHeaders }) => {
+export const GET: RequestHandler = async ({ params, setHeaders, locals }) => {
 	setHeaders({ 'cache-control': 'private, no-store' });
-	if (!canSeeTraffic(params.user)) return json({ available: false, repos: {} as TrafficMap });
+	if (!canSeeTraffic(params.user, locals.user?.login))
+		return json({ available: false, repos: {} as TrafficMap });
 
 	try {
 		const { ownedRepos } = await getUserOverview(params.user);

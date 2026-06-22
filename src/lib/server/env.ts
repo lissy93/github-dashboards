@@ -8,8 +8,13 @@ const schema = z.object({
 	GITHUB_API: z.string().url().default('https://api.github.com'),
 	GITHUB_GRAPHQL: z.string().url().default('https://api.github.com/graphql'),
 	CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(900),
-	// Login allowed to see private traffic insights, until per-user auth exists
-	TRAFFIC_OWNER: z.string().default('')
+	// GitHub OAuth app, optional so the app still runs on the shared token alone
+	GITHUB_CLIENT_ID: z.string().default(''),
+	GITHUB_CLIENT_SECRET: z.string().default(''),
+	// Secret used to encrypt the session cookie, required once OAuth is enabled
+	SESSION_SECRET: z.string().default(''),
+	GITHUB_OAUTH_AUTHORIZE: z.string().url().default('https://github.com/login/oauth/authorize'),
+	GITHUB_OAUTH_TOKEN: z.string().url().default('https://github.com/login/oauth/access_token')
 });
 
 type Config = z.infer<typeof schema>;

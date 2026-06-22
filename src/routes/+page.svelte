@@ -1,13 +1,18 @@
 <script lang="ts">
-	import { ArrowRight } from '@lucide/svelte';
+	import { ArrowRight, TriangleAlert } from '@lucide/svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { Input } from '$lib/components/ui/input';
 	import { Button } from '$lib/components/ui/button';
 	import Icon from '$lib/components/common/Icon.svelte';
+	import GithubMark from '$lib/components/common/GithubMark.svelte';
 	import { APP_NAME, APP_DESCRIPTION, paths } from '$lib/config';
+
+	let { data } = $props();
 
 	let query = $state('');
 	const examples = ['sveltejs', 'microsoft', 'torvalds'];
+	const loginFailed = $derived(page.url.searchParams.get('login') === 'failed');
 
 	// Navigate to a board for the given login
 	function open(login: string) {
@@ -46,4 +51,26 @@
 			>
 		{/each}
 	</div>
+
+	{#if data.loginEnabled && !data.user}
+		<div class="space-y-3 border-t pt-6">
+			<p class="text-muted-foreground text-sm">Sign in for higher rate limits and your own board</p>
+			<Button href="/auth/github" variant="outline" class="mx-auto h-10">
+				<GithubMark />Login with GitHub
+			</Button>
+		</div>
+	{:else if data.user}
+		<div class="text-muted-foreground border-t pt-6 text-sm">
+			Signed in as
+			<a href={paths.user(data.user.login)} class="text-foreground underline underline-offset-4"
+				>{data.user.login}</a
+			>
+		</div>
+	{/if}
+
+	{#if loginFailed}
+		<p class="text-warning flex items-center justify-center gap-2 text-sm">
+			<Icon icon={TriangleAlert} size={14} />GitHub login failed, please try again
+		</p>
+	{/if}
 </section>

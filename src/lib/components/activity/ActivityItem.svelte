@@ -52,7 +52,7 @@
 			<p class="text-muted-foreground line-clamp-2 text-sm">{event.body}</p>
 		{/if}
 		{#if event.reactions}
-			<Reactions reactions={event.reactions} />
+			<Reactions {event} />
 		{/if}
 	</div>
 </article>

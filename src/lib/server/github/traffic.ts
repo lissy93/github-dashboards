@@ -1,13 +1,12 @@
-import { sql } from 'drizzle-orm';
+import { inArray, sql } from 'drizzle-orm';
 import { rest } from '$lib/server/github/client';
 import { cached } from '$lib/server/cache';
 import { db } from '$lib/server/db';
 import { repoTrafficDaily } from '$lib/server/db/schema';
-import { config } from '$lib/server/env';
 import { AppError } from '$lib/errors';
+import type { TrafficItem, TrafficDay } from '$lib/types';
 
 export type TrafficCount = { count: number; uniques: number };
-export type TrafficItem = { label: string; sublabel?: string; count: number; uniques: number };
 export type RepoTrafficSummary = { available: boolean; views: TrafficCount; clones: TrafficCount };
 export type RepoTraffic = RepoTrafficSummary & {
 	topPaths: TrafficItem[];
@@ -26,9 +25,10 @@ const EMPTY: RepoTrafficSummary = {
 	clones: { count: 0, uniques: 0 }
 };
 
-// Whether traffic, which is private to repo admins, may be shown for this login
-export function canSeeTraffic(user: string): boolean {
-	return config.TRAFFIC_OWNER !== '' && config.TRAFFIC_OWNER.toLowerCase() === user.toLowerCase();
+// Traffic is private to repo admins, so only the signed-in owner viewing their
+// own board may see it. viewerLogin comes from the session, null when logged out
+export function canSeeTraffic(owner: string, viewerLogin: string | null | undefined): boolean {
+	return !!viewerLogin && viewerLogin.toLowerCase() === owner.toLowerCase();
 }
 
 // REST call that treats a permission 403 as "no access" rather than an error
@@ -101,6 +101,25 @@ export function getRepoTrafficSummary(owner: string, repo: string): Promise<Repo
 	return cached(`repo:traffic-summary:${owner}/${repo}`.toLowerCase(), () =>
 		fetchSummary(owner, repo)
 	);
+}
+
+// All stored daily traffic for a set of repos, our accumulated history beyond
+// GitHub's rolling 14 day window. Keyed back to each name's original case
+export async function getTrafficHistory(names: string[]): Promise<TrafficDay[]> {
+	if (!names.length) return [];
+	const byKey = new Map(names.map((name) => [name.toLowerCase(), name]));
+	const rows = await db
+		.select()
+		.from(repoTrafficDaily)
+		.where(inArray(repoTrafficDaily.repo, [...byKey.keys()]));
+	return rows.map((row) => ({
+		repo: byKey.get(row.repo) ?? row.repo,
+		day: row.day,
+		views: row.views,
+		uniqueViews: row.uniqueViews,
+		clones: row.clones,
+		uniqueClones: row.uniqueClones
+	}));
 }
 
 // Full insights for one repo: summary plus top paths and referrers

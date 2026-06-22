@@ -3,25 +3,38 @@ import { db } from '$lib/server/db';
 import { cacheEntry } from '$lib/server/db/schema';
 import { config } from '$lib/server/env';
 import { createLogger } from '$lib/logger';
-import { toAppError } from '$lib/errors';
+import { toAppError, isConnectionError } from '$lib/errors';
 
 const log = createLogger('cache');
 
 // Dedupes concurrent fetches for the same key so we never fire duplicate work
 const inflight = new Map<string, Promise<unknown>>();
 
+// Latest known storage health, so the UI can warn when we are serving uncached
+let storageReachable = true;
+export const isStorageHealthy = () => storageReachable;
+
 function isFresh(fetchedAt: Date, ttl: number): boolean {
 	return Date.now() - fetchedAt.getTime() < ttl * 1000;
 }
 
-// Whether a key has any stored value, fresh or stale (served instantly either way)
+// Whether a key has any stored value, fresh or stale (served instantly either way).
+// This is only a hint for SSR-vs-stream gating, so a DB failure falls back to
+// "not cached" (stream it) rather than crashing the page that asked.
 export async function isCached(key: string): Promise<boolean> {
-	const [existing] = await db
-		.select({ key: cacheEntry.key })
-		.from(cacheEntry)
-		.where(eq(cacheEntry.key, key))
-		.limit(1);
-	return Boolean(existing);
+	try {
+		const [existing] = await db
+			.select({ key: cacheEntry.key })
+			.from(cacheEntry)
+			.where(eq(cacheEntry.key, key))
+			.limit(1);
+		storageReachable = true;
+		return Boolean(existing);
+	} catch (error) {
+		if (isConnectionError(error)) storageReachable = false;
+		log.warn(`cache probe failed for ${key}`, { code: toAppError(error).code });
+		return false;
+	}
 }
 
 // Fetch fresh data and store it, sharing one promise across concurrent callers
@@ -52,7 +65,18 @@ export async function cached<T>(
 	fetcher: () => Promise<T>,
 	ttl: number = config.CACHE_TTL_SECONDS
 ): Promise<T> {
-	const [existing] = await db.select().from(cacheEntry).where(eq(cacheEntry.key, key)).limit(1);
+	let existing: typeof cacheEntry.$inferSelect | undefined;
+	try {
+		[existing] = await db.select().from(cacheEntry).where(eq(cacheEntry.key, key)).limit(1);
+		storageReachable = true;
+	} catch (error) {
+		if (!isConnectionError(error)) throw error;
+		// storage is down, serve straight from the source so the page still works
+		storageReachable = false;
+		log.warn(`storage unavailable, serving live for ${key}`);
+		return fetcher();
+	}
+
 	if (existing && isFresh(existing.fetchedAt, ttl)) return existing.value as T;
 
 	if (existing) {

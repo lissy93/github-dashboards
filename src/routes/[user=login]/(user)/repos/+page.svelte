@@ -1,10 +1,9 @@
 <script lang="ts">
 	import { BookMarked } from '@lucide/svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
-	import RepoGrid from '$lib/components/repo/RepoGrid.svelte';
+	import OwnedReposGrid from '$lib/components/repo/OwnedReposGrid.svelte';
 	import RepoCardSkeleton from '$lib/components/repo/RepoCardSkeleton.svelte';
 	import ErrorState from '$lib/components/common/ErrorState.svelte';
-	import { repoConfig } from '$lib/views/repos';
 	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
 
@@ -28,7 +27,7 @@
 	{#if result.ok}
 		{@const repos = result.data.ownedRepos}
 		<Panel title="Repositories" icon={BookMarked} empty={repos.length === 0}>
-			<RepoGrid {repos} config={repoConfig(repos)} detailed pageSize={24} />
+			<OwnedReposGrid user={data.user} {repos} canSeeTraffic={data.canSeeTraffic} pageSize={24} />
 		</Panel>
 	{:else}
 		<ErrorState error={result.error} />

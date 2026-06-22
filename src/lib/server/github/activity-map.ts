@@ -1,8 +1,7 @@
 import { GITHUB_WEB } from '$lib/config';
+import { REACTION_KEYS } from '$lib/reactions';
 import type { ActivityEvent, Reactions } from '$lib/types';
 
-// GitHub reaction content names, the canonical keys both sources normalise to
-const REACTION_KEYS = ['+1', '-1', 'laugh', 'hooray', 'confused', 'heart', 'rocket', 'eyes'];
 // GraphQL reactionGroups use enum content names, mapped back to the canonical keys
 const GQL_REACTION: Record<string, string> = {
 	THUMBS_UP: '+1',

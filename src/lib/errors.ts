@@ -7,6 +7,7 @@ export type ErrorCode =
 	| 'rate_limited'
 	| 'upstream'
 	| 'bad_input'
+	| 'unavailable'
 	| 'internal';
 
 const STATUS: Record<ErrorCode, number> = {
@@ -16,8 +17,35 @@ const STATUS: Record<ErrorCode, number> = {
 	rate_limited: 429,
 	upstream: 502,
 	bad_input: 400,
+	unavailable: 503,
 	internal: 500
 };
+
+// Connection-level failures, mostly the database being unreachable
+const CONNECTION_CODES = new Set([
+	'ECONNREFUSED',
+	'ENOTFOUND',
+	'ETIMEDOUT',
+	'ECONNRESET',
+	'EHOSTUNREACH',
+	'EPIPE',
+	'CONNECTION_REFUSED',
+	'CONNECTION_ENDED',
+	'CONNECTION_DESTROYED',
+	'CONNECTION_CLOSED',
+	'CONNECTION_CONNECT_TIMEOUT'
+]);
+
+// Walk the cause chain to spot a refused or dropped connection
+export function isConnectionError(error: unknown): boolean {
+	let current: unknown = error;
+	while (current instanceof Error) {
+		const code = (current as { code?: unknown }).code;
+		if (typeof code === 'string' && CONNECTION_CODES.has(code)) return true;
+		current = (current as { cause?: unknown }).cause;
+	}
+	return false;
+}
 
 // App-wide error with a code, http status and a message safe to show users
 export class AppError extends Error {
@@ -40,6 +68,11 @@ export class AppError extends Error {
 // Coerce anything thrown into a known AppError
 export function toAppError(error: unknown): AppError {
 	if (error instanceof AppError) return error;
+	if (isConnectionError(error))
+		return new AppError('unavailable', 'Could not reach the database', {
+			cause: error,
+			expose: true
+		});
 	if (error instanceof Error)
 		return new AppError('internal', error.message, { cause: error, expose: false });
 	return new AppError('internal', 'Unexpected error', { cause: error, expose: false });
@@ -49,6 +82,11 @@ export function toAppError(error: unknown): AppError {
 export function logError(scope: string, error: unknown): AppError {
 	const appError = toAppError(error);
 	const log = createLogger(scope);
+	// A storage outage is a handled degradation, keep it to a compact warning
+	if (appError.code === 'unavailable') {
+		log.warn(appError.message, { code: appError.code });
+		return appError;
+	}
 	const meta = { code: appError.code, cause: appError.cause };
 	if (appError.status >= 500) log.error(appError.message, meta);
 	else log.warn(appError.message, meta);

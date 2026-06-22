@@ -103,7 +103,10 @@ export function activitySummary(event: ActivityEvent): string {
 			return 'published a release';
 		case 'push': {
 			const count = p.count ?? 0;
-			return `pushed ${count} commit${count === 1 ? '' : 's'}${p.branch ? ` to ${p.branch}` : ''}`;
+			const target = p.branch ? ` to ${p.branch}` : '';
+			// A 0-commit push is a force-push or no-op ref update, so skip the misleading count
+			if (count === 0) return `pushed${target}`;
+			return `pushed ${count} commit${count === 1 ? '' : 's'}${target}`;
 		}
 		case 'star':
 			return 'starred';

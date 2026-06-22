@@ -2,7 +2,7 @@ import { cached } from '$lib/server/cache';
 import { getUserOverview } from '$lib/server/github/user';
 import { mapLimit } from '$lib/server/concurrency';
 import { createLogger } from '$lib/logger';
-import { AppError } from '$lib/errors';
+import { AppError, toAppError } from '$lib/errors';
 import type { OwnedRepoData, Repo } from '$lib/types';
 
 const MAX_REPOS = 150;
@@ -31,7 +31,9 @@ export function enrichOwnedRepos<T>(
 					if (value !== null) out[repo.nameWithOwner] = value;
 				} catch (error) {
 					failures += 1;
-					log.warn(`${scope} failed for ${repo.nameWithOwner}`, error);
+					log.warn(`${scope} failed for ${repo.nameWithOwner}`, {
+						code: toAppError(error).code
+					});
 				}
 			});
 			if (failures > Math.floor(targets.length * MAX_FAILURE_RATE)) {

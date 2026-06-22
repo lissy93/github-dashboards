@@ -1,4 +1,5 @@
 import { config } from '$lib/server/env';
+import { activeToken } from '$lib/server/auth/context';
 import { AppError, type ErrorCode } from '$lib/errors';
 import { createLogger } from '$lib/logger';
 
@@ -38,10 +39,10 @@ function release(): void {
 	else active--;
 }
 
-// headers sent with every GitHub request
+// headers sent with every GitHub request, using the logged-in token when present
 function baseHeaders(): Record<string, string> {
 	return {
-		Authorization: `Bearer ${config.GITHUB_TOKEN}`,
+		Authorization: `Bearer ${activeToken()}`,
 		'User-Agent': 'goard',
 		Accept: 'application/vnd.github+json'
 	};

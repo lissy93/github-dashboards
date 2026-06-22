@@ -1,7 +1,7 @@
 import { graphql } from '$lib/server/github/client';
 import { snapshotStars } from '$lib/server/github/stars';
 import { cached, isCached } from '$lib/server/cache';
-import { AppError } from '$lib/errors';
+import { AppError, toAppError } from '$lib/errors';
 import { createLogger } from '$lib/logger';
 import type { Repo, UserOverview, UserProfile } from '$lib/types';
 
@@ -288,11 +288,11 @@ export function getUserOverview(login: string): Promise<UserOverview> {
 
 		const ownedRepos = owned.nodes.map(mapRepo);
 
-		// Record today's star counts so deltas can build up over time
+		// Record today's star counts so deltas can build up over time, best effort
 		try {
 			await snapshotStars(ownedRepos);
 		} catch (error) {
-			log.warn(`star snapshot failed for ${login}`, error);
+			log.warn(`star snapshot failed for ${login}`, { code: toAppError(error).code });
 		}
 
 		return {
