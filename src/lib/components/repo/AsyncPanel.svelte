@@ -31,6 +31,11 @@
 	>
 		{#if res.ok}
 			{@render children(res.data)}
+		{:else if res.error.pending}
+			<p class="text-muted-foreground flex items-center gap-2 text-sm">
+				<span class="bg-muted-foreground/60 size-2 shrink-0 animate-pulse rounded-full"></span>
+				{res.error.message}
+			</p>
 		{:else}
 			<p class="text-danger text-sm">{res.error.message}</p>
 		{/if}

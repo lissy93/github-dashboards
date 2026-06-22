@@ -8,17 +8,14 @@
 		Code,
 		FileCode
 	} from '@lucide/svelte';
-	import type { Component } from 'svelte';
-	import * as Card from '$lib/components/ui/card';
-	import StatTile from '$lib/components/common/StatTile.svelte';
+	import StatTileGrid from '$lib/components/common/StatTileGrid.svelte';
+	import type { Tile } from '$lib/components/common/StatTileGrid.svelte';
 	import { repoTotals } from '$lib/views/stats';
 	import { compactNumber, formatNumber, formatSize } from '$lib/format';
 	import type { ContributionsResult, LanguagesResult, OverviewResult } from '$lib/views/overview';
 
 	// Lines of code are estimated from byte size at this average line length
 	const AVG_LINE_LENGTH = 45;
-
-	type Tile = { label: string; value: string; icon: Component; hint?: string };
 	let {
 		overview,
 		contributions,
@@ -89,11 +86,7 @@
 
 {#if tiles.length}
 	<div class="space-y-2">
-		<Card.Root class="grid grid-cols-2 gap-4 p-4 sm:grid-cols-4 lg:grid-cols-7">
-			{#each tiles as tile (tile.label)}
-				<StatTile label={tile.label} value={tile.value} icon={tile.icon} hint={tile.hint} />
-			{/each}
-		</Card.Root>
+		<StatTileGrid {tiles} />
 		{#if coverageText}
 			<p class="text-muted-foreground px-1 text-xs">{coverageText}</p>
 		{/if}

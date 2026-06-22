@@ -7,7 +7,6 @@ import {
 	Activity,
 	ListTodo,
 	GitPullRequest,
-	Star,
 	Workflow,
 	Users,
 	ShieldCheck
@@ -80,7 +79,7 @@ const REPO_SECTION_ICONS: Record<string, IconComponent> = {
 	tasks: ListTodo,
 	activity: Activity,
 	traffic: ChartArea,
-	stars: Star,
+	stats: ChartColumn,
 	workflows: Workflow,
 	people: Users,
 	security: ShieldCheck

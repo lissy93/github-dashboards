@@ -26,7 +26,7 @@ export const REPO_NAV = [
 	{ label: 'Tasks', section: 'tasks' },
 	{ label: 'Activity', section: 'activity' },
 	{ label: 'Traffic', section: 'traffic' },
-	{ label: 'Stars', section: 'stars' },
+	{ label: 'Stats', section: 'stats' },
 	{ label: 'Workflows', section: 'workflows' },
 	{ label: 'People', section: 'people' },
 	{ label: 'Security', section: 'security' }

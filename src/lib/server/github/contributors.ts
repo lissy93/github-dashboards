@@ -1,17 +1,12 @@
 import { restResponse } from '$lib/server/github/client';
+import { fetchStatsEndpoint, statsPending } from '$lib/server/github/stats-endpoint';
 import { enrichOwnedRepos } from '$lib/server/github/enrich';
 import { cached, isCached } from '$lib/server/cache';
 import { AppError } from '$lib/errors';
-import { createLogger } from '$lib/logger';
 import type { OwnedRepoData } from '$lib/types';
-
-const log = createLogger('contributors');
 
 const DAY = 86400;
 
-// The stats endpoint is computed on demand, so poll a few times while GitHub builds it
-const STATS_RETRIES = 5;
-const STATS_RETRY_MS = 1200;
 // Compact activity sparkline, the repo's weeks folded into this many buckets
 const SPARK_BUCKETS = 24;
 
@@ -97,26 +92,20 @@ export function summariseContributors(raw: RawStat[]): ContributorRow[] {
 		.sort((first, second) => second.contributions - first.contributions);
 }
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// Weekly commit stats, retried while GitHub returns 202 as it computes the cache
-async function fetchStats(owner: string, name: string): Promise<RawStat[]> {
-	for (let attempt = 0; attempt < STATS_RETRIES; attempt++) {
-		const res = await restResponse(`/repos/${owner}/${name}/stats/contributors`);
-		if (!res || res.status === 204) return [];
-		if (res.status === 202) {
-			log.info(`stats warming for ${owner}/${name}, retrying`);
-			await delay(STATS_RETRY_MS);
-			continue;
-		}
-		const body = await res.json();
-		return Array.isArray(body) ? (body as RawStat[]) : [];
-	}
-	throw new AppError('upstream', 'Contributor stats are still being computed', { expose: false });
-}
-
 async function fetchContributors(owner: string, name: string): Promise<RepoContributors> {
-	const [stats, total] = await Promise.all([fetchStats(owner, name), fetchCount(owner, name)]);
+	const [stats, total] = await Promise.all([
+		fetchStatsEndpoint<RawStat>(
+			`/repos/${owner}/${name}/stats/contributors`,
+			`contributor stats for ${owner}/${name}`
+		),
+		fetchCount(owner, name)
+	]);
+	if (stats === null)
+		statsPending(
+			repoKey(owner, name),
+			() => getRepoContributors(owner, name),
+			`contributor stats for ${owner}/${name}`
+		);
 	const contributors = summariseContributors(stats);
 	// The stats endpoint tops out at 100 contributors, so flag when there are more
 	const sampled = total > contributors.length;

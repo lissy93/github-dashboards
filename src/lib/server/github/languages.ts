@@ -122,3 +122,40 @@ export async function getRepoLanguages(login: string): Promise<Record<string, Re
 export async function getOwnedLanguages(login: string): Promise<LanguageUsage[]> {
 	return (await getLanguageData(login)).totals;
 }
+
+const ONE_REPO_QUERY = `
+	query OneRepoLanguages($owner: String!, $name: String!) {
+		repository(owner: $owner, name: $name) {
+			languages(first: 30, orderBy: { field: SIZE, direction: DESC }) {
+				edges { size node { name color } }
+			}
+		}
+	}
+`;
+
+const oneRepoKey = (owner: string, name: string) =>
+	`repo:languages:v1:${owner}/${name}`.toLowerCase();
+
+export const isRepoLanguageUsageCached = (owner: string, name: string) =>
+	isCached(oneRepoKey(owner, name));
+
+// Byte breakdown by language for a single repo, coloured from GitHub's palette
+export function getRepoLanguageUsage(owner: string, name: string): Promise<LanguageUsage[]> {
+	return cached(
+		oneRepoKey(owner, name),
+		async () => {
+			const { repository } = await graphql<{ repository: RepoLanguages }>(ONE_REPO_QUERY, {
+				owner,
+				name
+			});
+			if (!repository) return [];
+			return repository.languages.edges.map((edge) => ({
+				name: edge.node.name,
+				color: edge.node.color,
+				bytes: edge.size,
+				repos: 1
+			}));
+		},
+		TTL
+	);
+}

@@ -137,7 +137,7 @@
 		<AsyncPanel
 			title="Star history"
 			icon={Star}
-			href={section('stars')}
+			href={section('stats')}
 			result={data.stars}
 			empty={(history) => history.days.length === 0}
 			emptyText="No stars yet"

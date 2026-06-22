@@ -8,6 +8,7 @@ export type ErrorCode =
 	| 'upstream'
 	| 'bad_input'
 	| 'unavailable'
+	| 'pending'
 	| 'internal';
 
 const STATUS: Record<ErrorCode, number> = {
@@ -18,6 +19,8 @@ const STATUS: Record<ErrorCode, number> = {
 	upstream: 502,
 	bad_input: 400,
 	unavailable: 503,
+	// Not an error, the upstream is still computing the result
+	pending: 202,
 	internal: 500
 };
 
@@ -94,13 +97,15 @@ export function logError(scope: string, error: unknown): AppError {
 }
 
 // A user-safe error, the shape every panel and page renders
-export type DisplayError = { title: string; message: string };
+export type DisplayError = { title: string; message: string; pending?: boolean };
 
 // Shape a thrown error into something a panel or page can render
 export function toDisplayError(error: unknown): DisplayError {
 	const appError = toAppError(error);
 	return {
 		title: appError.code.replace(/_/g, ' '),
-		message: appError.expose ? appError.message : 'Something went wrong'
+		message: appError.expose ? appError.message : 'Something went wrong',
+		// A pending upstream is a soft, self-healing state, not a real failure
+		pending: appError.code === 'pending'
 	};
 }
