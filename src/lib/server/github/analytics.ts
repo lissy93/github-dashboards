@@ -27,7 +27,8 @@ async function fetchAnalytics(login: string): Promise<UserAnalytics> {
 			const traffic = await getRepoTraffic(repo.owner, repo.name);
 			if (!traffic.available) return;
 			for (const item of traffic.topPaths) paths.push({ ...item, repo: repo.nameWithOwner });
-			for (const item of traffic.topReferrers) referrers.push({ ...item, repo: repo.nameWithOwner });
+			for (const item of traffic.topReferrers)
+				referrers.push({ ...item, repo: repo.nameWithOwner });
 		} catch (caught) {
 			logError('analytics-repo', caught);
 		}

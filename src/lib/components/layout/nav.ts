@@ -1,5 +1,5 @@
 import type { Component } from 'svelte';
-import { LayoutGrid, BookMarked, ChartColumn, Activity, ListTodo } from '@lucide/svelte';
+import { LayoutGrid, BookMarked, ChartColumn, ChartArea, Activity, ListTodo } from '@lucide/svelte';
 import { paths } from '$lib/config';
 import { TASK_BUCKETS } from '$lib/components/tasks/tasks-config';
 import type { TaskBucket } from '$lib/types';
@@ -11,13 +11,30 @@ export type NavItem = {
 	href?: string;
 	icon?: IconComponent;
 	children?: NavItem[];
+	disabled?: boolean;
+	tooltip?: string;
 };
+
+// Who is viewing, so owner-only tabs can enable or explain themselves
+export type NavViewer = { loggedIn: boolean; isOwner: boolean };
 
 // Order the four task lists share across the nav and the task overview
 const TASK_ORDER: TaskBucket[] = ['reviewPrs', 'reviewIssues', 'myPrs', 'myIssues'];
 
+// Analytics surfaces private traffic, so only the signed-in owner may open it
+function analyticsItem(user: string, viewer: NavViewer): NavItem {
+	if (viewer.isOwner)
+		return { label: 'Analytics', href: paths.userAnalytics(user), icon: ChartArea };
+	return {
+		label: 'Analytics',
+		icon: ChartArea,
+		disabled: true,
+		tooltip: viewer.loggedIn ? `Only ${user} can view these analytics` : 'Sign in to view analytics'
+	};
+}
+
 // User-level nav tree, activity is hidden for org accounts
-export function userNav(user: string, isOrg: boolean): NavItem[] {
+export function userNav(user: string, isOrg: boolean, viewer: NavViewer): NavItem[] {
 	const items: NavItem[] = [
 		{ label: 'Overview', href: paths.user(user), icon: LayoutGrid },
 		{ label: 'Repos', href: paths.userRepos(user), icon: BookMarked },
@@ -26,6 +43,7 @@ export function userNav(user: string, isOrg: boolean): NavItem[] {
 	if (!isOrg) {
 		items.push({ label: 'Activity', href: paths.userActivity(user), icon: Activity });
 	}
+	items.push(analyticsItem(user, viewer));
 	// Authored lists make no sense for an org, so drop them there, matching the task page
 	const taskBuckets = TASK_ORDER.filter(
 		(bucket) => !(isOrg && (bucket === 'myPrs' || bucket === 'myIssues'))

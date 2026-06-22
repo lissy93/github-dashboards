@@ -39,10 +39,12 @@ function release(): void {
 	else active--;
 }
 
-// headers sent with every GitHub request, using the logged-in token when present
+// headers sent with every GitHub request, using the logged-in token when present.
+// With no token at all we send none, falling back to GitHub's anonymous rate limit
 function baseHeaders(): Record<string, string> {
+	const token = activeToken();
 	return {
-		Authorization: `Bearer ${activeToken()}`,
+		...(token ? { Authorization: `Bearer ${token}` } : {}),
 		'User-Agent': 'goard',
 		Accept: 'application/vnd.github+json'
 	};

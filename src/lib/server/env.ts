@@ -4,7 +4,8 @@ import { AppError } from '$lib/errors';
 
 const schema = z.object({
 	DATABASE_URL: z.string().url(),
-	GITHUB_TOKEN: z.string().min(1),
+	// Optional, public routes use it but the app also runs on per-user OAuth tokens
+	GITHUB_TOKEN: z.string().default(''),
 	GITHUB_API: z.string().url().default('https://api.github.com'),
 	GITHUB_GRAPHQL: z.string().url().default('https://api.github.com/graphql'),
 	CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(900),

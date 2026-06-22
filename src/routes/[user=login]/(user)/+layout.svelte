@@ -4,7 +4,11 @@
 	import type { LayoutData } from './$types';
 
 	let { data, children }: { data: LayoutData; children: import('svelte').Snippet } = $props();
-	const items = $derived(userNav(data.user, data.isOrg));
+	const viewer = $derived({
+		loggedIn: !!data.viewerLogin,
+		isOwner: !!data.viewerLogin && data.viewerLogin.toLowerCase() === data.user.toLowerCase()
+	});
+	const items = $derived(userNav(data.user, data.isOrg, viewer));
 </script>
 
 <div class="space-y-5">

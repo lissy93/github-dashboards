@@ -12,6 +12,7 @@ export const paths = {
 	userRepos: (user: string) => `/${user}/repos`,
 	userStats: (user: string) => `/${user}/stats`,
 	userActivity: (user: string) => `/${user}/activity`,
+	userAnalytics: (user: string) => `/${user}/analytics`,
 	userTasks: (user: string) => `/${user}/tasks`,
 	userTaskList: (user: string, list: string) => `/${user}/tasks/${list}`,
 	repo: (user: string, repo: string) => `/${user}/${repo}`,

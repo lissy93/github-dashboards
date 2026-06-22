@@ -4,6 +4,7 @@
 	import * as NavigationMenu from '$lib/components/ui/navigation-menu';
 	import { navigationMenuTriggerStyle } from '$lib/components/ui/navigation-menu/navigation-menu-trigger.svelte';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import * as Tooltip from '$lib/components/ui/tooltip';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import { cn } from '$lib/utils';
 	import { navHrefs, type NavItem } from './nav';
@@ -28,16 +29,27 @@
 
 <!-- One burger row, child rows indented under their parent link -->
 {#snippet menuLink(navItem: NavItem, indent: boolean)}
-	<DropdownMenu.Item>
+	<DropdownMenu.Item disabled={navItem.disabled}>
 		{#snippet child({ props }: { props: Record<string, unknown> })}
-			<a
-				{...props}
-				href={navItem.href}
-				class={cn(props.class as string, indent && 'pl-8', isActive(navItem) && 'text-primary')}
-			>
-				{#if navItem.icon}<Icon icon={navItem.icon} />{/if}
-				{navItem.label}
-			</a>
+			{#if navItem.disabled}
+				<span
+					{...props}
+					title={navItem.tooltip}
+					class={cn(props.class as string, indent && 'pl-8', 'text-muted-foreground/60')}
+				>
+					{#if navItem.icon}<Icon icon={navItem.icon} />{/if}
+					{navItem.label}
+				</span>
+			{:else}
+				<a
+					{...props}
+					href={navItem.href}
+					class={cn(props.class as string, indent && 'pl-8', isActive(navItem) && 'text-primary')}
+				>
+					{#if navItem.icon}<Icon icon={navItem.icon} />{/if}
+					{navItem.label}
+				</a>
+			{/if}
 		{/snippet}
 	</DropdownMenu.Item>
 {/snippet}
@@ -85,6 +97,24 @@
 							{/each}
 						</ul>
 					</NavigationMenu.Content>
+				{:else if item.disabled}
+					<Tooltip.Provider delayDuration={150} disableHoverableContent>
+						<Tooltip.Root>
+							<Tooltip.Trigger>
+								{#snippet child({ props }: { props: Record<string, unknown> })}
+									<span
+										{...props}
+										aria-disabled="true"
+										class={cn(itemStyle(false), 'text-muted-foreground/60 cursor-not-allowed')}
+									>
+										{#if item.icon}<Icon icon={item.icon} />{/if}
+										{item.label}
+									</span>
+								{/snippet}
+							</Tooltip.Trigger>
+							{#if item.tooltip}<Tooltip.Content>{item.tooltip}</Tooltip.Content>{/if}
+						</Tooltip.Root>
+					</Tooltip.Provider>
 				{:else}
 					<NavigationMenu.Link
 						href={item.href}

@@ -20,6 +20,16 @@
 		Storage unavailable, showing live data without cache
 	</div>
 {/if}
+{#if data.tokenMissing && !data.user}
+	<div
+		role="status"
+		class="bg-warning/10 text-warning flex items-center justify-center gap-2 border-b px-4 py-1.5 text-xs"
+	>
+		<Icon icon={TriangleAlert} size={14} />
+		No GitHub token set, data is limited.{#if data.loginEnabled}
+			<a href="/auth/github" class="underline underline-offset-2">Sign in with GitHub</a> for full access{/if}
+	</div>
+{/if}
 <main class="mx-auto max-w-7xl px-4 py-6">
 	{@render children()}
 </main>

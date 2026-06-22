@@ -101,7 +101,9 @@ export function aggregate(daily: TrafficDay[], view: AnalyticsView): PeriodPoint
 		point.clones += row.clones;
 		point.uniqueClones += row.uniqueClones;
 	}
-	const points = [...byPeriod.values()].sort((first, second) => first.date.localeCompare(second.date));
+	const points = [...byPeriod.values()].sort((first, second) =>
+		first.date.localeCompare(second.date)
+	);
 	// Returning visits are the repeat views left once unique visitors are removed
 	for (const point of points) point.returning = Math.max(0, point.views - point.uniqueViews);
 	return points;
@@ -124,7 +126,13 @@ export function chartData(points: PeriodPoint[], metrics: MetricKey[]): ChartDat
 }
 
 type Sums = Record<MetricKey, number>;
-const emptySums = (): Sums => ({ views: 0, uniqueViews: 0, returning: 0, clones: 0, uniqueClones: 0 });
+const emptySums = (): Sums => ({
+	views: 0,
+	uniqueViews: 0,
+	returning: 0,
+	clones: 0,
+	uniqueClones: 0
+});
 
 function sumRange(daily: TrafficDay[], repo: string, from: string, to: string): Sums {
 	const sums = emptySums();
@@ -141,9 +149,10 @@ function sumRange(daily: TrafficDay[], repo: string, from: string, to: string): 
 	return sums;
 }
 
-export type MetricTotal = { key: MetricKey; label: string; value: number; delta: number };
+export type MetricTotal = { key: MetricKey; label: string; value: number; delta?: number };
 
-// Window totals per metric with the change against the preceding equal window
+// Window totals per metric with the change against the preceding equal window.
+// Delta is omitted when that window had no data yet, so we never show a false jump
 export function totals(daily: TrafficDay[], view: AnalyticsView): MetricTotal[] {
 	const days = windowDays(view.windowKey);
 	const finite = Number.isFinite(days);
@@ -155,7 +164,7 @@ export function totals(daily: TrafficDay[], view: AnalyticsView): MetricTotal[] 
 		key: metric.key,
 		label: metric.label,
 		value: now[metric.key],
-		delta: now[metric.key] - before[metric.key]
+		delta: before[metric.key] > 0 ? now[metric.key] - before[metric.key] : undefined
 	}));
 }
 
@@ -166,9 +175,7 @@ export function topPaths(items: AnalyticsItem[], repo: string, limit = 10): Slic
 		.sort((first, second) => second.count - first.count)
 		.slice(0, limit)
 		.map((item) => ({
-			label: repo
-				? (item.sublabel ?? item.label)
-				: `${shortRepo(item.repo)}${item.sublabel ?? ''}`,
+			label: repo ? (item.sublabel ?? item.label) : `${shortRepo(item.repo)}${item.sublabel ?? ''}`,
 			value: item.count,
 			rows: [
 				{ label: 'Repo', value: item.repo },
