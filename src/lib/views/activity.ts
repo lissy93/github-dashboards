@@ -16,13 +16,20 @@ export function activityQuery(view: View): { type: string; q: string; dir: strin
 	return { type: view.filters.type ?? '', q: view.search.trim(), dir: view.dir };
 }
 
-// Build the activity API url for one page request, carrying filters and cursor
-export function activityUrl(user: string, view: View, cursor: string | null): string {
+// Build the activity API url for one page request, carrying filters and cursor.
+// Pass repo to hit the repo-scoped feed instead of the whole user timeline
+export function activityUrl(
+	user: string,
+	view: View,
+	cursor: string | null,
+	repo?: string
+): string {
 	const params = new URLSearchParams();
 	const { type, q, dir } = activityQuery(view);
 	if (cursor) params.set('cursor', cursor);
 	if (type) params.set('type', type);
 	if (q) params.set('q', q);
 	if (dir) params.set('dir', dir);
-	return `/api/${user}/activity?${params}`;
+	const base = repo ? `/api/${user}/${repo}/activity` : `/api/${user}/activity`;
+	return `${base}?${params}`;
 }

@@ -1,5 +1,6 @@
 import { graphql } from '$lib/server/github/client';
 import { enrichOwnedRepos } from '$lib/server/github/enrich';
+import { cached } from '$lib/server/cache';
 import type { OwnedRepoData, RepoStats } from '$lib/types';
 
 // Heavier counts move slowly, so cache them longer than the live overview
@@ -48,4 +49,9 @@ async function fetchStats(owner: string, name: string): Promise<RepoStats | null
 // Heavier counts for the owned repos, cached as one entry with a bounded refresh
 export function getOwnedRepoStats(login: string): Promise<OwnedRepoData<RepoStats>> {
 	return enrichOwnedRepos('repo-stats:v3', login, TTL, (repo) => fetchStats(repo.owner, repo.name));
+}
+
+// Heavier counts for a single repo, cached on its own. Null when the repo is gone
+export function getRepoStats(owner: string, name: string): Promise<RepoStats | null> {
+	return cached(`repo:stats:${owner}/${name}`.toLowerCase(), () => fetchStats(owner, name), TTL);
 }

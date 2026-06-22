@@ -8,8 +8,9 @@
 	let {
 		data,
 		area = true,
-		height = 16
-	}: { data: ChartData; area?: boolean; height?: number } = $props();
+		height = 16,
+		label = 'Metric over time'
+	}: { data: ChartData; area?: boolean; height?: number; label?: string } = $props();
 
 	const PAD = { top: 12, right: 14, bottom: 22, left: 44 };
 	const Y_TICKS = 5;
@@ -86,7 +87,7 @@
 			{width}
 			height={H}
 			role="img"
-			aria-label="Traffic over time"
+			aria-label={label}
 			onpointermove={move}
 			onpointerleave={leave}
 		>

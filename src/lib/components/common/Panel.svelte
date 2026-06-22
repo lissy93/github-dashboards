@@ -14,6 +14,7 @@
 		title: string;
 		icon?: Component<{ size?: number | string; class?: string }>;
 		href?: string;
+		linkLabel?: string;
 		count?: number;
 		capped?: boolean;
 		loading?: boolean;
@@ -29,6 +30,7 @@
 		title,
 		icon,
 		href,
+		linkLabel = 'View all',
 		count,
 		capped = false,
 		loading = false,
@@ -62,7 +64,7 @@
 									{href}
 									class="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors focus-visible:ring-1 focus-visible:outline-none"
 								>
-									View all{#if count != null}
+									{linkLabel}{#if count != null}
 										<span class="tabular-nums">({formatNumber(count)}{capped ? '+' : ''})</span>
 									{/if}
 									<Icon icon={ArrowUpRight} size={14} />

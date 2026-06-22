@@ -3,6 +3,7 @@ import { db } from '$lib/server/db';
 import { repoStarsDaily } from '$lib/server/db/schema';
 import { rest, restResponse } from '$lib/server/github/client';
 import { getUserOverview } from '$lib/server/github/user';
+import { getRepo } from '$lib/server/github/repo';
 import { cached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
 import { createLogger } from '$lib/logger';
@@ -62,6 +63,30 @@ export function getUserStarHistory(login: string): Promise<StarBreakdown> {
 				...buildBreakdown(rows, starred, TOP_REPOS),
 				coveredRepos: covered,
 				totalRepos: starred.length
+			};
+		},
+		AGGREGATE_TTL
+	);
+}
+
+export type RepoStarHistory = { days: string[]; stars: number[]; sampled: boolean };
+
+// One repo's reconstructed star curve, for the repo stars page and panel. Reuses
+// the per-repo backfill cache and the shared interpolation, as a single series
+export function getRepoStarHistory(owner: string, name: string): Promise<RepoStarHistory> {
+	return cached(
+		`repo:star-history:v1:${owner}/${name}`.toLowerCase(),
+		async () => {
+			const repo = await getRepo(owner, name);
+			if (!repo || repo.stars === 0) return { days: [], stars: [], sampled: false };
+			await backfillRepo(repo);
+			const rows = await readRows([repo.nameWithOwner]);
+			const breakdown = buildBreakdown(rows, [repo], 1);
+			return {
+				days: breakdown.days,
+				stars: breakdown.series[0]?.values ?? [],
+				// GitHub only paginates the first 40k stargazers, so bigger repos are sampled
+				sampled: repo.stars > PAGE_CAP * PER_PAGE
 			};
 		},
 		AGGREGATE_TTL

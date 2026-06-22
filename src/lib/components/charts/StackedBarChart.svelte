@@ -11,7 +11,10 @@
 		height = 9,
 		legendLimit,
 		format = formatNumber,
-		totalUnit
+		totalUnit,
+		maxLabels,
+		ticks,
+		barGap = 0.375
 	}: {
 		bars: StackBar[];
 		series: StackSeries[];
@@ -19,7 +22,18 @@
 		legendLimit?: number;
 		format?: (value: number) => string;
 		totalUnit?: string;
+		maxLabels?: number;
+		ticks?: string[];
+		barGap?: number;
 	} = $props();
+
+	// Thin the x-axis labels so dense bar sets stay readable, bars still render in full
+	const labelStep = $derived(
+		maxLabels && bars.length > maxLabels ? Math.ceil(bars.length / maxLabels) : 1
+	);
+	// A caller may supply its own axis labels, else fall back to the thinned bar labels
+	const tickAt = (index: number, label: string) =>
+		ticks ? (ticks[index] ?? '') : index % labelStep === 0 ? label : '';
 
 	// Append a unit to the total, dropping the trailing s for a count of one
 	const totalText = (value: number) => {
@@ -92,7 +106,7 @@
 						style="bottom: {(value / max) * 100}%"
 					></div>
 				{/each}
-				<div class="relative flex items-end gap-1.5" style="height: {height}rem">
+				<div class="relative flex items-end" style="height: {height}rem; gap: {barGap}rem">
 					{#each bars as bar (bar.label)}
 						<div
 							class="h-full flex-1"
@@ -120,9 +134,15 @@
 		<!-- X-axis labels, offset to clear the y-axis gutter -->
 		<div class="flex gap-1.5">
 			<div class="w-7 shrink-0" aria-hidden="true"></div>
-			<div class="text-muted-foreground flex flex-1 gap-1.5 text-[0.65rem]">
-				{#each bars as bar (bar.label)}
-					<span class="flex-1 truncate text-center">{bar.label}</span>
+			<div class="text-muted-foreground flex flex-1 text-[0.65rem]" style="gap: {barGap}rem">
+				{#each bars as bar, index (bar.label)}
+					<span
+						class={ticks
+							? 'flex-1 overflow-visible text-center whitespace-nowrap'
+							: 'flex-1 truncate text-center'}
+					>
+						{tickAt(index, bar.label)}
+					</span>
 				{/each}
 			</div>
 		</div>

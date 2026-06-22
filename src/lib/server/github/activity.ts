@@ -378,6 +378,7 @@ type PageOptions = {
 	q?: string | null;
 	dir?: string | null;
 	limit?: number;
+	repo?: string | null;
 };
 
 // Read one page from the store, with keyset paging, filters and time direction
@@ -389,6 +390,9 @@ export async function getActivityPage(
 	const ascending = options.dir === 'asc';
 	const conditions: SQL[] = [eq(activityEvent.user, login.toLowerCase())];
 
+	// Match the stored repo case-insensitively, so the lower(repo) index can serve it
+	if (options.repo)
+		conditions.push(eq(sql`lower(${activityEvent.repo})`, options.repo.toLowerCase()));
 	if (options.type) conditions.push(eq(activityEvent.type, options.type));
 	if (options.q) {
 		// Escape LIKE wildcards so a literal % or _ in the query stays literal

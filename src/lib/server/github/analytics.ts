@@ -49,3 +49,24 @@ async function fetchAnalytics(login: string): Promise<UserAnalytics> {
 export function getUserAnalytics(login: string): Promise<UserAnalytics> {
 	return cached(key(login), () => fetchAnalytics(login));
 }
+
+const repoKey = (owner: string, name: string) => `repo:analytics:1:${owner}/${name}`.toLowerCase();
+
+// Traffic analytics for a single repo, shaped like UserAnalytics so the dashboard
+// component renders it unchanged. Reuses the per-repo traffic cache and snapshots
+async function fetchRepoAnalytics(owner: string, name: string): Promise<UserAnalytics> {
+	const nameWithOwner = `${owner}/${name}`;
+	const traffic = await getRepoTraffic(owner, name);
+	const daily = await getTrafficHistory([nameWithOwner]);
+	const paths: AnalyticsItem[] = traffic.topPaths.map((item) => ({ ...item, repo: nameWithOwner }));
+	const referrers: AnalyticsItem[] = traffic.topReferrers.map((item) => ({
+		...item,
+		repo: nameWithOwner
+	}));
+	const repos = daily.length || paths.length || referrers.length ? [nameWithOwner] : [];
+	return { repos, capped: false, daily, paths, referrers };
+}
+
+export function getRepoAnalytics(owner: string, name: string): Promise<UserAnalytics> {
+	return cached(repoKey(owner, name), () => fetchRepoAnalytics(owner, name));
+}

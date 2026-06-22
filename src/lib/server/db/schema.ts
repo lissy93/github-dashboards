@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
 	pgTable,
 	text,
@@ -61,6 +62,12 @@ export const activityEvent = pgTable(
 		reactions: jsonb('reactions')
 	},
 	(table) => [
-		index('activity_user_time_idx').on(table.user, table.createdAt.desc(), table.id.desc())
+		index('activity_user_time_idx').on(table.user, table.createdAt.desc(), table.id.desc()),
+		// Serves the repo-scoped feed, which filters on lower(repo)
+		index('activity_repo_time_idx').on(
+			sql`lower(${table.repo})`,
+			table.createdAt.desc(),
+			table.id.desc()
+		)
 	]
 );

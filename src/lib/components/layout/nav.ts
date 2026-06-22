@@ -1,6 +1,18 @@
 import type { Component } from 'svelte';
-import { LayoutGrid, BookMarked, ChartColumn, ChartArea, Activity, ListTodo } from '@lucide/svelte';
-import { paths } from '$lib/config';
+import {
+	LayoutGrid,
+	BookMarked,
+	ChartColumn,
+	ChartArea,
+	Activity,
+	ListTodo,
+	GitPullRequest,
+	Star,
+	Workflow,
+	Users,
+	ShieldCheck
+} from '@lucide/svelte';
+import { paths, REPO_NAV } from '$lib/config';
 import { TASK_BUCKETS } from '$lib/components/tasks/tasks-config';
 import type { TaskBucket } from '$lib/types';
 
@@ -59,6 +71,36 @@ export function userNav(user: string, isOrg: boolean, viewer: NavViewer): NavIte
 		}))
 	});
 	return items;
+}
+
+// Icon per repo section, keyed by the section slug defined in REPO_NAV
+const REPO_SECTION_ICONS: Record<string, IconComponent> = {
+	'': LayoutGrid,
+	'issues-and-prs': GitPullRequest,
+	tasks: ListTodo,
+	activity: Activity,
+	traffic: ChartArea,
+	stars: Star,
+	workflows: Workflow,
+	people: Users,
+	security: ShieldCheck
+};
+
+// Repo-level nav tree. Traffic is private, so only the owner may open it
+export function repoNav(user: string, repo: string, viewer: NavViewer): NavItem[] {
+	return REPO_NAV.map(({ label, section }) => {
+		const icon = REPO_SECTION_ICONS[section];
+		const href = section ? paths.repoSection(user, repo, section) : paths.repo(user, repo);
+		if (section === 'traffic' && !viewer.isOwner) {
+			return {
+				label,
+				icon,
+				disabled: true,
+				tooltip: viewer.loggedIn ? `Only ${user} can view traffic` : 'Sign in to view traffic'
+			};
+		}
+		return { label, href, icon };
+	});
 }
 
 // Every leaf href in a tree, used for active-route matching

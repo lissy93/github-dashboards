@@ -11,7 +11,7 @@ const PAGE = 100;
 const MAX_PAGES = 10;
 
 // Cheap fields only, the heavier per-repo counts load lazily via repo-stats
-const REPO_FIELDS = `
+export const REPO_FIELDS = `
 	fragment repoFields on Repository {
 		name
 		nameWithOwner
@@ -112,7 +112,7 @@ const CONTRIB_PAGE_QUERY = `
 	}
 `;
 
-type RawRepo = {
+export type RawRepo = {
 	name: string;
 	nameWithOwner: string;
 	description: string | null;
@@ -205,7 +205,7 @@ function normalizeLicense(spdxId: string | null | undefined): string | null {
 	return spdxId && spdxId !== 'NOASSERTION' ? spdxId : null;
 }
 
-function mapRepo(raw: RawRepo): Repo {
+export function mapRepo(raw: RawRepo): Repo {
 	return {
 		owner: raw.owner.login,
 		name: raw.name,

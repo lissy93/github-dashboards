@@ -48,7 +48,7 @@ const SEARCH = `
 	}
 `;
 
-type RawNode = {
+export type RawNode = {
 	__typename: 'PullRequest' | 'Issue';
 	id: string;
 	number: number;
@@ -86,7 +86,7 @@ function toReview(decision?: string | null): ReviewDecision | null {
 }
 
 // Normalise a search node into the shared row, PR-only fields stay null on issues
-function toItem(node: RawNode): TaskItem {
+export function toItem(node: RawNode): TaskItem {
 	const isPr = node.__typename === 'PullRequest';
 	return {
 		id: node.id,

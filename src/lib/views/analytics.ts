@@ -109,7 +109,7 @@ export function aggregate(daily: TrafficDay[], view: AnalyticsView): PeriodPoint
 	return points;
 }
 
-export type ChartSeries = { key: MetricKey; label: string; color: string; values: number[] };
+export type ChartSeries = { key: string; label: string; color: string; values: number[] };
 export type ChartData = { dates: string[]; series: ChartSeries[]; max: number };
 
 // Shape aggregated points into the selected metric series for the time chart

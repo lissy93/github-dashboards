@@ -4,21 +4,23 @@ import type { UserAnalytics } from '$lib/types';
 
 const log = createLogger('analytics');
 
-// Load combined analytics for the owner, refetching when the viewed user changes.
-// getUser is a getter so the effect re-runs on route reuse, never serving stale data
-export function createAnalytics(getUser: () => string) {
+// Load analytics for the owner, refetching when the viewed user changes. getUser
+// is a getter so the effect re-runs on route reuse, never serving stale data. Pass
+// getRepo to scope it to a single repo, hitting the repo analytics endpoint instead
+export function createAnalytics(getUser: () => string, getRepo?: () => string | undefined) {
 	let data = $state<UserAnalytics>();
 	let error = $state<DisplayError>();
 	let loading = $state(true);
 
 	$effect(() => {
 		const login = getUser();
+		const repo = getRepo?.();
 		let active = true;
 		loading = true;
 		error = undefined;
 		data = undefined;
 
-		fetch(`/api/${login}/analytics`)
+		fetch(repo ? `/api/${login}/${repo}/analytics` : `/api/${login}/analytics`)
 			.then(async (response) => {
 				if (!active) return;
 				const body = await response.json();

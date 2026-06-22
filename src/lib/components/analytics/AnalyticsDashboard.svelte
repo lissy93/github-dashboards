@@ -35,7 +35,11 @@
 	} from '$lib/views/analytics';
 	import { compactNumber } from '$lib/format';
 
-	let { user }: { user: string } = $props();
+	let {
+		user,
+		repo,
+		compact = false
+	}: { user: string; repo?: string; compact?: boolean } = $props();
 
 	const METRIC_ICONS: Record<MetricKey, Component> = {
 		views: Eye,
@@ -45,7 +49,10 @@
 		uniqueClones: CopyCheck
 	};
 
-	const analytics = createAnalytics(() => user);
+	const analytics = createAnalytics(
+		() => user,
+		() => repo
+	);
 	let view = $state<AnalyticsView>(defaultAnalyticsView());
 
 	const data = $derived(analytics.data);
@@ -76,6 +83,25 @@
 			hint="Visits and clones build up here each time we sync your repos"
 		/>
 	</Panel>
+{:else if compact}
+	<!-- Bare tiles and chart, so the caller's own panel provides the frame -->
+	<div class="space-y-4">
+		<div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+			{#each metricTotals as metric (metric.key)}
+				<StatTile
+					label={metric.label}
+					value={compactNumber(metric.value)}
+					icon={METRIC_ICONS[metric.key]}
+					delta={metric.delta}
+				/>
+			{/each}
+		</div>
+		{#if points.length}
+			<MetricTimeChart data={chart} area={view.area} label="Traffic over time" />
+		{:else}
+			<EmptyState icon={ChartArea} text="No data in this range" />
+		{/if}
+	</div>
 {:else}
 	<div class="space-y-4">
 		<Card.Root class="grid grid-cols-2 gap-4 p-4 sm:grid-cols-3 lg:grid-cols-5">
@@ -93,7 +119,7 @@
 
 		<Panel title="Traffic over time" icon={ChartArea}>
 			{#if points.length}
-				<MetricTimeChart data={chart} area={view.area} />
+				<MetricTimeChart data={chart} area={view.area} label="Traffic over time" />
 			{:else}
 				<EmptyState icon={ChartArea} text="No data in this range" />
 			{/if}
