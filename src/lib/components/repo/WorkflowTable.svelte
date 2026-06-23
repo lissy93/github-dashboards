@@ -29,19 +29,40 @@
 	const STATE_RANK = { danger: 0, warning: 1, success: 2, muted: 3 };
 
 	type SortKey = 'name' | 'status' | 'passRate' | 'runs' | 'avgRuntime' | 'lastRun';
+	// hide drops a column as the container narrows in compact mode, vhide does the same by
+	// viewport when the table fills the page, so both layouts shed detail gracefully
 	const COLUMNS: {
 		key: SortKey;
 		label: string;
 		align: string;
 		hide?: string;
+		vhide?: string;
 		bigOnly?: boolean;
 	}[] = [
 		{ key: 'name', label: 'Workflow', align: 'text-left' },
 		{ key: 'status', label: 'Status', align: 'text-left' },
-		{ key: 'passRate', label: 'Pass rate', align: 'text-right', hide: '@max-sm:hidden' },
-		{ key: 'runs', label: 'Runs', align: 'text-right', bigOnly: true },
-		{ key: 'avgRuntime', label: 'Avg runtime', align: 'text-right', hide: '@max-lg:hidden' },
-		{ key: 'lastRun', label: 'Last run', align: 'text-right', hide: '@max-md:hidden' }
+		{
+			key: 'passRate',
+			label: 'Pass rate',
+			align: 'text-right',
+			hide: '@max-sm:hidden',
+			vhide: 'max-sm:hidden'
+		},
+		{ key: 'runs', label: 'Runs', align: 'text-right', bigOnly: true, vhide: 'max-md:hidden' },
+		{
+			key: 'avgRuntime',
+			label: 'Avg runtime',
+			align: 'text-right',
+			hide: '@max-lg:hidden',
+			vhide: 'max-lg:hidden'
+		},
+		{
+			key: 'lastRun',
+			label: 'Last run',
+			align: 'text-right',
+			hide: '@max-md:hidden',
+			vhide: 'max-md:hidden'
+		}
 	];
 
 	const pct = (rate: number | null) => (rate == null ? '-' : `${Math.round(rate * 100)}%`);
@@ -106,7 +127,8 @@
 	);
 
 	const headerColumns = $derived(COLUMNS.filter((col) => !(compact && col.bigOnly)));
-	const cellClass = (col: (typeof COLUMNS)[number]) => cn(col.align, compact && col.hide);
+	const cellClass = (col: (typeof COLUMNS)[number]) =>
+		cn(col.align, compact ? col.hide : col.vhide);
 	const sortIcon = (key: SortKey) =>
 		sortKey === key && sortDir === 'asc' ? ChevronUp : ChevronDown;
 </script>
@@ -187,9 +209,9 @@
 								<Icon icon={glyph.icon} size={14} />
 							</Hint>
 						{:else}
-							<span class="flex items-center gap-1.5 {glyph.color}">
-								<Icon icon={glyph.icon} size={14} />{state.label}
-							</span>
+							<Hint text={state.label} class="{glyph.color} flex items-center gap-1.5">
+								<Icon icon={glyph.icon} size={14} /><span class="max-sm:hidden">{state.label}</span>
+							</Hint>
 						{/if}
 					</td>
 					<td

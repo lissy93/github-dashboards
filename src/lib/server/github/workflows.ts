@@ -1,6 +1,7 @@
 import { rest } from '$lib/server/github/client';
-import { isCached, readCached, writeCached } from '$lib/server/cache';
+import { cached, isCached, readCached, writeCached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
+import { bucketOutcomes, type OutcomeBucket, type OutcomeKind } from '$lib/views/outcomes';
 import { AppError, logError } from '$lib/errors';
 
 // Runs change but not second to second, refresh on visit like the rest of the board
@@ -199,4 +200,50 @@ export async function getRepoWorkflows(owner: string, name: string): Promise<Rep
 		);
 	}
 	return toResult(stored.value);
+}
+
+// Recent runs across all workflows, for the repo-wide outcome trend. Bounded to a few
+// pages so a busy repo never floods the API while a quiet one still shows its full history
+const RUN_ACTIVITY_PAGES = 3;
+const RUN_ACTIVITY_PAGE = 100;
+
+export type RepoRunActivity = { buckets: OutcomeBucket[]; total: number; sampled: boolean };
+const EMPTY_RUN_ACTIVITY: RepoRunActivity = { buckets: [], total: 0, sampled: false };
+
+type RunFeedItem = { created_at: string; conclusion: string | null };
+
+// A run's conclusion mapped to the shared success / failure / other bands
+function runOutcome(conclusion: string | null): OutcomeKind {
+	if (conclusion === 'success') return 'success';
+	if (conclusion === 'failure' || conclusion === 'timed_out') return 'failure';
+	return 'other';
+}
+
+async function fetchRunActivity(owner: string, name: string): Promise<RepoRunActivity> {
+	const runs: RunFeedItem[] = [];
+	let total = 0;
+	for (let page = 1; page <= RUN_ACTIVITY_PAGES; page++) {
+		const batch = await tryRest<{ total_count: number; workflow_runs: RunFeedItem[] }>(
+			`/repos/${owner}/${name}/actions/runs?per_page=${RUN_ACTIVITY_PAGE}&page=${page}`
+		);
+		if (!batch) break;
+		total = batch.total_count;
+		runs.push(...batch.workflow_runs);
+		if (batch.workflow_runs.length < RUN_ACTIVITY_PAGE) break;
+	}
+	if (!runs.length) return EMPTY_RUN_ACTIVITY;
+	const buckets = bucketOutcomes(
+		runs.map((run) => ({ at: run.created_at, outcome: runOutcome(run.conclusion) }))
+	);
+	return { buckets, total, sampled: total > runs.length };
+}
+
+const runActivityKey = (owner: string, name: string) =>
+	`repo:run-activity:v1:${owner}/${name}`.toLowerCase();
+
+export const isRepoRunActivityCached = (owner: string, name: string) =>
+	isCached(runActivityKey(owner, name));
+
+export function getRepoRunActivity(owner: string, name: string): Promise<RepoRunActivity> {
+	return cached(runActivityKey(owner, name), () => fetchRunActivity(owner, name), TTL);
 }

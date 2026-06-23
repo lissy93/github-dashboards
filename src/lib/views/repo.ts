@@ -1,5 +1,7 @@
 import type { ChartData } from '$lib/views/analytics';
+import { outcomeBars, type OutcomeChart } from '$lib/views/outcomes';
 import type { Slice, StackBar, StackSeries } from '$lib/views/stats';
+import type { RepoRunActivity, RepoWorkflows } from '$lib/server/github/workflows';
 import type { RepoStarHistory } from '$lib/server/github/star-history';
 import type {
 	Granularity,
@@ -262,6 +264,50 @@ export function runState(
 		return { label: 'Skipped', token: 'muted' };
 	if (!conclusion) return { label: 'No runs', token: 'muted' };
 	return { label: conclusion, token: 'muted' };
+}
+
+// Headline figures for the workflows strip. Pass rate and runtime are weighted by the
+// runs each workflow sampled, so busy workflows count for more than rarely-run ones
+export type WorkflowKpis = {
+	workflows: number;
+	passRate: number | null;
+	totalRuns: number | null;
+	avgRuntimeSec: number | null;
+	active: number;
+	disabled: number;
+};
+export function workflowKpiStats(wf: RepoWorkflows): WorkflowKpis {
+	let passed = 0;
+	let decisive = 0;
+	let runtimeSum = 0;
+	let runtimeWeight = 0;
+	let active = 0;
+	let disabled = 0;
+	for (const workflow of wf.workflows) {
+		if (workflow.passRate != null && workflow.runsSampled) {
+			passed += workflow.passRate * workflow.runsSampled;
+			decisive += workflow.runsSampled;
+		}
+		if (workflow.avgRuntimeSec != null && workflow.runsSampled) {
+			runtimeSum += workflow.avgRuntimeSec * workflow.runsSampled;
+			runtimeWeight += workflow.runsSampled;
+		}
+		if (workflow.state.startsWith('disabled')) disabled += 1;
+		else active += 1;
+	}
+	return {
+		workflows: wf.totalWorkflows,
+		passRate: decisive ? passed / decisive : null,
+		totalRuns: wf.totalRuns,
+		avgRuntimeSec: runtimeWeight ? Math.round(runtimeSum / runtimeWeight) : null,
+		active,
+		disabled
+	};
+}
+
+// Repo-wide run outcomes as a stacked timeline
+export function runActivityChart(activity: RepoRunActivity): OutcomeChart {
+	return outcomeBars(activity.buckets);
 }
 
 // Compact mm:ss style duration from seconds, for workflow runtimes
