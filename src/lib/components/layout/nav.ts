@@ -8,10 +8,14 @@ import {
 	ListTodo,
 	GitPullRequest,
 	Workflow,
+	Rocket,
+	Globe,
+	Tag,
+	Container,
 	Users,
 	ShieldCheck
 } from '@lucide/svelte';
-import { paths, REPO_NAV } from '$lib/config';
+import { paths, REPO_NAV, OPS_NAV } from '$lib/config';
 import { TASK_BUCKETS } from '$lib/components/tasks/tasks-config';
 import type { TaskBucket } from '$lib/types';
 
@@ -79,9 +83,17 @@ const REPO_SECTION_ICONS: Record<string, IconComponent> = {
 	activity: Activity,
 	traffic: ChartArea,
 	stats: ChartColumn,
-	workflows: Workflow,
+	ops: Container,
 	people: Users,
 	security: ShieldCheck
+};
+
+// Icons for ops sub-sections
+const OPS_SECTION_ICONS: Record<string, IconComponent> = {
+	workflows: Workflow,
+	deployments: Rocket,
+	pages: Globe,
+	releases: Tag
 };
 
 // Repo-level nav tree. Traffic is private, so only the owner may open it
@@ -95,6 +107,18 @@ export function repoNav(user: string, repo: string, viewer: NavViewer): NavItem[
 				icon,
 				disabled: true,
 				tooltip: viewer.loggedIn ? `Only ${user} can view traffic` : 'Sign in to view traffic'
+			};
+		}
+		if (section === 'ops') {
+			return {
+				label,
+				href,
+				icon,
+				children: OPS_NAV.map(({ label: subLabel, section: subSection }) => ({
+					label: subLabel,
+					href: paths.repoOpsSection(user, repo, subSection),
+					icon: OPS_SECTION_ICONS[subSection]
+				}))
 			};
 		}
 		return { label, href, icon };

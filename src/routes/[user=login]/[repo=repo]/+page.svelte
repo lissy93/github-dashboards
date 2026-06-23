@@ -182,7 +182,7 @@
 		<AsyncPanel
 			title="Workflows"
 			icon={Workflow}
-			href={section('workflows')}
+			href={paths.repoOpsSection(data.user, data.repo.name, 'workflows')}
 			result={data.workflows}
 			count={(wf) => wf.totalWorkflows}
 			capped={(wf) => wf.sampled}

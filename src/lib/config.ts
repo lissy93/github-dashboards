@@ -16,7 +16,10 @@ export const paths = {
 	userTasks: (user: string) => `/${user}/tasks`,
 	userTaskList: (user: string, list: string) => `/${user}/tasks/${list}`,
 	repo: (user: string, repo: string) => `/${user}/${repo}`,
-	repoSection: (user: string, repo: string, section: string) => `/${user}/${repo}/${section}`
+	repoSection: (user: string, repo: string, section: string) => `/${user}/${repo}/${section}`,
+	repoOps: (user: string, repo: string) => `/${user}/${repo}/ops`,
+	repoOpsSection: (user: string, repo: string, section: string) =>
+		`/${user}/${repo}/ops/${section}`
 };
 
 // Tabs shown on repo pages, section is appended to the repo base path
@@ -26,7 +29,15 @@ export const REPO_NAV = [
 	{ label: 'Activity', section: 'activity' },
 	{ label: 'Traffic', section: 'traffic' },
 	{ label: 'Stats', section: 'stats' },
-	{ label: 'Workflows', section: 'workflows' },
+	{ label: 'CI/CD', section: 'ops' },
 	{ label: 'People', section: 'people' },
 	{ label: 'Security', section: 'security' }
+];
+
+// Sub-sections under the CI/CD (ops) tab
+export const OPS_NAV = [
+	{ label: 'Workflows', section: 'workflows' },
+	{ label: 'Deployments', section: 'deployments' },
+	{ label: 'Pages', section: 'pages' },
+	{ label: 'Releases', section: 'releases' }
 ];

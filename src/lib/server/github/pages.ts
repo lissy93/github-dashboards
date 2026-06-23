@@ -1,0 +1,96 @@
+import { rest } from '$lib/server/github/client';
+import { cached, isCached } from '$lib/server/cache';
+import { AppError } from '$lib/errors';
+
+// Pages config rarely changes, refresh every 15 minutes
+const TTL = 900;
+
+export type PagesBuild = {
+	status: string;
+	createdAt: string;
+	duration: number;
+	commitSha: string | null;
+	url: string | null;
+};
+export type RepoPages = {
+	enabled: boolean;
+	url: string | null;
+	cname: string | null;
+	https: boolean;
+	source: { branch: string; path: string } | null;
+	buildType: string | null;
+	status: string | null;
+	builds: PagesBuild[];
+};
+
+const EMPTY: RepoPages = {
+	enabled: false,
+	url: null,
+	cname: null,
+	https: false,
+	source: null,
+	buildType: null,
+	status: null,
+	builds: []
+};
+
+type RawPages = {
+	url: string;
+	html_url: string | null;
+	status: string | null;
+	cname: string | null;
+	https_enforced?: boolean;
+	build_type: string | null;
+	source: { branch: string; path: string } | null;
+};
+type RawBuild = {
+	status: string;
+	created_at: string;
+	duration: number;
+	commit: string | null;
+	url: string;
+};
+
+// Pages 404 means not enabled, 403 means no access (not an error)
+async function tryPages<T>(path: string): Promise<T | null> {
+	try {
+		return await rest<T>(path);
+	} catch (error) {
+		if (error instanceof AppError && (error.code === 'not_found' || error.code === 'forbidden'))
+			return null;
+		throw error;
+	}
+}
+
+async function fetchPages(owner: string, name: string): Promise<RepoPages> {
+	const info = await tryPages<RawPages>(`/repos/${owner}/${name}/pages`);
+	if (!info) return EMPTY;
+
+	const rawBuilds =
+		(await tryPages<RawBuild[]>(`/repos/${owner}/${name}/pages/builds?per_page=20`)) ?? [];
+
+	return {
+		enabled: true,
+		url: info.html_url || null,
+		cname: info.cname || null,
+		https: info.https_enforced ?? false,
+		source: info.source,
+		buildType: info.build_type,
+		status: info.status,
+		builds: rawBuilds.map((b) => ({
+			status: b.status,
+			createdAt: b.created_at,
+			duration: b.duration,
+			commitSha: b.commit,
+			url: b.url
+		}))
+	};
+}
+
+const key = (owner: string, name: string) => `repo:pages:v1:${owner}/${name}`.toLowerCase();
+
+export const isRepoPagesCached = (owner: string, name: string) => isCached(key(owner, name));
+
+export function getRepoPages(owner: string, name: string): Promise<RepoPages> {
+	return cached(key(owner, name), () => fetchPages(owner, name), TTL);
+}
