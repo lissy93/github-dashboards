@@ -2,6 +2,8 @@
 	import { niceStep, splinePath } from '$lib/components/charts/chart';
 	import { chartTip } from '$lib/components/charts/chart-tip.svelte';
 	import ChartTooltip from '$lib/components/charts/ChartTooltip.svelte';
+	import ChartLegend from '$lib/components/charts/ChartLegend.svelte';
+	import { legendState } from '$lib/components/charts/legend.svelte';
 	import { compactNumber, formatNumber, formatDate } from '$lib/format';
 	import type { ChartData } from '$lib/views/analytics';
 
@@ -20,14 +22,20 @@
 	let width = $state(0);
 	let svg = $state<SVGSVGElement>();
 	let hover = $state<number | null>(null);
+	const legend = legendState();
+
+	// Series still drawn, after any are toggled off from the legend
+	const visible = $derived(data.series.filter((item) => !legend.hidden.has(item.key)));
 
 	const geom = $derived.by(() => {
-		const { dates, series, max } = data;
+		const { dates } = data;
 		const times = dates.map((day) => Date.parse(day));
 		const first = times[0] ?? 0;
 		const span = (times.at(-1) ?? 0) - first || 1;
-		const step = niceStep(max, Y_TICKS);
-		const axisTop = Math.max(step, Math.ceil(max / step) * step);
+		// Rescale to the shown series, so hiding the tall one zooms into the rest
+		const peak = Math.max(0, ...visible.flatMap((item) => item.values)) || 1;
+		const step = niceStep(peak, Y_TICKS);
+		const axisTop = Math.max(step, Math.ceil(peak / step) * step);
 		const plotH = H - PAD.top - PAD.bottom;
 		const plotW = width - PAD.left - PAD.right;
 		const single = dates.length === 1;
@@ -37,7 +45,7 @@
 		const yOf = (value: number) => PAD.top + (1 - value / axisTop) * plotH;
 		const baseline = PAD.top + plotH;
 
-		const lines = series.map((item) => {
+		const lines = visible.map((item) => {
 			const points = xs.map((x, index) => ({ x, y: yOf(item.values[index]) }));
 			const line = splinePath(points, !single);
 			const fill = `${line} L${xs.at(-1)} ${baseline} L${xs[0]} ${baseline} Z`;
@@ -56,6 +64,17 @@
 		return { xs, baseline, lines, yTicks, xTicks };
 	});
 
+	// Legend tooltip shows each line's latest value, a sum would mislead for running counts
+	const legendItems = $derived(
+		data.series.map((item) => ({
+			key: item.key,
+			label: item.label,
+			color: item.color,
+			hint: item.hint,
+			total: item.values.at(-1)
+		}))
+	);
+
 	const tip = chartTip();
 	function move(event: PointerEvent) {
 		if (!svg || !geom.xs.length) return;
@@ -67,7 +86,7 @@
 		hover = nearest;
 		tip.show(event, {
 			title: formatDate(data.dates[nearest]),
-			rows: data.series.map((item) => ({
+			rows: visible.map((item) => ({
 				label: item.label,
 				value: formatNumber(item.values[nearest]),
 				color: item.color
@@ -122,8 +141,17 @@
 			{/each}
 
 			{#each geom.lines as item (item.key)}
-				{#if area}<path d={item.fill} fill={item.color} opacity="0.12" />{/if}
-				<path d={item.line} fill="none" stroke={item.color} stroke-width="1.5" />
+				{@const lift = legend.hovered === item.key}
+				{@const fade = legend.hovered !== null && !lift}
+				{#if area}<path d={item.fill} fill={item.color} opacity={fade ? 0.04 : 0.12} />{/if}
+				<path
+					class="transition-[stroke-width,opacity] duration-150"
+					d={item.line}
+					fill="none"
+					stroke={item.color}
+					stroke-width={lift ? 2.5 : 1.5}
+					opacity={fade ? 0.4 : 1}
+				/>
 			{/each}
 
 			{#if hover !== null}
@@ -143,13 +171,6 @@
 	{/if}
 </div>
 
-<ul class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
-	{#each data.series as item (item.key)}
-		<li class="flex items-center gap-1.5">
-			<span class="size-2.5 shrink-0 rounded-sm" style="background-color: {item.color}"></span>
-			<span class="text-muted-foreground">{item.label}</span>
-		</li>
-	{/each}
-</ul>
+<ChartLegend items={legendItems} state={legend} totalLabel="Latest" class="mt-2" />
 
 <ChartTooltip data={tip.data} x={tip.x} y={tip.y} />

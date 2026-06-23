@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildTimeline } from '$lib/server/github/repo-timeline';
+import { buildTimeline, issueResolved, resolutionStats } from '$lib/server/github/repo-timeline';
 
 const point = (points: ReturnType<typeof buildTimeline>['points'], period: string) =>
 	points.find((entry) => entry.period === period);
@@ -58,7 +58,72 @@ describe('buildTimeline', () => {
 		expect(points.length).toBeGreaterThanOrEqual(8);
 	});
 
+	it('splits closed items into resolved and discarded', () => {
+		const issues = [
+			{ createdAt: '2024-01-01T00:00:00Z', closedAt: '2024-02-05T00:00:00Z', resolved: true },
+			{ createdAt: '2024-01-02T00:00:00Z', closedAt: '2024-02-10T00:00:00Z', resolved: false }
+		];
+		const prs = [
+			{ createdAt: '2024-01-03T00:00:00Z', closedAt: '2024-02-15T00:00:00Z', resolved: true }
+		];
+		const { points } = buildTimeline(issues, prs);
+
+		expect(point(points, '2024-02-01')?.completedIssues).toBe(1);
+		expect(point(points, '2024-02-01')?.discardedIssues).toBe(1);
+		expect(point(points, '2024-02-01')?.closedIssues).toBe(2);
+		expect(point(points, '2024-02-01')?.mergedPrs).toBe(1);
+		expect(point(points, '2024-02-01')?.discardedPrs).toBe(0);
+	});
+
+	it('treats a closed item with no resolved flag as resolved', () => {
+		const issues = [{ createdAt: '2024-01-01T00:00:00Z', closedAt: '2024-02-05T00:00:00Z' }];
+		const { points } = buildTimeline(issues, []);
+		expect(point(points, '2024-02-01')?.completedIssues).toBe(1);
+		expect(point(points, '2024-02-01')?.discardedIssues).toBe(0);
+	});
+
 	it('returns no points for an empty repo', () => {
 		expect(buildTimeline([], []).points).toEqual([]);
+	});
+});
+
+describe('issueResolved', () => {
+	it('counts completed and reopened issues as resolved', () => {
+		expect(issueResolved('COMPLETED')).toBe(true);
+		expect(issueResolved(null)).toBe(true);
+	});
+
+	it('counts not-planned and duplicate issues as discarded', () => {
+		expect(issueResolved('NOT_PLANNED')).toBe(false);
+		expect(issueResolved('DUPLICATE')).toBe(false);
+	});
+});
+
+describe('resolutionStats', () => {
+	it('is empty with a null median when nothing resolved', () => {
+		const stats = resolutionStats([]);
+		expect(stats.count).toBe(0);
+		expect(stats.medianHours).toBeNull();
+		expect(stats.buckets.every((bucket) => bucket.count === 0)).toBe(true);
+	});
+
+	it('takes the middle value of an odd set and the mean of two for an even set', () => {
+		expect(resolutionStats([1, 50, 9]).medianHours).toBe(9);
+		expect(resolutionStats([2, 10]).medianHours).toBe(6);
+	});
+
+	it('drops each duration into the right band, open-ended at the top', () => {
+		// 0.5h, 5h, 3d, 20d, 100d, 400d span every band in order
+		const hours = [0.5, 5, 3 * 24, 20 * 24, 100 * 24, 400 * 24];
+		const counts = resolutionStats(hours).buckets.map((bucket) => bucket.count);
+		expect(counts).toEqual([1, 1, 1, 1, 1, 1]);
+		expect(resolutionStats(hours).buckets.map((bucket) => bucket.label)).toEqual([
+			'< 1h',
+			'< 1d',
+			'< 1w',
+			'< 1mo',
+			'< 6mo',
+			'6mo+'
+		]);
 	});
 });

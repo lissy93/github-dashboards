@@ -8,14 +8,14 @@ export function languageSlices(usage: LanguageUsage[], limit = 8): Slice[] {
 	return languageBreakdown(usage, limit);
 }
 
-// The most recent releases as download bars, newest last so the bars read as a timeline
-export function releaseDownloadBars(releases: ReleaseRow[], limit = 12): Slice[] {
-	return releases.slice(-limit).map((release) => ({
+// Every release as download bars, oldest first so the bars read as a timeline
+export function releaseDownloadBars(releases: ReleaseRow[]): Slice[] {
+	return releases.map((release) => ({
 		label: release.tag,
 		value: release.downloads,
 		color: release.prerelease ? 'var(--muted-foreground)' : 'var(--chart-4)',
 		rows: [
-			{ label: 'Downloads', value: release.downloads.toLocaleString() },
+			{ label: 'Downloads', value: release.hasAssets ? release.downloads.toLocaleString() : 'Unknown' },
 			{ label: 'Published', value: release.publishedAt.slice(0, 10) },
 			...(release.prerelease ? [{ label: 'Pre-release', value: 'yes' }] : [])
 		]

@@ -3,7 +3,7 @@ import {
 	runState,
 	formatDuration,
 	timelineChart,
-	cumulativeBars,
+	lifecycleBars,
 	cumulativeTicks,
 	pointsInWindow
 } from '$lib/views/repo';
@@ -12,9 +12,13 @@ const point = (over: Partial<Parameters<typeof timelineChart>[0][number]> = {}) 
 	period: '2024-01-01',
 	openedIssues: 0,
 	closedIssues: 0,
+	completedIssues: 0,
+	discardedIssues: 0,
 	openIssues: 0,
 	openedPrs: 0,
 	closedPrs: 0,
+	mergedPrs: 0,
+	discardedPrs: 0,
 	openPrs: 0,
 	...over
 });
@@ -49,17 +53,7 @@ describe('formatDuration', () => {
 
 describe('timelineChart', () => {
 	it('shapes the selected metrics into chart series', () => {
-		const points = [
-			{
-				period: '2024-01-01',
-				openedIssues: 2,
-				closedIssues: 1,
-				openIssues: 1,
-				openedPrs: 0,
-				closedPrs: 0,
-				openPrs: 0
-			}
-		];
+		const points = [point({ openedIssues: 2, closedIssues: 1, openIssues: 1 })];
 		const chart = timelineChart(points, ['openIssues', 'openPrs']);
 
 		expect(chart.dates).toEqual(['2024-01-01']);
@@ -102,24 +96,52 @@ describe('cumulativeTicks', () => {
 	});
 });
 
-describe('cumulativeBars', () => {
-	it('accumulates per bucket, split into open and closed, with monthly labels', () => {
+describe('lifecycleBars', () => {
+	it('accumulates per bucket, split into open, resolved and discarded, with monthly labels', () => {
 		const points = [
 			point({ period: '2023-06-01', openedIssues: 4, openIssues: 4 }),
-			point({ period: '2023-12-01', openedIssues: 0, closedIssues: 1, openIssues: 3 }),
-			point({ period: '2024-05-01', openedIssues: 2, closedIssues: 2, openIssues: 3 })
+			point({ period: '2023-12-01', completedIssues: 1, openIssues: 3 }),
+			point({
+				period: '2024-05-01',
+				openedIssues: 2,
+				completedIssues: 1,
+				discardedIssues: 1,
+				openIssues: 3
+			})
 		];
-		const bars = cumulativeBars(points, 'issue', 'month');
+		const bars = lifecycleBars(points, 'issue', 'month');
 
 		expect(bars).toHaveLength(3);
-		expect(bars[0]).toEqual({ label: 'Jun 23', values: { open: 4, closed: 0 }, total: 4 });
-		expect(bars[1]).toEqual({ label: 'Dec 23', values: { open: 3, closed: 1 }, total: 4 });
-		// 6 opened cumulative, 3 open -> 3 closed
-		expect(bars[2]).toEqual({ label: 'May 24', values: { open: 3, closed: 3 }, total: 6 });
+		expect(bars[0]).toEqual({
+			label: 'Jun 23',
+			values: { resolved: 0, discarded: 0, open: 4 },
+			total: 4
+		});
+		expect(bars[1]).toEqual({
+			label: 'Dec 23',
+			values: { resolved: 1, discarded: 0, open: 3 },
+			total: 4
+		});
+		// 2 completed and 1 not-planned cumulative, plus 3 still open
+		expect(bars[2]).toEqual({
+			label: 'May 24',
+			values: { resolved: 2, discarded: 1, open: 3 },
+			total: 6
+		});
+	});
+
+	it('reads the merged and closed split for PRs', () => {
+		const bars = lifecycleBars(
+			[point({ mergedPrs: 3, discardedPrs: 1, openPrs: 2 })],
+			'pr',
+			'month'
+		);
+		expect(bars[0].values).toEqual({ resolved: 3, discarded: 1, open: 2 });
+		expect(bars[0].total).toBe(6);
 	});
 
 	it('labels weekly buckets by day and month', () => {
-		const bars = cumulativeBars(
+		const bars = lifecycleBars(
 			[point({ period: '2024-01-08', openedIssues: 2, openIssues: 2 })],
 			'issue',
 			'week'

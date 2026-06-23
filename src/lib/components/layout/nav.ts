@@ -75,8 +75,7 @@ export function userNav(user: string, isOrg: boolean, viewer: NavViewer): NavIte
 // Icon per repo section, keyed by the section slug defined in REPO_NAV
 const REPO_SECTION_ICONS: Record<string, IconComponent> = {
 	'': LayoutGrid,
-	'issues-and-prs': GitPullRequest,
-	tasks: ListTodo,
+	tasks: GitPullRequest,
 	activity: Activity,
 	traffic: ChartArea,
 	stats: ChartColumn,

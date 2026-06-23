@@ -1,48 +1,106 @@
 <script lang="ts">
 	import { CircleDot, GitPullRequest } from '@lucide/svelte';
-	import Panel from '$lib/components/common/Panel.svelte';
-	import ErrorState from '$lib/components/common/ErrorState.svelte';
+	import AsyncPanel from '$lib/components/repo/AsyncPanel.svelte';
+	import StackedBarChart from '$lib/components/charts/StackedBarChart.svelte';
 	import ItemRow from '$lib/components/tasks/ItemRow.svelte';
-	import type { TaskList } from '$lib/types';
+	import {
+		lifecycleBars,
+		lifecycleSeries,
+		cumulativeTicks,
+		TIMELINE_SAMPLED_NOTE
+	} from '$lib/views/repo';
 	import { APP_NAME } from '$lib/config';
+	import type { RepoTimeline } from '$lib/server/github/repo-timeline';
+	import type { TaskList } from '$lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 </script>
 
 <svelte:head>
-	<title>Open issues & PRs · {data.repo.nameWithOwner} · {APP_NAME}</title>
+	<title>Issues & PRs · {data.repo.nameWithOwner} · {APP_NAME}</title>
 </svelte:head>
 
-{#snippet list(title: string, icon: typeof CircleDot, value: TaskList, emptyText: string)}
-	<Panel
-		{title}
-		{icon}
-		count={value.total}
-		capped={value.capped}
-		empty={value.items.length === 0}
-		{emptyText}
-	>
-		<ul class="-m-4 divide-y">
-			{#each value.items as item (item.id)}
-				<li><ItemRow {item} /></li>
-			{/each}
-		</ul>
-	</Panel>
+<!-- The running total chart for one kind, split open/resolved/discarded -->
+{#snippet totalChart(tl: RepoTimeline, kind: 'issue' | 'pr', unit: string)}
+	<div class="space-y-3">
+		<StackedBarChart
+			bars={lifecycleBars(tl.points, kind, tl.granularity)}
+			series={lifecycleSeries(kind)}
+			totalUnit={unit}
+			height={14}
+			ticks={cumulativeTicks(tl.points, tl.granularity)}
+			barGap={0.125}
+		/>
+		{#if tl.sampled}
+			<p class="text-muted-foreground text-xs">{TIMELINE_SAMPLED_NOTE}</p>
+		{/if}
+	</div>
 {/snippet}
 
-{#await data.tasks}
-	<div class="grid items-start gap-5 lg:grid-cols-2">
-		<Panel title="Open issues" icon={CircleDot} loading />
-		<Panel title="Open PRs" icon={GitPullRequest} loading />
+{#snippet openList(items: TaskList['items'])}
+	<ul class="-m-4 divide-y">
+		{#each items as item (item.id)}
+			<li><ItemRow {item} /></li>
+		{/each}
+	</ul>
+{/snippet}
+
+<!-- A column per kind: the running total chart on top, the live open list below -->
+<div class="grid items-start gap-5 lg:grid-cols-2">
+	<div class="space-y-5">
+		<AsyncPanel
+			title="Total issues"
+			icon={CircleDot}
+			result={data.timeline}
+			empty={(tl) => tl.points.length === 0}
+			emptyText="No issues yet"
+		>
+			{#snippet children(tl)}
+				{@render totalChart(tl, 'issue', 'issues')}
+			{/snippet}
+		</AsyncPanel>
+
+		<AsyncPanel
+			title="Open issues"
+			icon={CircleDot}
+			result={data.tasks}
+			count={(t) => t.issues.total}
+			capped={(t) => t.issues.capped}
+			empty={(t) => t.issues.items.length === 0}
+			emptyText="No open issues"
+		>
+			{#snippet children(t)}
+				{@render openList(t.issues.items)}
+			{/snippet}
+		</AsyncPanel>
 	</div>
-{:then result}
-	{#if result.ok}
-		<div class="grid items-start gap-5 lg:grid-cols-2">
-			{@render list('Open issues', CircleDot, result.data.issues, 'No open issues')}
-			{@render list('Open PRs', GitPullRequest, result.data.prs, 'No open pull requests')}
-		</div>
-	{:else}
-		<ErrorState error={result.error} />
-	{/if}
-{/await}
+
+	<div class="space-y-5">
+		<AsyncPanel
+			title="Total PRs"
+			icon={GitPullRequest}
+			result={data.timeline}
+			empty={(tl) => tl.points.length === 0}
+			emptyText="No pull requests yet"
+		>
+			{#snippet children(tl)}
+				{@render totalChart(tl, 'pr', 'PRs')}
+			{/snippet}
+		</AsyncPanel>
+
+		<AsyncPanel
+			title="Open PRs"
+			icon={GitPullRequest}
+			result={data.tasks}
+			count={(t) => t.prs.total}
+			capped={(t) => t.prs.capped}
+			empty={(t) => t.prs.items.length === 0}
+			emptyText="No open pull requests"
+		>
+			{#snippet children(t)}
+				{@render openList(t.prs.items)}
+			{/snippet}
+		</AsyncPanel>
+	</div>
+</div>

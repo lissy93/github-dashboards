@@ -13,6 +13,7 @@ export type ReleaseRow = {
 	publishedAt: string;
 	prerelease: boolean;
 	downloads: number;
+	hasAssets: boolean;
 	url: string;
 };
 export type RepoReleases = { releases: ReleaseRow[]; total: number; sampled: boolean };
@@ -39,6 +40,7 @@ function toRow(raw: RawRelease): ReleaseRow {
 		publishedAt: raw.published_at ?? '',
 		prerelease: raw.prerelease,
 		downloads: raw.assets.reduce((sum, asset) => sum + asset.download_count, 0),
+		hasAssets: raw.assets.length > 0,
 		url: raw.html_url
 	};
 }

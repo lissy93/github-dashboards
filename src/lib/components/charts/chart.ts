@@ -27,6 +27,10 @@ export const HEATMAP_LEVELS = [
 	'var(--chart-2)'
 ];
 
+// Tangent reach, below the Catmull-Rom default of 1/6 so steep monotonic curves like
+// star history stay taut and never overshoot backwards between samples
+const SMOOTHING = 0.11;
+
 // Draw straight points or a gentle Catmull-Rom spline
 export function splinePath(points: { x: number; y: number }[], smooth = false): string {
 	if (!points.length) return '';
@@ -38,10 +42,10 @@ export function splinePath(points: { x: number; y: number }[], smooth = false): 
 		const p1 = points[index];
 		const p2 = points[index + 1];
 		const p3 = points[index + 2] ?? p2;
-		const c1x = p1.x + (p2.x - p0.x) / 6;
-		const c1y = p1.y + (p2.y - p0.y) / 6;
-		const c2x = p2.x - (p3.x - p1.x) / 6;
-		const c2y = p2.y - (p3.y - p1.y) / 6;
+		const c1x = p1.x + (p2.x - p0.x) * SMOOTHING;
+		const c1y = p1.y + (p2.y - p0.y) * SMOOTHING;
+		const c2x = p2.x - (p3.x - p1.x) * SMOOTHING;
+		const c2y = p2.y - (p3.y - p1.y) * SMOOTHING;
 		path += ` C${c1x} ${c1y} ${c2x} ${c2y} ${p2.x} ${p2.y}`;
 	}
 	return path;

@@ -1,7 +1,7 @@
 import type { ChartData } from '$lib/views/analytics';
-import type { StackBar, StackSeries } from '$lib/views/stats';
+import type { Slice, StackBar, StackSeries } from '$lib/views/stats';
 import type { RepoStarHistory } from '$lib/server/github/star-history';
-import type { Granularity, TimelinePoint } from '$lib/server/github/repo-timeline';
+import type { Granularity, ResolutionStats, TimelinePoint } from '$lib/server/github/repo-timeline';
 
 // Issue and PR timeline metrics, coloured from the shared chart tokens. The open
 // counts are the running backlog, the opened/closed counts are per-period flow
@@ -118,16 +118,55 @@ export function timelineChart(
 		key: def.key,
 		label: def.label,
 		color: def.color,
+		hint: def.hint,
 		values: columns[index]
 	}));
 	const max = Math.max(1, ...columns.flat());
 	return { dates, series, max };
 }
 
-export const CUMULATIVE_SERIES: StackSeries[] = [
-	{ key: 'closed', label: 'Closed', color: 'var(--chart-3)' },
-	{ key: 'open', label: 'Open', color: 'var(--chart-1)' }
+// Lifecycle series for the cumulative total charts. Order is the stacking order from the
+// baseline up: resolved at the bottom, the open backlog on top. Colours come from the
+// --lifecycle-* tokens in layout.css, so the whole palette is tweakable in one place
+export const ISSUE_LIFECYCLE_SERIES: StackSeries[] = [
+	{
+		key: 'resolved',
+		label: 'Completed',
+		color: 'var(--lifecycle-resolved)',
+		hint: 'Issues closed as done'
+	},
+	{
+		key: 'discarded',
+		label: 'Not planned',
+		color: 'var(--lifecycle-discarded)',
+		hint: 'Issues closed as not planned or duplicate'
+	},
+	{ key: 'open', label: 'Open', color: 'var(--lifecycle-open)', hint: 'Issues still open' }
 ];
+export const PR_LIFECYCLE_SERIES: StackSeries[] = [
+	{
+		key: 'resolved',
+		label: 'Merged',
+		color: 'var(--lifecycle-resolved)',
+		hint: 'Pull requests merged in'
+	},
+	{
+		key: 'discarded',
+		label: 'Closed',
+		color: 'var(--lifecycle-discarded)',
+		hint: 'Pull requests closed without merging'
+	},
+	{ key: 'open', label: 'Open', color: 'var(--lifecycle-open)', hint: 'Pull requests still open' }
+];
+
+// The matching series for a kind, so a caller picks colours and labels in one call
+export const lifecycleSeries = (kind: 'issue' | 'pr'): StackSeries[] =>
+	kind === 'issue' ? ISSUE_LIFECYCLE_SERIES : PR_LIFECYCLE_SERIES;
+
+// Shown when the history hit the page cap. We walk oldest first, so it is the recent tail
+// that gets dropped
+export const TIMELINE_SAMPLED_NOTE =
+	'Sampled to stay within limits, recent issues and PRs may be missing';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -138,24 +177,28 @@ function bucketLabel(period: string, granularity: Granularity): string {
 	return `${MONTHS[monthNum - 1]} ${String(year).slice(2)}`;
 }
 
-// Total issues or PRs ever opened per bucket, split into the count still open versus
-// closed at that bucket. Monthly or weekly to match the timeline's own granularity
-export function cumulativeBars(
+// Total issues or PRs ever opened per bucket, split into still open, resolved
+// (merged/completed) and discarded (closed/not planned), accumulated to each bucket.
+// Monthly or weekly to match the timeline's own granularity
+export function lifecycleBars(
 	points: TimelinePoint[],
 	kind: 'issue' | 'pr',
 	granularity: Granularity
 ): StackBar[] {
-	const openedKey = kind === 'issue' ? 'openedIssues' : 'openedPrs';
+	const resolvedKey = kind === 'issue' ? 'completedIssues' : 'mergedPrs';
+	const discardedKey = kind === 'issue' ? 'discardedIssues' : 'discardedPrs';
 	const openKey = kind === 'issue' ? 'openIssues' : 'openPrs';
 
-	let opened = 0;
+	let resolved = 0;
+	let discarded = 0;
 	return points.map((point) => {
-		opened += point[openedKey];
+		resolved += point[resolvedKey];
+		discarded += point[discardedKey];
 		const open = point[openKey];
 		return {
 			label: bucketLabel(point.period, granularity),
-			values: { open, closed: Math.max(0, opened - open) },
-			total: opened
+			values: { resolved, discarded, open },
+			total: resolved + discarded + open
 		};
 	});
 }
@@ -212,4 +255,35 @@ export function formatDuration(seconds: number | null): string {
 	const minutes = Math.floor(seconds / 60);
 	if (minutes < 60) return `${minutes}m ${Math.round(seconds % 60)}s`;
 	return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+// A coarse human span for resolution medians, scaling from hours up through years
+export function formatSpanHours(hours: number | null): string {
+	if (hours == null) return '-';
+	if (hours < 1) return '< 1h';
+	if (hours < 24) return `${Math.round(hours)}h`;
+	const days = hours / 24;
+	if (days < 7) return `${Math.round(days)}d`;
+	if (days < 30) return `${Math.round(days / 7)}w`;
+	if (days < 365) return `${Math.round(days / 30)}mo`;
+	return `${(days / 365).toFixed(1)}y`;
+}
+
+// Severity ramp for the resolution bands, fast and healthy green through slow red
+const RESOLUTION_COLORS = [
+	'var(--success)', // < 1h
+	'var(--success)', // < 1d
+	'var(--success)', // < 1w
+	'var(--warning)', // < 1mo
+	'var(--caution)', // < 6mo
+	'var(--danger)' // 6mo+
+];
+
+// Resolution histogram bands as bars, coloured by how slow each band is
+export function resolutionBars(stats: ResolutionStats): Slice[] {
+	return stats.buckets.map((bucket, index) => ({
+		label: bucket.label,
+		value: bucket.count,
+		color: RESOLUTION_COLORS[index] ?? 'var(--muted-foreground)'
+	}));
 }

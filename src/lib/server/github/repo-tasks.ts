@@ -91,7 +91,14 @@ async function collect(owner: string, name: string, kind: 'pr' | 'issue'): Promi
 const issuesKey = (owner: string, name: string) => `repo:issues:${owner}/${name}`.toLowerCase();
 const prsKey = (owner: string, name: string) => `repo:prs:${owner}/${name}`.toLowerCase();
 
-export const isRepoTasksCached = (owner: string, name: string) => isCached(prsKey(owner, name));
+// Both lists warm and expire independently, so the page is only ready when each is cached
+export async function isRepoTasksCached(owner: string, name: string): Promise<boolean> {
+	const [issues, prs] = await Promise.all([
+		isCached(issuesKey(owner, name)),
+		isCached(prsKey(owner, name))
+	]);
+	return issues && prs;
+}
 
 // Currently open issues for a repo, newest activity first
 export function getRepoIssues(owner: string, name: string): Promise<TaskList> {

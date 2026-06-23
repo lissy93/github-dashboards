@@ -12,19 +12,32 @@
 		count?: (data: T) => number | undefined;
 		capped?: (data: T) => boolean;
 		empty?: (data: T) => boolean;
+		class?: string;
 		children: Snippet<[T]>;
 	};
-	let { title, icon, href, emptyText, result, count, capped, empty, children }: Props = $props();
+	let {
+		title,
+		icon,
+		href,
+		emptyText,
+		result,
+		count,
+		capped,
+		empty,
+		class: className,
+		children
+	}: Props = $props();
 </script>
 
 {#await result}
-	<Panel {title} {icon} {href} loading />
+	<Panel {title} {icon} {href} class={className} loading />
 {:then res}
 	<Panel
 		{title}
 		{icon}
 		{href}
 		{emptyText}
+		class={className}
 		count={res.ok ? count?.(res.data) : undefined}
 		capped={res.ok ? (capped?.(res.data) ?? false) : false}
 		empty={res.ok ? (empty?.(res.data) ?? false) : false}

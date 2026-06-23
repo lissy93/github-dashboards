@@ -2,6 +2,8 @@
 	import { niceMax, niceStep } from './chart';
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
+	import ChartLegend from './ChartLegend.svelte';
+	import { legendState } from './legend.svelte';
 	import { compactNumber, formatNumber } from '$lib/format';
 	import type { StackBar, StackSeries } from '$lib/views/stats';
 
@@ -27,6 +29,8 @@
 		barGap?: number;
 	} = $props();
 
+	const legend = legendState();
+
 	// Thin the x-axis labels so dense bar sets stay readable, bars still render in full
 	const labelStep = $derived(
 		maxLabels && bars.length > maxLabels ? Math.ceil(bars.length / maxLabels) : 1
@@ -42,49 +46,58 @@
 		return `${shown} ${value === 1 ? totalUnit.replace(/s$/, '') : totalUnit}`;
 	};
 
-	const max = $derived(niceMax(Math.max(1, ...bars.map((bar) => bar.total))));
+	// Series that actually occur, so the legend stays honest
+	const occurring = $derived(
+		series.filter((entry) => bars.some((bar) => (bar.values[entry.key] ?? 0) > 0))
+	);
+	// Series still drawn, after any are toggled off from the legend
+	const shown = $derived(occurring.filter((entry) => !legend.hidden.has(entry.key)));
+	// A bar's height counts only the shown series, so the chart rescales as they toggle
+	const barTotal = (bar: StackBar) =>
+		shown.reduce((sum, entry) => sum + (bar.values[entry.key] ?? 0), 0);
+
+	const max = $derived(niceMax(Math.max(1, ...bars.map(barTotal))));
 	// Keep count-based grid steps on whole numbers
 	const Y_TICKS = 5;
 	const step = $derived(Math.max(1, Math.round(niceStep(max, Y_TICKS))));
 	const yTicks = $derived(
 		Array.from({ length: Math.floor(max / step) + 1 }, (_, index) => index * step)
 	);
-	// Only series that actually occur, so the legend stays honest
-	const active = $derived(
-		series.filter((entry) => bars.some((bar) => (bar.values[entry.key] ?? 0) > 0))
+
+	// Legend entries carry each series' overall total and short explainer
+	const seriesTotal = (key: string) => bars.reduce((sum, bar) => sum + (bar.values[key] ?? 0), 0);
+	const allItems = $derived(
+		occurring.map((entry) => ({
+			key: entry.key,
+			label: entry.label,
+			color: entry.color,
+			hint: entry.hint,
+			total: seriesTotal(entry.key)
+		}))
 	);
 	// The legend may show only the leading series, the bars still render them all
-	const legend = $derived(legendLimit ? active.slice(0, legendLimit) : active);
-	const hidden = $derived(active.length - legend.length);
+	const items = $derived(legendLimit ? allItems.slice(0, legendLimit) : allItems);
 	const tip = chartTip();
 
-	// Show the column split, dropping values which format to zero
+	// Show the column split for the shown series, dropping values which format to zero
 	const zero = $derived(format(0));
 	const barTip = (bar: StackBar) => ({
 		title: bar.label,
 		rows: [
-			...active
+			...shown
 				.map((entry) => ({
 					label: entry.label,
 					value: format(bar.values[entry.key] ?? 0),
 					color: entry.color
 				}))
 				.filter((row) => row.value !== zero),
-			{ label: 'Total', value: totalText(bar.total) }
+			{ label: 'Total', value: totalText(barTotal(bar)) }
 		]
 	});
 </script>
 
 <div class="flex flex-col gap-3">
-	<div class="text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-[0.65rem]">
-		{#each legend as entry (entry.key)}
-			<span class="flex items-center gap-1.5">
-				<span class="size-2.5 rounded-sm" style="background-color: {entry.color}"></span>
-				{entry.label}
-			</span>
-		{/each}
-		{#if hidden > 0}<span>+{hidden} more</span>{/if}
-	</div>
+	<ChartLegend {items} state={legend} {format} more={occurring.length - items.length} />
 	<div class="flex flex-col gap-2">
 		<div class="flex gap-1.5">
 			<!-- Y-axis ticks, centred on their gridline -->
@@ -111,17 +124,23 @@
 						<div
 							class="h-full flex-1"
 							role="img"
-							aria-label="{bar.label}: {format(bar.total)}"
+							aria-label="{bar.label}: {format(barTotal(bar))}"
 							onpointermove={(event) => tip.show(event, barTip(bar))}
 							onpointerleave={tip.hide}
 						>
 							<div class="flex h-full flex-col-reverse">
-								{#each series as entry (entry.key)}
+								{#each shown as entry (entry.key)}
 									{#if (bar.values[entry.key] ?? 0) > 0}
+										{@const lift = legend.hovered === entry.key}
+										{@const dim = legend.hovered !== null && !lift}
 										<div
-											class="w-full last:rounded-t-sm"
+											class="w-full origin-center transition-[transform,filter,opacity] duration-150 last:rounded-t-sm"
 											style="height: {(bar.values[entry.key] / max) *
-												100}%; min-height: 2px; background-color: {entry.color}"
+												100}%; min-height: 2px; background-color: {entry.color}; opacity: {dim
+												? 0.4
+												: 1}; filter: {lift ? 'brightness(1.18)' : 'none'}; transform: {lift
+												? 'scaleX(1.06)'
+												: 'none'}"
 										></div>
 									{/if}
 								{/each}

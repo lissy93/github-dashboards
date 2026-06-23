@@ -1,12 +1,23 @@
 <script lang="ts">
-	import { Star, Code, Clock, Tag } from '@lucide/svelte';
+	import { Star, Code, Clock, Tag, GitPullRequest, CircleDot } from '@lucide/svelte';
 	import AsyncPanel from '$lib/components/repo/AsyncPanel.svelte';
 	import RepoStatStrip from '$lib/components/repo/RepoStatStrip.svelte';
 	import MetricTimeChart from '$lib/components/analytics/MetricTimeChart.svelte';
 	import PunchCard from '$lib/components/charts/PunchCard.svelte';
 	import Donut from '$lib/components/charts/Donut.svelte';
 	import BarChart from '$lib/components/charts/BarChart.svelte';
-	import { starChart } from '$lib/views/repo';
+	import HBarList from '$lib/components/charts/HBarList.svelte';
+	import TimelineFilters from '$lib/components/repo/TimelineFilters.svelte';
+	import {
+		starChart,
+		timelineChart,
+		defaultTimelineView,
+		resolutionBars,
+		formatSpanHours,
+		TIMELINE_SAMPLED_NOTE,
+		type TimelineView
+	} from '$lib/views/repo';
+	import type { ResolutionStats } from '$lib/server/github/repo-timeline';
 	import {
 		languageSlices,
 		releaseDownloadBars,
@@ -19,6 +30,7 @@
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+	let view = $state<TimelineView>(defaultTimelineView());
 
 	// Unwrap a settled result to its data, or null when it failed or is still warming
 	const ok = <T,>(result: LoadResult<T>): T | null => (result.ok ? result.data : null);
@@ -27,6 +39,27 @@
 <svelte:head>
 	<title>Stats · {data.repo.nameWithOwner} · {APP_NAME}</title>
 </svelte:head>
+
+<!-- One kind's resolution histogram under its median headline -->
+{#snippet resolution(stats: ResolutionStats, unit: string)}
+	<div class="space-y-3">
+		<p class="text-muted-foreground text-xs">
+			median
+			<span class="text-foreground font-medium tabular-nums">
+				{formatSpanHours(stats.medianHours)}
+			</span>
+			over {compactNumber(stats.count)}
+			{unit}
+		</p>
+		<HBarList
+			data={resolutionBars(stats)}
+			colored
+			valueLabel={unit}
+			format={compactNumber}
+			labelWidth="3rem"
+		/>
+	</div>
+{/snippet}
 
 <div class="space-y-5">
 	{#await Promise.all([data.stats, data.contributors, data.recentCommits])}
@@ -50,6 +83,58 @@
 			})}
 		/>
 	{/await}
+
+	<AsyncPanel
+		title="Issues & PRs over time"
+		icon={GitPullRequest}
+		result={data.timeline}
+		empty={(tl) => tl.points.length === 0}
+		emptyText="No history yet"
+	>
+		{#snippet children(tl)}
+			<div class="space-y-4">
+				<TimelineFilters bind:view />
+				<MetricTimeChart
+					data={timelineChart(tl.points, view.metrics, {
+						cumulative: view.cumulative,
+						windowKey: view.windowKey
+					})}
+					area={view.area}
+					label="Issues and PRs over time"
+					height={20}
+				/>
+				{#if tl.sampled}
+					<p class="text-muted-foreground text-xs">{TIMELINE_SAMPLED_NOTE}</p>
+				{/if}
+			</div>
+		{/snippet}
+	</AsyncPanel>
+
+	<div class="grid items-start gap-5 lg:grid-cols-2">
+		<AsyncPanel
+			title="Time to close issues"
+			icon={CircleDot}
+			result={data.timeline}
+			empty={(tl) => tl.resolution.issues.count === 0}
+			emptyText="No closed issues yet"
+		>
+			{#snippet children(tl)}
+				{@render resolution(tl.resolution.issues, 'issues')}
+			{/snippet}
+		</AsyncPanel>
+
+		<AsyncPanel
+			title="Time to merge PRs"
+			icon={GitPullRequest}
+			result={data.timeline}
+			empty={(tl) => tl.resolution.prs.count === 0}
+			emptyText="No merged PRs yet"
+		>
+			{#snippet children(tl)}
+				{@render resolution(tl.resolution.prs, 'PRs')}
+			{/snippet}
+		</AsyncPanel>
+	</div>
 
 	<div class="grid items-start gap-5 lg:grid-cols-2">
 		<AsyncPanel

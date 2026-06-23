@@ -15,10 +15,17 @@
 	import ItemRow from '$lib/components/tasks/ItemRow.svelte';
 	import ActivityItem from '$lib/components/activity/ActivityItem.svelte';
 	import MetricTimeChart from '$lib/components/analytics/MetricTimeChart.svelte';
+	import StackedBarChart from '$lib/components/charts/StackedBarChart.svelte';
 	import WorkflowTable from '$lib/components/repo/WorkflowTable.svelte';
 	import ScorecardPanel from '$lib/components/repo/ScorecardPanel.svelte';
 	import AnalyticsDashboard from '$lib/components/analytics/AnalyticsDashboard.svelte';
-	import { timelineChart, starChart } from '$lib/views/repo';
+	import {
+		timelineChart,
+		starChart,
+		lifecycleBars,
+		lifecycleSeries,
+		cumulativeTicks
+	} from '$lib/views/repo';
 	import { paths, APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
 
@@ -36,51 +43,81 @@
 	/>
 </svelte:head>
 
+<!-- A short running-total chart, desktop only, sitting above its open list -->
+{#snippet totalMini(kind: 'issue' | 'pr', unit: string, title: string, icon: typeof CircleDot)}
+	<AsyncPanel
+		{title}
+		{icon}
+		href={section('tasks')}
+		result={data.timeline}
+		empty={(tl) => tl.points.length === 0}
+		emptyText="No history yet"
+		class="hidden lg:block"
+	>
+		{#snippet children(tl)}
+			<StackedBarChart
+				bars={lifecycleBars(tl.points, kind, tl.granularity)}
+				series={lifecycleSeries(kind)}
+				totalUnit={unit}
+				height={4}
+				ticks={cumulativeTicks(tl.points, tl.granularity)}
+				barGap={0.125}
+			/>
+		{/snippet}
+	</AsyncPanel>
+{/snippet}
+
 <div class="space-y-5">
 	<div class="grid items-start gap-5 lg:grid-cols-2">
-		<AsyncPanel
-			title="Open issues"
-			icon={CircleDot}
-			href={section('tasks')}
-			result={data.issues}
-			count={(list) => list.total}
-			capped={(list) => list.capped}
-			empty={(list) => list.items.length === 0}
-			emptyText="No open issues"
-		>
-			{#snippet children(list)}
-				<ul class="-m-4 divide-y">
-					{#each list.items.slice(0, preview) as item (item.id)}
-						<li><ItemRow {item} /></li>
-					{/each}
-				</ul>
-			{/snippet}
-		</AsyncPanel>
+		<div class="lg:space-y-5">
+			{@render totalMini('issue', 'issues', 'Total issues', CircleDot)}
+			<AsyncPanel
+				title="Open issues"
+				icon={CircleDot}
+				href={section('tasks')}
+				result={data.issues}
+				count={(list) => list.total}
+				capped={(list) => list.capped}
+				empty={(list) => list.items.length === 0}
+				emptyText="No open issues"
+			>
+				{#snippet children(list)}
+					<ul class="-m-4 divide-y">
+						{#each list.items.slice(0, preview) as item (item.id)}
+							<li><ItemRow {item} /></li>
+						{/each}
+					</ul>
+				{/snippet}
+			</AsyncPanel>
+		</div>
 
-		<AsyncPanel
-			title="Open PRs"
-			icon={GitPullRequest}
-			href={section('tasks')}
-			result={data.prs}
-			count={(list) => list.total}
-			capped={(list) => list.capped}
-			empty={(list) => list.items.length === 0}
-			emptyText="No open pull requests"
-		>
-			{#snippet children(list)}
-				<ul class="-m-4 divide-y">
-					{#each list.items.slice(0, preview) as item (item.id)}
-						<li><ItemRow {item} /></li>
-					{/each}
-				</ul>
-			{/snippet}
-		</AsyncPanel>
+		<div class="lg:space-y-5">
+			{@render totalMini('pr', 'PRs', 'Total PRs', GitPullRequest)}
+			<AsyncPanel
+				title="Open PRs"
+				icon={GitPullRequest}
+				href={section('tasks')}
+				result={data.prs}
+				count={(list) => list.total}
+				capped={(list) => list.capped}
+				empty={(list) => list.items.length === 0}
+				emptyText="No open pull requests"
+			>
+				{#snippet children(list)}
+					<ul class="-m-4 divide-y">
+						{#each list.items.slice(0, preview) as item (item.id)}
+							<li><ItemRow {item} /></li>
+						{/each}
+					</ul>
+				{/snippet}
+			</AsyncPanel>
+		</div>
 	</div>
 
 	<AsyncPanel
 		title="Issues & PRs over time"
 		icon={GitPullRequest}
-		href={section('issues-and-prs')}
+		href={section('stats')}
 		result={data.timeline}
 		empty={(tl) => tl.points.length === 0}
 		emptyText="No history yet"

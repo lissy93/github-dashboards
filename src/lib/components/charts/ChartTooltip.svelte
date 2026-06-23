@@ -17,6 +17,9 @@
 			{/if}
 			{data.title}
 		</div>
+		{#if data.note}
+			<p class="text-muted-foreground mt-0.5 max-w-44 text-[0.7rem] leading-snug">{data.note}</p>
+		{/if}
 		{#each data.rows as row (row.label)}
 			<div class="flex justify-between gap-4 tabular-nums">
 				<span class="text-muted-foreground flex items-center gap-1.5">

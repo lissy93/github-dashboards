@@ -11,13 +11,15 @@
 		colored = false,
 		color = 'var(--chart-1)',
 		valueLabel = 'Value',
-		format = compactNumber
+		format = compactNumber,
+		labelWidth = '7rem'
 	}: {
 		data: Slice[];
 		colored?: boolean;
 		color?: string;
 		valueLabel?: string;
 		format?: (value: number) => string;
+		labelWidth?: string;
 	} = $props();
 
 	const max = $derived(Math.max(1, ...data.map((row) => row.value)));
@@ -31,7 +33,8 @@
 <ul class="flex flex-col gap-2">
 	{#each data as row, index (row.label)}
 		<li
-			class="grid grid-cols-[7rem_1fr_auto] items-center gap-3 text-xs"
+			class="grid items-center gap-3 text-xs"
+			style="grid-template-columns: {labelWidth} 1fr auto"
 			onpointermove={(event) =>
 				tip.show(event, { title: row.label, color: fill(row, index), rows: rowsFor(row) })}
 			onpointerleave={tip.hide}

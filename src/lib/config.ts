@@ -22,8 +22,7 @@ export const paths = {
 // Tabs shown on repo pages, section is appended to the repo base path
 export const REPO_NAV = [
 	{ label: 'Overview', section: '' },
-	{ label: 'Issues & PRs', section: 'issues-and-prs' },
-	{ label: 'Tasks', section: 'tasks' },
+	{ label: 'Issues & PRs', section: 'tasks' },
 	{ label: 'Activity', section: 'activity' },
 	{ label: 'Traffic', section: 'traffic' },
 	{ label: 'Stats', section: 'stats' },
