@@ -1,24 +1,39 @@
 import { describe, it, expect } from 'vitest';
 import {
-	samplePages,
+	buildPoints,
 	buildBreakdown,
 	pageBudget,
 	pointTarget,
-	perStarPoints
+	perStarPoints,
+	progressPages
 } from '$lib/server/github/star-history';
 
-describe('samplePages', () => {
-	it('returns every page when there are fewer than the cap', () => {
-		expect(samplePages(1, 15)).toEqual([1]);
-		expect(samplePages(5, 15)).toEqual([1, 2, 3, 4, 5]);
+describe('buildPoints', () => {
+	it('keeps a point per star when every page is in hand, so small repos are not a flat line', () => {
+		const byPage = new Map([
+			[
+				1,
+				[
+					{ starred_at: '2024-01-01T00:00:00Z' },
+					{ starred_at: '2024-01-02T00:00:00Z' },
+					{ starred_at: '2024-01-03T00:00:00Z' }
+				]
+			]
+		]);
+		const points = buildPoints(byPage, 1, 3);
+		expect(points.length).toBeGreaterThan(2);
+		expect(points.at(-1)).toEqual({ day: '2024-01-03', stars: 3 });
 	});
 
-	it('samples evenly across both ends when there are more pages than the cap', () => {
-		const pages = samplePages(100, 15);
-		expect(pages.length).toBeLessThanOrEqual(15);
-		expect(pages[0]).toBe(1);
-		expect(pages.at(-1)).toBe(100);
-		expect([...pages].sort((first, second) => first - second)).toEqual(pages);
+	it('falls back to one cumulative point per sampled page when coverage is partial', () => {
+		const byPage = new Map([
+			[1, [{ starred_at: '2024-01-01T00:00:00Z' }]],
+			[3, [{ starred_at: '2024-03-01T00:00:00Z' }]]
+		]);
+		expect(buildPoints(byPage, 5, 500)).toEqual([
+			{ day: '2024-01-01', stars: 1 },
+			{ day: '2024-03-01', stars: 201 }
+		]);
 	});
 });
 
@@ -59,6 +74,19 @@ describe('pageBudget', () => {
 		expect(pageBudget(10)).toBe(10);
 		expect(pageBudget(40)).toBe(10);
 		expect(pageBudget(500)).toBe(4);
+	});
+});
+
+describe('progressPages', () => {
+	it('fills the widest missing gaps and always includes the newest reachable page', () => {
+		const pages = progressPages(20, new Set([1]), 4);
+		expect(pages).toHaveLength(4);
+		expect(pages).toContain(20);
+		expect(new Set(pages).size).toBe(pages.length);
+	});
+
+	it('stops when every page is already covered', () => {
+		expect(progressPages(3, new Set([1, 2, 3]), 4)).toEqual([]);
 	});
 });
 

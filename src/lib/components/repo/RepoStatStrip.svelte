@@ -8,7 +8,7 @@
 	let { summary }: { summary: StatsSummary } = $props();
 
 	// A dash while a source has not resolved yet
-	const num = (value: number | null) => (value === null ? '—' : compactNumber(value));
+	const num = (value: number | null) => (value === null ? '-' : compactNumber(value));
 
 	const tiles = $derived<Tile[]>([
 		{
@@ -32,7 +32,7 @@
 		},
 		{
 			label: 'Bus factor',
-			value: summary.busFactor === null ? '—' : summary.busFactor,
+			value: summary.busFactor === null ? '-' : summary.busFactor,
 			icon: LifeBuoy,
 			hint:
 				summary.topContributorShare === null

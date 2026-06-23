@@ -2,6 +2,7 @@ import { graphql } from '$lib/server/github/client';
 import { getUserOverview } from '$lib/server/github/user';
 import { cached, isCached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
+import { AppError, logError } from '$lib/errors';
 import type {
 	ContributionDay,
 	ContributionTotals,
@@ -12,6 +13,7 @@ import type {
 
 // Contributions move slowly once a year closes, so cache them for a few hours
 const TTL = 4 * 3600;
+const CLOSED_YEAR_TTL = 30 * 86400;
 const YEAR_CONCURRENCY = 4;
 const MAX_REPOSITORIES = 100;
 const CONTRIBUTION_DAYS = 100;
@@ -137,6 +139,16 @@ async function fetchYear(login: string, year: number): Promise<FetchedYear> {
 	};
 }
 
+// Closed years are effectively immutable, while the current year refreshes regularly
+function getYear(login: string, year: number): Promise<FetchedYear> {
+	const current = new Date().getUTCFullYear();
+	return cached(
+		`user:contributions-year:v1:${login.toLowerCase()}:${year}`,
+		() => fetchYear(login, year),
+		year === current ? TTL : CLOSED_YEAR_TTL
+	);
+}
+
 // Calendar years from the account's join year to now
 function yearRange(createdAt: string): number[] {
 	const now = new Date().getUTCFullYear();
@@ -169,9 +181,21 @@ export function getUserContributions(login: string): Promise<UserContributions> 
 		statsKey(login),
 		async () => {
 			const { profile } = await getUserOverview(login);
-			const fetched = await mapLimit(yearRange(profile.createdAt), YEAR_CONCURRENCY, (year) =>
-				fetchYear(login, year)
-			);
+			const range = yearRange(profile.createdAt);
+			const settled = await mapLimit(range, YEAR_CONCURRENCY, async (year) => {
+				try {
+					return await getYear(login, year);
+				} catch (caught) {
+					logError(`user-contributions:${year}`, caught);
+					return null;
+				}
+			});
+			const fetched = settled.filter((year): year is FetchedYear => year !== null);
+			if (!fetched.length && range.length) {
+				throw new AppError('upstream', `No contribution years available for ${login}`, {
+					expose: false
+				});
+			}
 			const years = fetched.map((year) => year.calendar);
 			years.reverse();
 			const totals = sumTotals(years);
@@ -182,7 +206,14 @@ export function getUserContributions(login: string): Promise<UserContributions> 
 					(commitMonths[repo] ??= []).push(...months);
 				}
 			}
-			return { total, totals, years, commitMonths };
+			return {
+				total,
+				totals,
+				years,
+				commitMonths,
+				yearsCovered: fetched.length,
+				totalYears: range.length
+			};
 		},
 		TTL
 	);

@@ -147,7 +147,7 @@
 
 		{#if data?.capped}
 			<p class="text-muted-foreground px-1 text-xs">
-				Showing your busiest repos, some were left out to stay within limits
+				Building analytics across your repos, cached history remains available while syncing
 			</p>
 		{/if}
 	</div>

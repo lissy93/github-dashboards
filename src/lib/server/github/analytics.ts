@@ -1,30 +1,47 @@
 import { getUserOverview } from '$lib/server/github/user';
 import { getRepoTraffic, getTrafficHistory } from '$lib/server/github/traffic';
-import { cached } from '$lib/server/cache';
+import { cached, readCached, writeCached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
 import { logError } from '$lib/errors';
 import type { AnalyticsItem, UserAnalytics } from '$lib/types';
 
 // Full traffic for many repos is heavy, so bound the fan-out and the repo count
-const MAX_REPOS = 100;
+const REPOS_PER_SYNC = 12;
 const CONCURRENCY = 5;
+const TTL = 900;
 
-// Bump when the stored shape changes, to retire old entries
-const key = (login: string) => `user:analytics:1:${login.toLowerCase()}`;
+type AnalyticsState = {
+	data: UserAnalytics;
+	covered: string[];
+	nextIndex: number;
+	source: string[];
+};
 
-// Pull current traffic for every owned repo, snapshotting it, then read back the
-// combined day-by-day history plus the live top paths and referrers
-async function fetchAnalytics(login: string): Promise<UserAnalytics> {
+const key = (login: string) => `user:analytics-state:v1:${login.toLowerCase()}`;
+const syncing = new Map<string, Promise<AnalyticsState>>();
+
+// Refresh a rotating repo batch, preserving successful data from earlier batches
+async function syncAnalytics(login: string, current?: AnalyticsState): Promise<AnalyticsState> {
 	const { ownedRepos } = await getUserOverview(login);
 	const source = ownedRepos.filter((repo) => !repo.isFork);
-	const targets = source.slice(0, MAX_REPOS);
-
-	const paths: AnalyticsItem[] = [];
-	const referrers: AnalyticsItem[] = [];
+	const names = source.map((repo) => repo.nameWithOwner);
+	const sameSource =
+		current?.source.length === names.length &&
+		current.source.every((name, index) => name === names[index]);
+	const start = sameSource ? current.nextIndex % Math.max(1, source.length) : 0;
+	const targets = Array.from(
+		{ length: Math.min(REPOS_PER_SYNC, source.length) },
+		(_, index) => source[(start + index) % source.length]
+	);
+	let paths = (current?.data.paths ?? []).filter((item) => names.includes(item.repo));
+	let referrers = (current?.data.referrers ?? []).filter((item) => names.includes(item.repo));
+	const covered = new Set((current?.covered ?? []).filter((name) => names.includes(name)));
 	await mapLimit(targets, CONCURRENCY, async (repo) => {
-		// One repo failing or lacking access never blanks the rest, each is cached alone
 		try {
 			const traffic = await getRepoTraffic(repo.owner, repo.name);
+			paths = paths.filter((item) => item.repo !== repo.nameWithOwner);
+			referrers = referrers.filter((item) => item.repo !== repo.nameWithOwner);
+			covered.add(repo.nameWithOwner);
 			if (!traffic.available) return;
 			for (const item of traffic.topPaths) paths.push({ ...item, repo: repo.nameWithOwner });
 			for (const item of traffic.topReferrers)
@@ -34,7 +51,7 @@ async function fetchAnalytics(login: string): Promise<UserAnalytics> {
 		}
 	});
 
-	const daily = await getTrafficHistory(targets.map((repo) => repo.nameWithOwner));
+	const daily = await getTrafficHistory(names);
 	const repos = [
 		...new Set([
 			...daily.map((row) => row.repo),
@@ -42,12 +59,46 @@ async function fetchAnalytics(login: string): Promise<UserAnalytics> {
 			...referrers.map((item) => item.repo)
 		])
 	].sort();
-	return { repos, capped: source.length > targets.length, daily, paths, referrers };
+	return {
+		data: {
+			repos,
+			// More repos than one batch covers means the live paths are a rotating sample
+			capped: source.length > targets.length,
+			daily,
+			paths,
+			referrers
+		},
+		covered: [...covered],
+		nextIndex: source.length ? (start + targets.length) % source.length : 0,
+		source: names
+	};
 }
 
-// Combined traffic analytics across a user's owned repos, cached and snapshotted
-export function getUserAnalytics(login: string): Promise<UserAnalytics> {
-	return cached(key(login), () => fetchAnalytics(login));
+async function refreshAnalytics(login: string, current?: AnalyticsState): Promise<AnalyticsState> {
+	const cacheKey = key(login);
+	const running = syncing.get(cacheKey);
+	if (running) return running;
+	const task = syncAnalytics(login, current)
+		.then(async (state) => {
+			await writeCached(cacheKey, state, TTL);
+			return state;
+		})
+		.finally(() => syncing.delete(cacheKey));
+	syncing.set(cacheKey, task);
+	return task;
+}
+
+// Combined traffic analytics, rotating through repos while serving cached snapshots
+export async function getUserAnalytics(login: string): Promise<UserAnalytics> {
+	const cacheKey = key(login);
+	const stored = await readCached<AnalyticsState>(cacheKey).catch(() => null);
+	if (!stored) return (await refreshAnalytics(login)).data;
+	if (Date.now() - stored.fetchedAt.getTime() >= TTL * 1000) {
+		void refreshAnalytics(login, stored.value).catch((caught) =>
+			logError('analytics-refresh', caught)
+		);
+	}
+	return stored.value.data;
 }
 
 const repoKey = (owner: string, name: string) => `repo:analytics:1:${owner}/${name}`.toLowerCase();

@@ -22,8 +22,10 @@
 		cursor: string | null
 	): Promise<{ items: ActivityEvent[]; nextCursor: string | null }> {
 		const response = await fetch(activityUrl(data.user, view, cursor, data.repo.name));
-		const body: ActivityPage = await response.json();
-		return { items: body.events, nextCursor: body.nextCursor };
+		const body = await response.json();
+		if (!response.ok) throw body;
+		const page = body as ActivityPage;
+		return { items: page.events, nextCursor: page.nextCursor };
 	}
 </script>
 

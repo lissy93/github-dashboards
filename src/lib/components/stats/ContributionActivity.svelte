@@ -28,8 +28,14 @@
 	emptyText="No public contributions found"
 >
 	{#snippet actions()}
-		<Hint text="{formatNumber(data.total)} contributions" class="text-muted-foreground text-xs">
-			{compactNumber(data.total)} all time
+		<Hint
+			text="{formatNumber(
+				data.total
+			)} contributions across {data.yearsCovered} of {data.totalYears} years"
+			class="text-muted-foreground text-xs"
+		>
+			{compactNumber(data.total)}
+			{data.yearsCovered < data.totalYears ? 'loaded' : 'all time'}
 		</Hint>
 	{/snippet}
 	<div class="flex flex-col gap-4">
@@ -72,5 +78,10 @@
 			{/each}
 			<span>More</span>
 		</div>
+		{#if data.yearsCovered < data.totalYears}
+			<p class="text-muted-foreground text-xs">
+				Building contribution history, {data.yearsCovered} of {data.totalYears} years loaded
+			</p>
+		{/if}
 	</div>
 </Panel>

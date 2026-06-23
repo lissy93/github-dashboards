@@ -45,6 +45,14 @@ describe('buildTimeline', () => {
 		expect(sampled).toBe(true);
 	});
 
+	it('carries omitted open items into a sampled timeline baseline', () => {
+		const issues = [{ createdAt: '2024-05-01T00:00:00Z', closedAt: null }];
+		const { points } = buildTimeline(issues, [], true, { issues: 12, prs: 0 });
+
+		expect(point(points, '2024-05-01')?.openIssues).toBe(13);
+		expect(points.at(-1)?.openIssues).toBe(13);
+	});
+
 	it('buckets by week when the repo has under a year of history', () => {
 		const issues = [
 			{ createdAt: daysAgo(60), closedAt: null },

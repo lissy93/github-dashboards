@@ -37,6 +37,40 @@ export async function isCached(key: string): Promise<boolean> {
 	}
 }
 
+// Read any stored value and its age without triggering a refresh
+export async function readCached<T>(
+	key: string
+): Promise<{ value: T; fetchedAt: Date; ttl: number } | null> {
+	try {
+		const [existing] = await db.select().from(cacheEntry).where(eq(cacheEntry.key, key)).limit(1);
+		storageReachable = true;
+		return existing
+			? { value: existing.value as T, fetchedAt: existing.fetchedAt, ttl: existing.ttl }
+			: null;
+	} catch (error) {
+		if (isConnectionError(error)) storageReachable = false;
+		throw error;
+	}
+}
+
+// Replace a stored value, used by resumable sync jobs that checkpoint their progress
+export async function writeCached<T>(key: string, value: T, ttl: number): Promise<void> {
+	try {
+		await db
+			.insert(cacheEntry)
+			.values({ key, value: value as object, ttl })
+			.onConflictDoUpdate({
+				target: cacheEntry.key,
+				set: { value: value as object, ttl, fetchedAt: new Date() }
+			});
+		storageReachable = true;
+	} catch (error) {
+		if (!isConnectionError(error)) throw error;
+		storageReachable = false;
+		log.warn(`storage unavailable, could not checkpoint ${key}`);
+	}
+}
+
 // Fetch fresh data and store it, sharing one promise across concurrent callers
 function refresh<T>(key: string, fetcher: () => Promise<T>, ttl: number): Promise<T> {
 	const running = inflight.get(key);

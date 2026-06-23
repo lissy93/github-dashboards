@@ -25,7 +25,12 @@
 {#snippet totalChart(tl: RepoTimeline, kind: 'issue' | 'pr', unit: string)}
 	<div class="space-y-3">
 		<StackedBarChart
-			bars={lifecycleBars(tl.points, kind, tl.granularity)}
+			bars={lifecycleBars(
+				tl.points,
+				kind,
+				tl.granularity,
+				kind === 'issue' ? tl.baseline.issues : tl.baseline.prs
+			)}
 			series={lifecycleSeries(kind)}
 			totalUnit={unit}
 			height={14}

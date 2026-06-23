@@ -7,14 +7,13 @@ import { getRepoIssuePrTimeline } from '$lib/server/github/repo-timeline';
 import { getActivityPage } from '$lib/server/github/activity';
 import { getRepoStarHistory } from '$lib/server/github/star-history';
 import { getRepoWorkflows } from '$lib/server/github/workflows';
-import { getScorecard } from '$lib/server/scorecard';
+import { getRepoSecurity } from '$lib/server/github/security';
 import { settle } from '$lib/server/load';
 import type { PageServerLoad } from './$types';
 
 const PREVIEW = 6;
 
-export const load: PageServerLoad = async ({ params, parent }) => {
-	const { repo } = await parent();
+export const load: PageServerLoad = async ({ params }) => {
 	const owner = params.user;
 	const name = params.repo;
 
@@ -24,8 +23,7 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 	const timeline = settle('repo-timeline', getRepoIssuePrTimeline(owner, name));
 	const stars = settle('repo-stars', getRepoStarHistory(owner, name));
 	const workflows = settle('repo-workflows', getRepoWorkflows(owner, name));
-	// The OpenSSF API holds nothing for private repos, so do not even ask
-	const scorecard = repo.isPrivate ? null : settle('repo-scorecard', getScorecard(owner, name));
+	const security = settle('repo-security', getRepoSecurity(owner, name));
 
 	// Activity is a quick store read, resolve it inline and never block on GitHub here
 	const activity = await settle(
@@ -43,7 +41,7 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 		timeline,
 		stars,
 		workflows,
-		scorecard,
+		security,
 		activity
 	};
 };

@@ -15,7 +15,10 @@ export function releaseDownloadBars(releases: ReleaseRow[]): Slice[] {
 		value: release.downloads,
 		color: release.prerelease ? 'var(--muted-foreground)' : 'var(--chart-4)',
 		rows: [
-			{ label: 'Downloads', value: release.hasAssets ? release.downloads.toLocaleString() : 'Unknown' },
+			{
+				label: 'Downloads',
+				value: release.hasAssets ? release.downloads.toLocaleString() : 'Unknown'
+			},
 			{ label: 'Published', value: release.publishedAt.slice(0, 10) },
 			...(release.prerelease ? [{ label: 'Pre-release', value: 'yes' }] : [])
 		]
@@ -33,19 +36,19 @@ export function hasReleaseDownloads(releases: ReleaseRow[]): boolean {
 // not yet resolved stays null and the strip shows a dash for it
 
 export type SummaryParts = {
-	totalCommits: number;
+	totalCommits: number | null;
 	recentCommits: number | null;
 	priorCommits: number | null;
-	releaseCount: number;
+	releaseCount: number | null;
 	contributorCount: number | null;
 	contributors: { contributions: number }[] | null;
 };
 
 export type StatsSummary = {
-	totalCommits: number;
+	totalCommits: number | null;
 	recentCommits: number | null;
 	commitsDelta: number | null;
-	releaseCount: number;
+	releaseCount: number | null;
 	contributors: number | null;
 	busFactor: number | null;
 	topContributorShare: number | null;

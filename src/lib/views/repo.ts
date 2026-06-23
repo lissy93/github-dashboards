@@ -1,7 +1,12 @@
 import type { ChartData } from '$lib/views/analytics';
 import type { Slice, StackBar, StackSeries } from '$lib/views/stats';
 import type { RepoStarHistory } from '$lib/server/github/star-history';
-import type { Granularity, ResolutionStats, TimelinePoint } from '$lib/server/github/repo-timeline';
+import type {
+	Granularity,
+	ResolutionStats,
+	TimelineBaseline,
+	TimelinePoint
+} from '$lib/server/github/repo-timeline';
 
 // Issue and PR timeline metrics, coloured from the shared chart tokens. The open
 // counts are the running backlog, the opened/closed counts are per-period flow
@@ -130,6 +135,12 @@ export function timelineChart(
 // --lifecycle-* tokens in layout.css, so the whole palette is tweakable in one place
 export const ISSUE_LIFECYCLE_SERIES: StackSeries[] = [
 	{
+		key: 'earlier',
+		label: 'Earlier history',
+		color: 'var(--muted-foreground)',
+		hint: 'Items created before the detailed history window'
+	},
+	{
 		key: 'resolved',
 		label: 'Completed',
 		color: 'var(--lifecycle-resolved)',
@@ -144,6 +155,12 @@ export const ISSUE_LIFECYCLE_SERIES: StackSeries[] = [
 	{ key: 'open', label: 'Open', color: 'var(--lifecycle-open)', hint: 'Issues still open' }
 ];
 export const PR_LIFECYCLE_SERIES: StackSeries[] = [
+	{
+		key: 'earlier',
+		label: 'Earlier history',
+		color: 'var(--muted-foreground)',
+		hint: 'Items created before the detailed history window'
+	},
 	{
 		key: 'resolved',
 		label: 'Merged',
@@ -163,10 +180,8 @@ export const PR_LIFECYCLE_SERIES: StackSeries[] = [
 export const lifecycleSeries = (kind: 'issue' | 'pr'): StackSeries[] =>
 	kind === 'issue' ? ISSUE_LIFECYCLE_SERIES : PR_LIFECYCLE_SERIES;
 
-// Shown when the history hit the page cap. We walk oldest first, so it is the recent tail
-// that gets dropped
 export const TIMELINE_SAMPLED_NOTE =
-	'Sampled to stay within limits, recent issues and PRs may be missing';
+	'Older items are grouped as Earlier history, with detailed states shown for recent items';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -183,7 +198,8 @@ function bucketLabel(period: string, granularity: Granularity): string {
 export function lifecycleBars(
 	points: TimelinePoint[],
 	kind: 'issue' | 'pr',
-	granularity: Granularity
+	granularity: Granularity,
+	baseline: TimelineBaseline = { total: 0, open: 0 }
 ): StackBar[] {
 	const resolvedKey = kind === 'issue' ? 'completedIssues' : 'mergedPrs';
 	const discardedKey = kind === 'issue' ? 'discardedIssues' : 'discardedPrs';
@@ -194,11 +210,11 @@ export function lifecycleBars(
 	return points.map((point) => {
 		resolved += point[resolvedKey];
 		discarded += point[discardedKey];
-		const open = point[openKey];
+		const open = Math.max(0, point[openKey] - baseline.open);
 		return {
 			label: bucketLabel(point.period, granularity),
-			values: { resolved, discarded, open },
-			total: resolved + discarded + open
+			values: { earlier: baseline.total, resolved, discarded, open },
+			total: baseline.total + resolved + discarded + open
 		};
 	});
 }

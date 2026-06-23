@@ -249,7 +249,9 @@ describe('funFacts', () => {
 		total: years.reduce((sum, year) => sum + year.total, 0),
 		totals: { commits: 0, issues: 0, prs: 0, reviews: 0, restricted: 0 },
 		years,
-		commitMonths: {}
+		commitMonths: {},
+		yearsCovered: years.length,
+		totalYears: years.length
 	});
 
 	const days2026 = run('2026-06-10', [2, 0, 3, 3, 3, 3, 0, 5, 5]);

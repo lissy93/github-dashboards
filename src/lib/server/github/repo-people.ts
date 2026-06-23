@@ -15,6 +15,7 @@ export type PersonRow = { login: string; avatarUrl: string; at?: string };
 export type RepoPeople = {
 	stargazers: PersonRow[];
 	stargazersTotal: number;
+	stargazersAvailable: boolean;
 	forks: PersonRow[];
 	forksTotal: number;
 	watchers: PersonRow[];
@@ -27,8 +28,8 @@ type RawUser = { login: string; avatar_url: string };
 
 // Newest stargazers come from the last reachable page, since the listing is oldest first
 async function newestStargazers(repo: Repo): Promise<PersonRow[]> {
-	if (repo.stars === 0) return [];
-	const lastPage = Math.min(Math.ceil(repo.stars / PER_PAGE), PAGE_CAP);
+	if (repo.stars === 0 || repo.stars > PAGE_CAP * PER_PAGE) return [];
+	const lastPage = Math.ceil(repo.stars / PER_PAGE);
 	const page =
 		(await rest<RawStar[]>(
 			`/repos/${repo.owner}/${repo.name}/stargazers?per_page=${PER_PAGE}&page=${lastPage}`,
@@ -62,7 +63,7 @@ async function watcherList(owner: string, name: string): Promise<PersonRow[]> {
 	return list.map((user) => ({ login: user.login, avatarUrl: user.avatar_url }));
 }
 
-const key = (owner: string, name: string) => `repo:people:v2:${owner}/${name}`.toLowerCase();
+const key = (owner: string, name: string) => `repo:people:v3:${owner}/${name}`.toLowerCase();
 
 export const isRepoPeopleCached = (owner: string, name: string) => isCached(key(owner, name));
 
@@ -76,6 +77,7 @@ export function getRepoPeople(owner: string, name: string): Promise<RepoPeople> 
 				return {
 					stargazers: [],
 					stargazersTotal: 0,
+					stargazersAvailable: true,
 					forks: [],
 					forksTotal: 0,
 					watchers: [],
@@ -90,6 +92,7 @@ export function getRepoPeople(owner: string, name: string): Promise<RepoPeople> 
 			return {
 				stargazers,
 				stargazersTotal: repo.stars,
+				stargazersAvailable: repo.stars <= PAGE_CAP * PER_PAGE,
 				forks,
 				forksTotal: repo.forks,
 				watchers,

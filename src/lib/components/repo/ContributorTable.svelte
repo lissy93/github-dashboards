@@ -23,7 +23,7 @@
 				<a
 					href={person.htmlUrl}
 					target="_blank"
-					rel="noreferrer"
+					rel="noopener noreferrer"
 					class="block truncate text-sm font-medium hover:underline"
 				>
 					{person.login}

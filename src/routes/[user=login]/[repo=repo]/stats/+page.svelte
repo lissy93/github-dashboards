@@ -74,10 +74,10 @@
 		{@const recent = ok(recentResult)}
 		<RepoStatStrip
 			summary={summariseStats({
-				totalCommits: stats?.commits ?? 0,
+				totalCommits: stats?.commits ?? null,
 				recentCommits: recent?.recent ?? null,
 				priorCommits: recent?.prior ?? null,
-				releaseCount: stats?.releaseCount ?? 0,
+				releaseCount: stats?.releaseCount ?? null,
 				contributorCount: people?.total ?? null,
 				contributors: people?.contributors ?? null
 			})}

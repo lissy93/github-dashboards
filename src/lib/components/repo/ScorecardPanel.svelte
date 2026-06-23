@@ -59,7 +59,7 @@
 							<a
 								href={check.documentation.url}
 								target="_blank"
-								rel="noreferrer"
+								rel="noopener noreferrer"
 								aria-label="{check.name} docs"
 								class="text-muted-foreground hover:text-foreground"
 							>

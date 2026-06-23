@@ -37,13 +37,25 @@ type RawScorecard = {
 	}[];
 };
 
-const UNAVAILABLE: RepoScorecard = {
+export const UNAVAILABLE: RepoScorecard = {
 	available: false,
 	score: null,
 	generatedAt: null,
 	scorecardVersion: null,
 	checks: []
 };
+
+// Keep only safe documentation links from the upstream payload
+function documentation(
+	value: { short: string; url: string } | null | undefined
+): ScorecardCheck['documentation'] {
+	if (!value) return null;
+	try {
+		return new URL(value.url).protocol === 'https:' ? value : null;
+	} catch {
+		return null;
+	}
+}
 
 // Fetch the public OpenSSF scorecard. 404 means the repo was never scanned, which
 // is a normal "not available" state, not an error. Only real failures throw
@@ -80,12 +92,12 @@ async function fetchScorecard(owner: string, name: string): Promise<RepoScorecar
 			score: check.score,
 			reason: check.reason,
 			details: check.details,
-			documentation: check.documentation ?? null
+			documentation: documentation(check.documentation)
 		}))
 	};
 }
 
-const key = (owner: string, name: string) => `repo:scorecard:${owner}/${name}`.toLowerCase();
+const key = (owner: string, name: string) => `repo:scorecard:v2:${owner}/${name}`.toLowerCase();
 
 export const isScorecardCached = (owner: string, name: string) => isCached(key(owner, name));
 

@@ -114,18 +114,18 @@ describe('lifecycleBars', () => {
 		expect(bars).toHaveLength(3);
 		expect(bars[0]).toEqual({
 			label: 'Jun 23',
-			values: { resolved: 0, discarded: 0, open: 4 },
+			values: { earlier: 0, resolved: 0, discarded: 0, open: 4 },
 			total: 4
 		});
 		expect(bars[1]).toEqual({
 			label: 'Dec 23',
-			values: { resolved: 1, discarded: 0, open: 3 },
+			values: { earlier: 0, resolved: 1, discarded: 0, open: 3 },
 			total: 4
 		});
 		// 2 completed and 1 not-planned cumulative, plus 3 still open
 		expect(bars[2]).toEqual({
 			label: 'May 24',
-			values: { resolved: 2, discarded: 1, open: 3 },
+			values: { earlier: 0, resolved: 2, discarded: 1, open: 3 },
 			total: 6
 		});
 	});
@@ -136,8 +136,22 @@ describe('lifecycleBars', () => {
 			'pr',
 			'month'
 		);
-		expect(bars[0].values).toEqual({ resolved: 3, discarded: 1, open: 2 });
+		expect(bars[0].values).toEqual({ earlier: 0, resolved: 3, discarded: 1, open: 2 });
 		expect(bars[0].total).toBe(6);
+	});
+
+	it('keeps omitted history in an exact cumulative baseline', () => {
+		const bars = lifecycleBars([point({ openedIssues: 2, openIssues: 7 })], 'issue', 'month', {
+			total: 1000,
+			open: 5
+		});
+		expect(bars[0].values).toEqual({
+			earlier: 1000,
+			resolved: 0,
+			discarded: 0,
+			open: 2
+		});
+		expect(bars[0].total).toBe(1002);
 	});
 
 	it('labels weekly buckets by day and month', () => {

@@ -17,7 +17,7 @@
 	import MetricTimeChart from '$lib/components/analytics/MetricTimeChart.svelte';
 	import StackedBarChart from '$lib/components/charts/StackedBarChart.svelte';
 	import WorkflowTable from '$lib/components/repo/WorkflowTable.svelte';
-	import ScorecardPanel from '$lib/components/repo/ScorecardPanel.svelte';
+	import SecurityChecks from '$lib/components/repo/SecurityChecks.svelte';
 	import AnalyticsDashboard from '$lib/components/analytics/AnalyticsDashboard.svelte';
 	import {
 		timelineChart,
@@ -56,7 +56,12 @@
 	>
 		{#snippet children(tl)}
 			<StackedBarChart
-				bars={lifecycleBars(tl.points, kind, tl.granularity)}
+				bars={lifecycleBars(
+					tl.points,
+					kind,
+					tl.granularity,
+					kind === 'issue' ? tl.baseline.issues : tl.baseline.prs
+				)}
 				series={lifecycleSeries(kind)}
 				totalUnit={unit}
 				height={4}
@@ -148,26 +153,16 @@
 			{/snippet}
 		</AsyncPanel>
 
-		{#if data.scorecard}
-			<AsyncPanel
-				title="Security"
-				icon={ShieldCheck}
-				href={section('security')}
-				result={data.scorecard}
-			>
-				{#snippet children(scorecard)}
-					<ScorecardPanel {scorecard} />
-				{/snippet}
-			</AsyncPanel>
-		{:else}
-			<Panel title="Security" icon={ShieldCheck}>
-				<EmptyState
-					icon={ShieldCheck}
-					text="No OpenSSF scorecard"
-					hint="OpenSSF only scans public repos"
-				/>
-			</Panel>
-		{/if}
+		<AsyncPanel
+			title="Security"
+			icon={ShieldCheck}
+			href={section('security')}
+			result={data.security}
+		>
+			{#snippet children(security)}
+				<SecurityChecks {security} slug={data.repo.nameWithOwner} />
+			{/snippet}
+		</AsyncPanel>
 	</div>
 
 	<div class="grid items-start gap-5 lg:grid-cols-2">
@@ -189,12 +184,13 @@
 			icon={Workflow}
 			href={section('workflows')}
 			result={data.workflows}
-			count={(wf) => wf.workflows.length}
+			count={(wf) => wf.totalWorkflows}
+			capped={(wf) => wf.sampled}
 			empty={(wf) => wf.workflows.length === 0}
 			emptyText="No workflows"
 		>
 			{#snippet children(wf)}
-				<WorkflowTable workflows={wf.workflows.slice(0, preview)} />
+				<WorkflowTable workflows={wf.workflows.slice(0, preview)} compact />
 			{/snippet}
 		</AsyncPanel>
 	</div>

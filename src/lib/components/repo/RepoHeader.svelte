@@ -100,14 +100,19 @@
 			<div class="flex flex-wrap items-center gap-2">
 				<h1 class="flex min-w-0 items-baseline gap-1.5 text-lg font-semibold">
 					<span class="text-muted-foreground font-normal">{repo.owner}/</span>
-					<a href={repo.url} target="_blank" rel="noreferrer" class="truncate hover:underline">
+					<a
+						href={repo.url}
+						target="_blank"
+						rel="noopener noreferrer"
+						class="truncate hover:underline"
+					>
 						{repo.name}
 					</a>
 				</h1>
 				<a
 					href={repo.url}
 					target="_blank"
-					rel="noreferrer"
+					rel="noopener noreferrer"
 					aria-label="Open on GitHub"
 					class="text-muted-foreground hover:text-foreground"
 				>

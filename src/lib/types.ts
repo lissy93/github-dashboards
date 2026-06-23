@@ -129,6 +129,8 @@ export type UserContributions = {
 	totals: ContributionTotals;
 	years: YearCalendar[];
 	commitMonths: RepoActivityMonths;
+	yearsCovered: number;
+	totalYears: number;
 };
 
 // A bounded per-repo dataset with enough context to label sampled results honestly

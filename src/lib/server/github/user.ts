@@ -1,6 +1,6 @@
 import { graphql } from '$lib/server/github/client';
 import { snapshotStars } from '$lib/server/github/stars';
-import { cached, isCached } from '$lib/server/cache';
+import { isCached, readCached, writeCached } from '$lib/server/cache';
 import { AppError, toAppError } from '$lib/errors';
 import { createLogger } from '$lib/logger';
 import type { Repo, UserOverview, UserProfile } from '$lib/types';
@@ -8,7 +8,9 @@ import type { Repo, UserOverview, UserProfile } from '$lib/types';
 const log = createLogger('user-overview');
 
 const PAGE = 100;
-const MAX_PAGES = 10;
+const INITIAL_PAGE = 30;
+const PAGES_PER_SYNC = 3;
+const TTL = 900;
 
 // Cheap fields only, the heavier per-repo counts load lazily via repo-stats
 export const REPO_FIELDS = `
@@ -58,13 +60,13 @@ const OVERVIEW_QUERY = `
 				following { totalCount }
 				organizations(first: 12) { nodes { login name avatarUrl } }
 				contributionsCollection { contributionCalendar { totalContributions } }
-				ownedRepos: repositories(first: ${PAGE}, ${OWNED_ARGS}) {
+				ownedRepos: repositories(first: ${INITIAL_PAGE}, ${OWNED_ARGS}) {
 					totalCount nodes { ...repoFields } pageInfo { hasNextPage endCursor }
 				}
 			}
 			... on Organization {
 				name description location websiteUrl twitterUsername createdAt
-				ownedRepos: repositories(first: ${PAGE}, ${ORG_ARGS}) {
+				ownedRepos: repositories(first: ${INITIAL_PAGE}, ${ORG_ARGS}) {
 					totalCount nodes { ...repoFields } pageInfo { hasNextPage endCursor }
 				}
 			}
@@ -94,8 +96,8 @@ const CONTRIB_FIRST_QUERY = `
 	${REPO_FIELDS}
 	query ContribFirst($login: String!) {
 		user(login: $login) {
-			repositoriesContributedTo(first: ${PAGE}, ${CONTRIB_ARGS}) {
-				nodes { ...repoFields } pageInfo { hasNextPage endCursor }
+			repositoriesContributedTo(first: ${INITIAL_PAGE}, ${CONTRIB_ARGS}) {
+				totalCount nodes { ...repoFields } pageInfo { hasNextPage endCursor }
 			}
 		}
 	}
@@ -106,7 +108,7 @@ const CONTRIB_PAGE_QUERY = `
 	query ContribPage($login: String!, $cursor: String!) {
 		user(login: $login) {
 			repositoriesContributedTo(first: ${PAGE}, after: $cursor, ${CONTRIB_ARGS}) {
-				nodes { ...repoFields } pageInfo { hasNextPage endCursor }
+				totalCount nodes { ...repoFields } pageInfo { hasNextPage endCursor }
 			}
 		}
 	}
@@ -160,44 +162,45 @@ type RawOwner = {
 	ownedRepos: RawConn & { totalCount: number };
 };
 
-type FetchedRepos = { nodes: RawRepo[]; capped: boolean };
+type RepoProgress = {
+	nodes: RawRepo[];
+	cursor: string | null;
+	complete: boolean;
+	total: number;
+};
+type OverviewState = { owner: RawOwner; owned: RepoProgress; contributed: RepoProgress };
 
-// Contributed repos run as their own query so it never shares the owned timeout
-async function fetchContributed(login: string): Promise<FetchedRepos> {
-	const first = await graphql<{ user: { repositoriesContributedTo: RawConn } | null }>(
-		CONTRIB_FIRST_QUERY,
-		{ login }
-	);
-	const conn = first.user?.repositoriesContributedTo;
-	if (!conn) return { nodes: [], capped: false };
-	return fetchAll(conn, 'contributed repos', login, async (cursor) => {
-		const data = await graphql<{ user: { repositoriesContributedTo: RawConn } }>(
-			CONTRIB_PAGE_QUERY,
-			{ login, cursor }
-		);
-		return data.user.repositoriesContributedTo;
-	});
+function progress(conn?: RawConn | null): RepoProgress {
+	return {
+		nodes: conn?.nodes ?? [],
+		cursor: conn?.pageInfo.endCursor ?? null,
+		complete: !conn?.pageInfo.hasNextPage,
+		total: conn?.totalCount ?? conn?.nodes.length ?? 0
+	};
 }
 
-// Walk a repo connection to the end, capped at MAX_PAGES to stay within limits
-async function fetchAll(
-	first: RawConn,
-	label: string,
-	login: string,
+function mergeRepos(...groups: RawRepo[][]): RawRepo[] {
+	return [
+		...new Map(groups.flat().map((repo) => [repo.nameWithOwner.toLowerCase(), repo])).values()
+	].sort((first, second) => second.stargazerCount - first.stargazerCount);
+}
+
+async function resume(
+	current: RepoProgress,
+	pages: number,
 	nextPage: (cursor: string) => Promise<RawConn>
-): Promise<FetchedRepos> {
-	const nodes = [...first.nodes];
-	let info = first.pageInfo;
-	let pages = 1;
-	while (info.hasNextPage && info.endCursor && pages < MAX_PAGES) {
-		const conn = await nextPage(info.endCursor);
-		nodes.push(...conn.nodes);
-		info = conn.pageInfo;
-		pages += 1;
+): Promise<RepoProgress> {
+	let { cursor, complete } = current;
+	let nodes = current.nodes;
+	let total = current.total;
+	for (let page = 0; !complete && cursor && page < pages; page++) {
+		const conn = await nextPage(cursor);
+		nodes = mergeRepos(nodes, conn.nodes);
+		total = conn.totalCount ?? total;
+		cursor = conn.pageInfo.endCursor;
+		complete = !conn.pageInfo.hasNextPage;
 	}
-	const capped = info.hasNextPage;
-	if (capped) log.warn(`${label} truncated at ${nodes.length} for ${login}`);
-	return { nodes, capped };
+	return { nodes: nodes.slice(0, total), cursor, complete, total };
 }
 
 // Drop the placeholder GitHub returns for an unrecognised licence file
@@ -256,51 +259,157 @@ function mapProfile(owner: RawOwner, ownedRepos: Repo[]): UserProfile {
 }
 
 // Bump the version when the stored shape changes, to retire old entries
-const overviewKey = (login: string) => `user:overview:9:${login.toLowerCase()}`;
+const overviewKey = (login: string) => `user:overview-state:v1:${login.toLowerCase()}`;
+const legacyOverviewKey = (login: string) => `user:overview:9:${login.toLowerCase()}`;
+const syncing = new Map<string, Promise<OverviewState>>();
 
 // Whether this overview is already cached, so the page can render it inline
-export const isUserOverviewCached = (login: string) => isCached(overviewKey(login));
+export async function isUserOverviewCached(login: string): Promise<boolean> {
+	const [current, legacy] = await Promise.all([
+		isCached(overviewKey(login)),
+		isCached(legacyOverviewKey(login))
+	]);
+	return current || legacy;
+}
 
-// Fetch a user or org overview: profile, all owned repos and contributed repos
-export function getUserOverview(login: string): Promise<UserOverview> {
-	return cached(overviewKey(login), async () => {
+function toOverview(state: OverviewState): UserOverview {
+	const ownedRepos = state.owned.nodes.map(mapRepo);
+	return {
+		profile: mapProfile(state.owner, ownedRepos),
+		ownedRepos,
+		contributedRepos: state.contributed.nodes.map(mapRepo),
+		ownedReposCapped: !state.owned.complete,
+		contributedReposCapped: !state.contributed.complete
+	};
+}
+
+async function syncOverview(login: string, current?: OverviewState): Promise<OverviewState> {
+	const cacheKey = overviewKey(login);
+	const running = syncing.get(cacheKey);
+	if (running) return running;
+
+	const task = (async () => {
+		const contributedTask = graphql<{
+			user: { repositoriesContributedTo: RawConn } | null;
+		}>(CONTRIB_FIRST_QUERY, { login }).catch((caught) => {
+			log.warn(`contributed repos refresh failed for ${login}`, {
+				code: toAppError(caught).code
+			});
+			return null;
+		});
 		const { repositoryOwner: owner } = await graphql<{ repositoryOwner: RawOwner | null }>(
 			OVERVIEW_QUERY,
 			{ login }
 		);
 		if (!owner) throw new AppError('not_found', `No user or org named ${login}`);
+		const contributedData = owner.__typename === 'User' ? await contributedTask : null;
+		// A cold start still walks a few pages so the first paint is not just 30 repos
+		const pageBudget = PAGES_PER_SYNC;
 
-		// Owned and contributed are separate queries so neither shares the other's timeout
-		const ownedTask = fetchAll(owner.ownedRepos, 'owned repos', login, async (cursor) => {
+		const ownedFirst = progress(owner.ownedRepos);
+		const ownedNodes = mergeRepos(current?.owned.nodes ?? [], owner.ownedRepos.nodes).slice(
+			0,
+			owner.ownedRepos.totalCount
+		);
+		const ownedStart =
+			current && current.owned.total === owner.ownedRepos.totalCount
+				? { ...current.owned, nodes: ownedNodes }
+				: { ...ownedFirst, nodes: ownedNodes };
+		const contributedFirst =
+			owner.__typename === 'User' ? contributedData?.user?.repositoriesContributedTo : null;
+		const contributedNodes = mergeRepos(
+			current?.contributed.nodes ?? [],
+			contributedFirst?.nodes ?? []
+		).slice(0, contributedFirst?.totalCount);
+		const contributedStart =
+			owner.__typename === 'User' && !contributedData
+				? (current?.contributed ?? {
+						nodes: [],
+						cursor: null,
+						complete: false,
+						total: 0
+					})
+				: current &&
+					  contributedFirst?.totalCount !== undefined &&
+					  current.contributed.total === contributedFirst.totalCount
+					? { ...current.contributed, nodes: contributedNodes }
+					: { ...progress(contributedFirst), nodes: contributedNodes };
+		const owned = await resume(ownedStart, pageBudget, async (cursor) => {
 			const data = await graphql<{ repositoryOwner: { repos: RawConn } }>(OWNED_PAGE_QUERY, {
 				login,
 				cursor
 			});
 			return data.repositoryOwner.repos;
+		}).catch((caught) => {
+			log.warn(`owned repos pagination failed for ${login}`, {
+				code: toAppError(caught).code
+			});
+			return ownedStart;
 		});
-
-		const [owned, contributed] = await Promise.all([
-			ownedTask,
+		const contributed =
 			owner.__typename === 'User'
-				? fetchContributed(login)
-				: Promise.resolve<FetchedRepos>({ nodes: [], capped: false })
-		]);
-
-		const ownedRepos = owned.nodes.map(mapRepo);
+				? await resume(contributedStart, pageBudget, async (cursor) => {
+						const data = await graphql<{ user: { repositoriesContributedTo: RawConn } }>(
+							CONTRIB_PAGE_QUERY,
+							{ login, cursor }
+						);
+						return data.user.repositoriesContributedTo;
+					}).catch((caught) => {
+						log.warn(`contributed repos pagination failed for ${login}`, {
+							code: toAppError(caught).code
+						});
+						return contributedStart;
+					})
+				: progress();
+		const state = { owner, owned, contributed };
+		await writeCached(cacheKey, state, TTL);
 
 		// Record today's star counts so deltas can build up over time, best effort
 		try {
-			await snapshotStars(ownedRepos);
+			await snapshotStars(owned.nodes.map(mapRepo));
 		} catch (error) {
 			log.warn(`star snapshot failed for ${login}`, { code: toAppError(error).code });
 		}
+		return state;
+	})().finally(() => syncing.delete(cacheKey));
 
-		return {
-			profile: mapProfile(owner, ownedRepos),
-			ownedRepos,
-			contributedRepos: contributed.nodes.map(mapRepo),
-			ownedReposCapped: owned.capped,
-			contributedReposCapped: contributed.capped
-		};
-	});
+	syncing.set(cacheKey, task);
+	return task;
+}
+
+// Serve the last complete checkpoint, refreshing metadata and resuming pagination
+export async function getUserOverview(login: string): Promise<UserOverview> {
+	const cacheKey = overviewKey(login);
+	let stored: Awaited<ReturnType<typeof readCached<OverviewState>>> = null;
+	try {
+		stored = await readCached<OverviewState>(cacheKey);
+	} catch (caught) {
+		log.warn(`overview cache read failed for ${login}`, { code: toAppError(caught).code });
+	}
+	if (!stored) {
+		const legacy = await readCached<UserOverview>(legacyOverviewKey(login)).catch(() => null);
+		let state: OverviewState;
+		try {
+			state = await syncOverview(login);
+		} catch (caught) {
+			if (legacy) return legacy.value;
+			throw caught;
+		}
+		if (!state.owned.complete || !state.contributed.complete) {
+			void syncOverview(login, state).catch((caught) =>
+				log.warn(`overview backfill failed for ${login}`, {
+					code: toAppError(caught).code
+				})
+			);
+		}
+		return toOverview(state);
+	}
+
+	const stale = Date.now() - stored.fetchedAt.getTime() >= TTL * 1000;
+	if (stale) {
+		void syncOverview(login, stored.value).catch((caught) =>
+			log.warn(`overview refresh failed for ${login}`, { code: toAppError(caught).code })
+		);
+	}
+	return toOverview(stored.value);
 }

@@ -16,11 +16,14 @@ export function createAnalytics(getUser: () => string, getRepo?: () => string | 
 		const login = getUser();
 		const repo = getRepo?.();
 		let active = true;
+		const controller = new AbortController();
 		loading = true;
 		error = undefined;
 		data = undefined;
 
-		fetch(repo ? `/api/${login}/${repo}/analytics` : `/api/${login}/analytics`)
+		fetch(repo ? `/api/${login}/${repo}/analytics` : `/api/${login}/analytics`, {
+			signal: controller.signal
+		})
 			.then(async (response) => {
 				if (!active) return;
 				const body = await response.json();
@@ -28,7 +31,7 @@ export function createAnalytics(getUser: () => string, getRepo?: () => string | 
 				else error = body as DisplayError;
 			})
 			.catch((caught) => {
-				if (!active) return;
+				if (!active || controller.signal.aborted) return;
 				log.warn('failed to load analytics', caught);
 				error = { title: 'unavailable', message: 'Could not load analytics' };
 			})
@@ -36,7 +39,10 @@ export function createAnalytics(getUser: () => string, getRepo?: () => string | 
 				if (active) loading = false;
 			});
 
-		return () => (active = false);
+		return () => {
+			active = false;
+			controller.abort();
+		};
 	});
 
 	return {

@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gt, ilike, lt, or, sql, type SQL } from 'drizzle-orm';
 import { graphql, rest } from '$lib/server/github/client';
-import { cached, isCached } from '$lib/server/cache';
+import { cached, isCached, readCached, writeCached } from '$lib/server/cache';
 import { logError } from '$lib/errors';
 import { db } from '$lib/server/db';
 import { activityEvent } from '$lib/server/db/schema';
@@ -97,6 +97,8 @@ export function syncActivity(login: string): Promise<{ stored: number }> {
 }
 
 type Conn<T> = { nodes: T[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
+type BackfillProgress = { cursor: string | null; complete: boolean };
+type BackfillState = Record<string, BackfillProgress>;
 
 const PR_QUERY = `
 	query BackfillPRs($login: String!, $cursor: String) {
@@ -180,21 +182,34 @@ const REVIEW_QUERY = `
 `;
 
 // Page one authored connection up to the backfill cap, keyed by its field name
-async function fetchBackfill<Node>(login: string, query: string, field: string): Promise<Node[]> {
+async function fetchBackfill<Node>(
+	login: string,
+	query: string,
+	field: string,
+	cursor: string | null,
+	pages: number
+): Promise<{ items: Node[]; progress: BackfillProgress }> {
 	const items: Node[] = [];
-	let cursor: string | null = null;
-	for (let page = 0; page < BACKFILL_PAGES; page++) {
+	let complete = false;
+	for (let page = 0; page < pages; page++) {
 		const data: { user: Record<string, Conn<Node>> | null } = await graphql(query, {
 			login,
 			cursor
 		});
 		const conn = data.user?.[field];
-		if (!conn) break;
+		if (!conn) {
+			complete = true;
+			break;
+		}
 		items.push(...conn.nodes);
-		if (!conn.pageInfo.hasNextPage || !conn.pageInfo.endCursor) break;
+		if (!conn.pageInfo.hasNextPage || !conn.pageInfo.endCursor) {
+			cursor = null;
+			complete = true;
+			break;
+		}
 		cursor = conn.pageInfo.endCursor;
 	}
-	return items;
+	return { items, progress: { cursor, complete } };
 }
 
 // One bounded page of the last year of submitted reviews, dropping deleted ones
@@ -210,56 +225,133 @@ async function fetchReviews(login: string): Promise<ReviewItem[]> {
 }
 
 // Isolate backfill sources so one failure does not waste the others
-async function source<T>(label: string, fetch: () => Promise<T[]>): Promise<T[]> {
+async function source<T>(
+	label: string,
+	fetch: () => Promise<{ items: T[]; progress: BackfillProgress }>,
+	fallback: BackfillProgress
+): Promise<{ items: T[]; progress: BackfillProgress }> {
 	try {
 		return await fetch();
 	} catch (caught) {
 		logError(`activity-backfill:${label}`, caught);
-		return [];
+		return { items: [], progress: fallback };
 	}
 }
 
-// Seed deeper authored activity at most once a day
-export function backfillActivity(login: string): Promise<{ stored: number }> {
-	return cached(
-		`activity:backfill:${login.toLowerCase()}`,
-		async () => {
-			const [prs, issues, discussions, discComments, comments, commitComments, reviews] =
-				await Promise.all([
-					source('prs', () => fetchBackfill<BackfillItem>(login, PR_QUERY, 'pullRequests')),
-					source('issues', () => fetchBackfill<BackfillItem>(login, ISSUE_QUERY, 'issues')),
-					source('discussions', () =>
-						fetchBackfill<DiscussionItem>(login, DISCUSSION_QUERY, 'repositoryDiscussions')
-					),
-					source('discussion-comments', () =>
-						fetchBackfill<DiscussionCommentItem>(
+const backfillKey = (login: string) => `activity:backfill-state:v1:${login.toLowerCase()}`;
+const backfilling = new Map<string, Promise<{ stored: number }>>();
+
+async function backfillSource<T>(
+	login: string,
+	query: string,
+	field: string,
+	progress: BackfillProgress
+): Promise<{ items: T[]; progress: BackfillProgress }> {
+	if (!progress.cursor && !progress.complete) {
+		return fetchBackfill<T>(login, query, field, null, BACKFILL_PAGES);
+	}
+	const latest = await fetchBackfill<T>(login, query, field, null, 1);
+	if (progress.complete) return { items: latest.items, progress };
+	const older = await fetchBackfill<T>(login, query, field, progress.cursor, BACKFILL_PAGES);
+	return { items: [...latest.items, ...older.items], progress: older.progress };
+}
+
+// Refresh newest authored activity and resume older source cursors in bounded batches
+export async function backfillActivity(login: string): Promise<{ stored: number }> {
+	const cacheKey = backfillKey(login);
+	const running = backfilling.get(cacheKey);
+	if (running) return running;
+
+	const task = (async () => {
+		const stored = await readCached<BackfillState>(cacheKey).catch(() => null);
+		if (stored && Date.now() - stored.fetchedAt.getTime() < BACKFILL_TTL * 1000) {
+			return { stored: 0 };
+		}
+		const current = stored?.value ?? {};
+		const pending = (field: string) => current[field] ?? { cursor: null, complete: false };
+		const [prs, issues, discussions, discComments, comments, commitComments, reviews] =
+			await Promise.all([
+				source(
+					'prs',
+					() => backfillSource<BackfillItem>(login, PR_QUERY, 'pullRequests', pending('prs')),
+					pending('prs')
+				),
+				source(
+					'issues',
+					() => backfillSource<BackfillItem>(login, ISSUE_QUERY, 'issues', pending('issues')),
+					pending('issues')
+				),
+				source(
+					'discussions',
+					() =>
+						backfillSource<DiscussionItem>(
+							login,
+							DISCUSSION_QUERY,
+							'repositoryDiscussions',
+							pending('discussions')
+						),
+					pending('discussions')
+				),
+				source(
+					'discussion-comments',
+					() =>
+						backfillSource<DiscussionCommentItem>(
 							login,
 							DISCUSSION_COMMENT_QUERY,
-							'repositoryDiscussionComments'
-						)
-					),
-					source('comments', () =>
-						fetchBackfill<CommentItem>(login, COMMENT_QUERY, 'issueComments')
-					),
-					source('commit-comments', () =>
-						fetchBackfill<CommitCommentItem>(login, COMMIT_COMMENT_QUERY, 'commitComments')
-					),
-					source('reviews', () => fetchReviews(login))
-				]);
-			const events = [
-				...prs.flatMap(prToActivities),
-				...issues.flatMap(issueToActivities),
-				...discussions.map(discussionToActivity),
-				...discComments.map(discussionCommentToActivity),
-				...comments.map(commentToActivity),
-				...commitComments.map(commitCommentToActivity),
-				...reviews.map(reviewToActivity)
-			];
-			await store(login, events);
-			return { stored: events.length };
-		},
-		BACKFILL_TTL
-	);
+							'repositoryDiscussionComments',
+							pending('discussion-comments')
+						),
+					pending('discussion-comments')
+				),
+				source(
+					'comments',
+					() =>
+						backfillSource<CommentItem>(login, COMMENT_QUERY, 'issueComments', pending('comments')),
+					pending('comments')
+				),
+				source(
+					'commit-comments',
+					() =>
+						backfillSource<CommitCommentItem>(
+							login,
+							COMMIT_COMMENT_QUERY,
+							'commitComments',
+							pending('commit-comments')
+						),
+					pending('commit-comments')
+				),
+				fetchReviews(login).catch((caught) => {
+					logError('activity-backfill:reviews', caught);
+					return [];
+				})
+			]);
+		const events = [
+			...prs.items.flatMap(prToActivities),
+			...issues.items.flatMap(issueToActivities),
+			...discussions.items.map(discussionToActivity),
+			...discComments.items.map(discussionCommentToActivity),
+			...comments.items.map(commentToActivity),
+			...commitComments.items.map(commitCommentToActivity),
+			...reviews.map(reviewToActivity)
+		];
+		await store(login, events);
+		await writeCached(
+			cacheKey,
+			{
+				prs: prs.progress,
+				issues: issues.progress,
+				discussions: discussions.progress,
+				'discussion-comments': discComments.progress,
+				comments: comments.progress,
+				'commit-comments': commitComments.progress
+			},
+			BACKFILL_TTL
+		);
+		return { stored: events.length };
+	})().finally(() => backfilling.delete(cacheKey));
+
+	backfilling.set(cacheKey, task);
+	return task;
 }
 
 // Whether this user has been synced before, so the page renders inline vs streams

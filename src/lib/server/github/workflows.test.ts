@@ -25,6 +25,18 @@ describe('summarise', () => {
 		expect(result.runsSampled).toBe(2);
 	});
 
+	it('excludes cancelled and skipped runs from pass rate and the sampled count', () => {
+		const result = summarise(workflow, [
+			run({ conclusion: 'success' }),
+			run({ conclusion: 'failure' }),
+			run({ conclusion: 'cancelled' }),
+			run({ conclusion: 'skipped' })
+		]);
+		// Only the two decisive runs back the stats, so the displayed count matches them
+		expect(result.passRate).toBe(0.5);
+		expect(result.runsSampled).toBe(2);
+	});
+
 	it('averages runtime from start to end of completed runs', () => {
 		const result = summarise(workflow, [
 			run({ updated_at: '2024-01-01T00:01:00Z' }), // 60s
@@ -45,6 +57,16 @@ describe('summarise', () => {
 	it('returns null metrics when there are no completed runs', () => {
 		const result = summarise(workflow, [run({ status: 'in_progress', conclusion: null })]);
 		expect(result.passRate).toBeNull();
+		expect(result.avgRuntimeSec).toBeNull();
+	});
+
+	it('ignores invalid negative runtimes', () => {
+		const result = summarise(workflow, [
+			run({
+				run_started_at: '2024-01-01T00:02:00Z',
+				updated_at: '2024-01-01T00:01:00Z'
+			})
+		]);
 		expect(result.avgRuntimeSec).toBeNull();
 	});
 });

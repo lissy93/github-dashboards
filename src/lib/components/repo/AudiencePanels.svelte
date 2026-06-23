@@ -22,7 +22,12 @@
 </script>
 
 <div class="grid gap-5">
-	<Panel title="Stargazers" icon={Star} empty={stargazers.length === 0} emptyText="No stars yet">
+	<Panel
+		title="Stargazers"
+		icon={Star}
+		empty={stargazers.length === 0}
+		emptyText={people.stargazersAvailable ? 'No stars yet' : 'Recent stargazers unavailable'}
+	>
 		{#snippet actions()}
 			<span class="text-muted-foreground text-xs tabular-nums">
 				{compactNumber(people.stargazersTotal)}

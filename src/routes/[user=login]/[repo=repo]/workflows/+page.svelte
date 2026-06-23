@@ -16,7 +16,8 @@
 	title="Workflows"
 	icon={Workflow}
 	result={data.workflows}
-	count={(wf) => wf.workflows.length}
+	count={(wf) => wf.totalWorkflows}
+	capped={(wf) => wf.sampled}
 	empty={(wf) => wf.workflows.length === 0}
 	emptyText="No GitHub Actions workflows"
 >

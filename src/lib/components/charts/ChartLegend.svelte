@@ -22,6 +22,7 @@
 	} = $props();
 
 	const tip = chartTip();
+	const visibleCount = $derived(items.filter((item) => !state.hidden.has(item.key)).length);
 
 	// Legend tooltip: what the series means, plus its overall total
 	function show(event: PointerEvent, item: LegendItem) {
@@ -50,7 +51,7 @@
 				aria-pressed={!off}
 				onpointermove={(event) => show(event, item)}
 				onpointerleave={hide}
-				onclick={() => state.toggle(item.key)}
+				onclick={() => (off || visibleCount > 1) && state.toggle(item.key)}
 			>
 				<span class="size-2.5 shrink-0 rounded-sm" style="background-color: {item.color}"></span>
 				<span class="text-muted-foreground" class:line-through={off}>{item.label}</span>

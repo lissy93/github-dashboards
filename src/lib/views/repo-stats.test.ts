@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { summariseStats } from '$lib/views/repo-stats';
 
 const base = {
-	totalCommits: 0,
+	totalCommits: null,
 	recentCommits: null,
 	priorCommits: null,
-	releaseCount: 0,
+	releaseCount: null,
 	contributorCount: null,
 	contributors: null
 };
