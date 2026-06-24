@@ -10,14 +10,20 @@
 	} from '@lucide/svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import Hint from '$lib/components/common/Hint.svelte';
+	import { Button } from '$lib/components/ui/button';
 	import { runState, formatDuration } from '$lib/views/repo';
 	import { relativeTime, formatDateTime } from '$lib/format';
 	import { cn } from '$lib/utils';
 	import type { WorkflowSummary } from '$lib/server/github/workflows';
 
+	const INITIAL = 20;
+	const STEP = 20;
+
 	// Compact mode progressively hides detail as its container narrows
 	let { workflows, compact = false }: { workflows: WorkflowSummary[]; compact?: boolean } =
 		$props();
+
+	let shown = $state(INITIAL);
 
 	const STATE_ICON = {
 		success: { icon: CircleCheck, color: 'text-success' },
@@ -114,7 +120,7 @@
 		glyph: (typeof STATE_ICON)[keyof typeof STATE_ICON];
 	};
 
-	const rows = $derived(
+	const sorted = $derived(
 		workflows
 			.map((workflow) => {
 				const state = runState(
@@ -125,6 +131,8 @@
 			})
 			.sort(compare)
 	);
+	const rows = $derived(compact ? sorted : sorted.slice(0, shown));
+	const remaining = $derived(compact ? 0 : sorted.length - shown);
 
 	const headerColumns = $derived(COLUMNS.filter((col) => !(compact && col.bigOnly)));
 	const cellClass = (col: (typeof COLUMNS)[number]) =>
@@ -260,3 +268,11 @@
 		</tbody>
 	</table>
 </div>
+
+{#if remaining > 0}
+	<div class="mt-3 flex justify-center">
+		<Button variant="outline" size="sm" onclick={() => (shown += STEP)}>
+			<Icon icon={ChevronDown} size={14} />Load more ({remaining})
+		</Button>
+	</div>
+{/if}

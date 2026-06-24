@@ -7,13 +7,15 @@
 		GitBranch,
 		GitCommitHorizontal,
 		Clock,
-		Hammer
+		Hammer,
+		ChevronDown
 	} from '@lucide/svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
 	import StatTileGrid from '$lib/components/common/StatTileGrid.svelte';
 	import type { Tile } from '$lib/components/common/StatTileGrid.svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import Hint from '$lib/components/common/Hint.svelte';
+	import { Button } from '$lib/components/ui/button';
 	import { STATUS_GLYPH } from '$lib/components/repo/status-glyph';
 	import type { RepoPages } from '$lib/server/github/pages';
 	import { relativeTime, formatDateTime } from '$lib/format';
@@ -21,7 +23,11 @@
 	import type { LoadResult } from '$lib/views/overview';
 	import type { PageData } from './$types';
 
+	const INITIAL = 10;
+	const STEP = 10;
+
 	let { data }: { data: PageData } = $props();
+	let shown = $state(INITIAL);
 
 	function tiles(p: RepoPages): Tile[] {
 		return [
@@ -118,7 +124,7 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#each p.builds as build (build.createdAt)}
+							{#each p.builds.slice(0, shown) as build (build.createdAt)}
 								{@const token = buildToken(build.status)}
 								{@const glyph = STATUS_GLYPH[token]}
 								<tr class="border-b last:border-0">
@@ -156,6 +162,13 @@
 						</tbody>
 					</table>
 				</div>
+				{#if p.builds.length > shown}
+					<div class="mt-3 flex justify-center">
+						<Button variant="outline" size="sm" onclick={() => (shown += STEP)}>
+							<Icon icon={ChevronDown} size={14} />Load more ({p.builds.length - shown})
+						</Button>
+					</div>
+				{/if}
 			</Panel>
 		{/if}
 	{/await}

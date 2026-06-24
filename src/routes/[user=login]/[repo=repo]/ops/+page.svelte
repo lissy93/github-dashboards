@@ -54,45 +54,53 @@
 <div class="grid gap-4 sm:grid-cols-2">
 	{#await data.workflows then res}
 		{@const wf = ok(res)}
-		<a href={paths.repoOpsSection(data.user, data.repo.name, 'workflows')} class="group">
-			<Panel title="Workflows" icon={Workflow}>
-				<p class="text-muted-foreground group-hover:text-foreground text-sm transition-colors">
-					{wf ? workflowSummary(wf) : 'Loading...'}
-				</p>
-			</Panel>
-		</a>
+		<Panel
+			title="Workflows"
+			icon={Workflow}
+			href={paths.repoOpsSection(data.user, data.repo.name, 'workflows')}
+		>
+			<p class="text-muted-foreground text-sm">
+				{wf ? workflowSummary(wf) : 'Loading...'}
+			</p>
+		</Panel>
 	{/await}
 
 	{#await data.deployments then res}
 		{@const d = ok(res)}
-		<a href={paths.repoOpsSection(data.user, data.repo.name, 'deployments')} class="group">
-			<Panel title="Deployments" icon={Rocket}>
-				<p class="text-muted-foreground group-hover:text-foreground text-sm transition-colors">
-					{d ? deploymentSummary(d) : 'Loading...'}
-				</p>
-			</Panel>
-		</a>
+		<Panel
+			title="Deployments"
+			icon={Rocket}
+			href={paths.repoOpsSection(data.user, data.repo.name, 'deployments')}
+		>
+			<p class="text-muted-foreground text-sm">
+				{d ? deploymentSummary(d) : 'Loading...'}
+			</p>
+		</Panel>
 	{/await}
 
 	{#await data.pages then res}
 		{@const p = ok(res)}
-		<a href={paths.repoOpsSection(data.user, data.repo.name, 'pages')} class="group">
-			<Panel title="Pages" icon={Globe}>
-				<p class="text-muted-foreground group-hover:text-foreground text-sm transition-colors">
-					{p ? pagesSummary(p) : 'Loading...'}
-				</p>
-			</Panel>
-		</a>
+		<Panel
+			title="Pages"
+			icon={Globe}
+			href={paths.repoOpsSection(data.user, data.repo.name, 'pages')}
+		>
+			<p class="text-muted-foreground text-sm">
+				{p ? pagesSummary(p) : 'Loading...'}
+			</p>
+		</Panel>
 	{/await}
 
 	{#await data.releases then res}
 		{@const r = ok(res)}
-		<a href={paths.repoOpsSection(data.user, data.repo.name, 'releases')} class="group">
-			<Panel title="Releases" icon={Tag}>
-				<p class="text-muted-foreground group-hover:text-foreground text-sm transition-colors">
-					{r ? releasesSummary(r) : 'Loading...'}
-				</p>
-			</Panel>
-		</a>
+		<Panel
+			title="Releases"
+			icon={Tag}
+			href={paths.repoOpsSection(data.user, data.repo.name, 'releases')}
+		>
+			<p class="text-muted-foreground text-sm">
+				{r ? releasesSummary(r) : 'Loading...'}
+			</p>
+		</Panel>
 	{/await}
 </div>
