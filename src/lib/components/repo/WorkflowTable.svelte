@@ -73,6 +73,19 @@
 
 	const pct = (rate: number | null) => (rate == null ? '-' : `${Math.round(rate * 100)}%`);
 
+	// Short labels for common workflow trigger events
+	const EVENT_LABELS: Record<string, string> = {
+		push: 'push',
+		pull_request: 'PR',
+		pull_request_target: 'PR target',
+		schedule: 'cron',
+		workflow_dispatch: 'manual',
+		repository_dispatch: 'dispatch',
+		workflow_call: 'reusable'
+	};
+	const eventLabel = (event: string) =>
+		EVENT_LABELS[event] ?? event.replace(/_/g, ' ');
+
 	let sortKey = $state<SortKey>('name');
 	let sortDir = $state<'asc' | 'desc'>('asc');
 
@@ -208,6 +221,11 @@
 								<Hint text="Workflow disabled" class="text-muted-foreground ml-1.5 align-middle">
 									<span class="text-[0.65rem] tracking-wide uppercase">disabled</span>
 								</Hint>
+							{/if}
+							{#if workflow.latest?.event}
+								<span class="text-muted-foreground ml-1.5 align-middle text-[0.65rem]">
+									{eventLabel(workflow.latest.event)}
+								</span>
 							{/if}
 						</div>
 					</td>

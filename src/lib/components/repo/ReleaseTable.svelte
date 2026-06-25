@@ -23,6 +23,7 @@
 				<th class="px-2 py-2 text-left font-medium first:pl-0">Release</th>
 				<th class="px-2 py-2 text-left font-medium max-sm:hidden">Tag</th>
 				<th class="px-2 py-2 text-left font-medium max-md:hidden">Type</th>
+				<th class="px-2 py-2 text-left font-medium max-lg:hidden">By</th>
 				<th class="px-2 py-2 text-right font-medium max-sm:hidden">Downloads</th>
 				<th class="px-2 py-2 text-right font-medium last:pr-0">Published</th>
 			</tr>
@@ -54,6 +55,9 @@
 						{:else}
 							<span class="text-muted-foreground text-xs">Stable</span>
 						{/if}
+					</td>
+					<td class="text-muted-foreground px-2 py-2 whitespace-nowrap max-lg:hidden">
+						{release.author ?? '-'}
 					</td>
 					<td class="px-2 py-2 text-right whitespace-nowrap max-sm:hidden">
 						{#if release.hasAssets}

@@ -22,10 +22,12 @@ export type WorkflowSummary = {
 		conclusion: string | null;
 		runUrl: string | null;
 		createdAt: string | null;
+		event: string | null;
 	} | null;
 	passRate: number | null;
 	avgRuntimeSec: number | null;
 	runsSampled: number;
+	retryRate: number | null;
 };
 export type RepoWorkflows = {
 	workflows: WorkflowSummary[];
@@ -42,6 +44,8 @@ type RawRun = {
 	created_at: string;
 	run_started_at: string | null;
 	updated_at: string;
+	event: string | null;
+	run_attempt: number;
 };
 
 const EMPTY: RepoWorkflows = {
@@ -76,6 +80,7 @@ export function summarise(workflow: RawWorkflow, runs: RawRun[]): WorkflowSummar
 		['success', 'failure', 'timed_out', 'action_required'].includes(run.conclusion!)
 	);
 	const passed = decisive.filter((run) => run.conclusion === 'success').length;
+	const retried = runs.filter((run) => run.run_attempt > 1).length;
 	const durations = completed
 		.map(
 			(run) =>
@@ -93,14 +98,16 @@ export function summarise(workflow: RawWorkflow, runs: RawRun[]): WorkflowSummar
 					status: latest.status,
 					conclusion: latest.conclusion,
 					runUrl: latest.html_url,
-					createdAt: latest.created_at
+					createdAt: latest.created_at,
+					event: latest.event
 				}
 			: null,
 		passRate: decisive.length ? passed / decisive.length : null,
 		avgRuntimeSec: durations.length
 			? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length)
 			: null,
-		runsSampled: decisive.length
+		runsSampled: decisive.length,
+		retryRate: runs.length ? retried / runs.length : null
 	};
 }
 
@@ -154,7 +161,7 @@ async function sync(owner: string, name: string, current?: WorkflowState): Promi
 }
 
 const key = (owner: string, name: string) =>
-	`repo:workflows-state:v1:${owner}/${name}`.toLowerCase();
+	`repo:workflows-state:v2:${owner}/${name}`.toLowerCase();
 const syncing = new Map<string, Promise<WorkflowState>>();
 
 export const isRepoWorkflowsCached = (owner: string, name: string) => isCached(key(owner, name));

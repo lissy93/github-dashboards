@@ -4,7 +4,8 @@
 		CircleCheck,
 		Activity,
 		Timer,
-		Power
+		Power,
+		RotateCcw
 	} from '@lucide/svelte';
 	import AsyncPanel from '$lib/components/repo/AsyncPanel.svelte';
 	import StatTileGrid from '$lib/components/common/StatTileGrid.svelte';
@@ -52,6 +53,12 @@
 				hint: stats.disabled
 					? `${plural(stats.active, 'workflow')} active, ${plural(stats.disabled, 'workflow')} disabled`
 					: 'All workflows are active'
+			},
+			{
+				label: 'Retries',
+				value: pct(stats.retryRate),
+				icon: RotateCcw,
+				hint: 'Share of sampled runs that were re-triggered'
 			}
 		];
 	}
@@ -67,7 +74,7 @@
 		{#if wf && wf.workflows.length}
 			<StatTileGrid
 				tiles={tiles(workflowKpiStats(wf))}
-				class="sm:grid-cols-3 lg:grid-cols-5"
+				class="sm:grid-cols-3 lg:grid-cols-6"
 			/>
 		{/if}
 	{/await}

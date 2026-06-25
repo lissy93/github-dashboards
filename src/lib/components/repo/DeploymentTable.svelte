@@ -58,10 +58,20 @@
 					</td>
 					<td class="px-2 py-2 whitespace-nowrap">
 						<Hint
-							text="Deployment status: {status.label}"
+							text={record.description || `Deployment status: ${status.label}`}
 							class="{glyph.color} flex items-center gap-1.5"
 						>
-							<Icon icon={glyph.icon} size={14} /><span class="max-sm:hidden">{status.label}</span>
+							<Icon icon={glyph.icon} size={14} />
+							{#if record.logUrl}
+								<a
+									href={record.logUrl}
+									target="_blank"
+									rel="noopener noreferrer"
+									class="max-sm:hidden hover:underline"
+								>{status.label}</a>
+							{:else}
+								<span class="max-sm:hidden">{status.label}</span>
+							{/if}
 						</Hint>
 					</td>
 					<td class="text-muted-foreground max-w-[10rem] px-2 py-2 max-sm:hidden">

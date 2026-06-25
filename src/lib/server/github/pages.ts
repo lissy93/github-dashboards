@@ -11,6 +11,7 @@ export type PagesBuild = {
 	duration: number;
 	commitSha: string | null;
 	url: string | null;
+	error: string | null;
 };
 export type RepoPages = {
 	enabled: boolean;
@@ -21,6 +22,7 @@ export type RepoPages = {
 	buildType: string | null;
 	status: string | null;
 	builds: PagesBuild[];
+	certificate: { state: string; expiresAt: string | null } | null;
 };
 
 const EMPTY: RepoPages = {
@@ -31,7 +33,8 @@ const EMPTY: RepoPages = {
 	source: null,
 	buildType: null,
 	status: null,
-	builds: []
+	builds: [],
+	certificate: null
 };
 
 type RawPages = {
@@ -42,6 +45,7 @@ type RawPages = {
 	https_enforced?: boolean;
 	build_type: string | null;
 	source: { branch: string; path: string } | null;
+	http_certificate?: { state: string; expires_at: string | null } | null;
 };
 type RawBuild = {
 	status: string;
@@ -49,6 +53,7 @@ type RawBuild = {
 	duration: number;
 	commit: string | null;
 	url: string;
+	error?: { message: string | null } | null;
 };
 
 // Pages 404 means not enabled, 403 means no access (not an error)
@@ -82,12 +87,16 @@ async function fetchPages(owner: string, name: string): Promise<RepoPages> {
 			createdAt: b.created_at,
 			duration: b.duration,
 			commitSha: b.commit,
-			url: b.url
-		}))
+			url: b.url,
+			error: b.error?.message ?? null
+		})),
+		certificate: info.http_certificate
+			? { state: info.http_certificate.state, expiresAt: info.http_certificate.expires_at }
+			: null
 	};
 }
 
-const key = (owner: string, name: string) => `repo:pages:v1:${owner}/${name}`.toLowerCase();
+const key = (owner: string, name: string) => `repo:pages:v2:${owner}/${name}`.toLowerCase();
 
 export const isRepoPagesCached = (owner: string, name: string) => isCached(key(owner, name));
 

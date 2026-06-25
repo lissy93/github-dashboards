@@ -39,7 +39,10 @@
 			{
 				label: 'HTTPS',
 				value: p.https ? 'Enforced' : 'Off',
-				icon: Lock
+				icon: Lock,
+				hint: p.certificate?.expiresAt
+					? `TLS certificate expires ${formatDateTime(p.certificate.expiresAt)}`
+					: undefined
 			},
 			{
 				label: 'Source',
@@ -130,7 +133,7 @@
 								<tr class="border-b last:border-0">
 									<td class="px-2 py-2 whitespace-nowrap first:pl-0">
 										<Hint
-											text="Build status: {build.status}"
+											text={build.error || `Build status: ${build.status}`}
 											class="{glyph.color} flex items-center gap-1.5"
 										>
 											<Icon icon={glyph.icon} size={14} />

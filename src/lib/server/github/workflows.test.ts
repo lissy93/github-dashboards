@@ -10,6 +10,8 @@ const run = (over: Partial<Parameters<typeof summarise>[1][number]> = {}) => ({
 	created_at: '2024-01-01T00:00:00Z',
 	run_started_at: '2024-01-01T00:00:00Z',
 	updated_at: '2024-01-01T00:01:00Z',
+	event: 'push' as string | null,
+	run_attempt: 1,
 	...over
 });
 
@@ -68,5 +70,27 @@ describe('summarise', () => {
 			})
 		]);
 		expect(result.avgRuntimeSec).toBeNull();
+	});
+
+	it('computes retry rate from run_attempt', () => {
+		const result = summarise(workflow, [
+			run({ run_attempt: 1 }),
+			run({ run_attempt: 2 }),
+			run({ run_attempt: 3 })
+		]);
+		expect(result.retryRate).toBeCloseTo(2 / 3);
+	});
+
+	it('reports zero retry rate when no runs were retried', () => {
+		const result = summarise(workflow, [run(), run()]);
+		expect(result.retryRate).toBe(0);
+	});
+
+	it('captures event from the latest run', () => {
+		const result = summarise(workflow, [
+			run({ event: 'schedule' }),
+			run({ event: 'push' })
+		]);
+		expect(result.latest?.event).toBe('schedule');
 	});
 });

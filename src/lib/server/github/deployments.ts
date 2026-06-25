@@ -19,12 +19,15 @@ export type DeployRecord = {
 	creator: string | null;
 	createdAt: string;
 	url: string | null;
+	logUrl: string | null;
+	description: string | null;
 };
 export type EnvironmentSummary = {
 	name: string;
 	count: number;
 	last: DeployRecord | null;
 	live: DeployRecord | null;
+	protected: boolean;
 };
 export type RepoDeployments = {
 	totalDeployments: number;
@@ -52,11 +55,20 @@ type RawDeployment = {
 	commitOid: string;
 	ref: { name: string } | null;
 	creator: { login: string } | null;
-	latestStatus: { state: string | null; environmentUrl: string | null } | null;
+	latestStatus: {
+		state: string | null;
+		environmentUrl: string | null;
+		logUrl: string | null;
+		description: string | null;
+	} | null;
+};
+type EnvNode = {
+	name: string;
+	protectionRules: { totalCount: number } | null;
 };
 type RawPage = {
 	repository: {
-		environments: { nodes: { name: string }[] };
+		environments: { nodes: EnvNode[] };
 		deployments: {
 			totalCount: number;
 			pageInfo: { hasNextPage: boolean; endCursor: string | null };
@@ -68,7 +80,9 @@ type RawPage = {
 const QUERY = `
 	query RepoDeployments($owner: String!, $name: String!, $cursor: String) {
 		repository(owner: $owner, name: $name) {
-			environments(first: 100) { nodes { name } }
+			environments(first: 100) {
+				nodes { name protectionRules(first: 1) { totalCount } }
+			}
 			deployments(first: ${PAGE}, after: $cursor, orderBy: { field: CREATED_AT, direction: DESC }) {
 				totalCount
 				pageInfo { hasNextPage endCursor }
@@ -78,7 +92,7 @@ const QUERY = `
 					commitOid
 					ref { name }
 					creator { login }
-					latestStatus { state environmentUrl }
+					latestStatus { state environmentUrl logUrl description }
 				}
 			}
 		}
@@ -93,22 +107,34 @@ function toRecord(node: RawDeployment): DeployRecord {
 		commitOid: node.commitOid,
 		creator: node.creator?.login ?? null,
 		createdAt: node.createdAt,
-		url: node.latestStatus?.environmentUrl || null
+		url: node.latestStatus?.environmentUrl || null,
+		logUrl: node.latestStatus?.logUrl || null,
+		description: node.latestStatus?.description || null
 	};
 }
 
 // Group deployments by environment, keeping the latest deploy and the latest live one.
 // Records arrive newest first, so the first seen per environment is already the latest
-function summariseEnvironments(names: string[], records: DeployRecord[]): EnvironmentSummary[] {
+function summariseEnvironments(nodes: EnvNode[], records: DeployRecord[]): EnvironmentSummary[] {
 	const envs = new Map<string, EnvironmentSummary>(
-		names.map((name) => [name, { name, count: 0, last: null, live: null }])
+		nodes.map((node) => [
+			node.name,
+			{
+				name: node.name,
+				count: 0,
+				last: null,
+				live: null,
+				protected: (node.protectionRules?.totalCount ?? 0) > 0
+			}
+		])
 	);
 	for (const record of records) {
 		const env = envs.get(record.environment) ?? {
 			name: record.environment,
 			count: 0,
 			last: null,
-			live: null
+			live: null,
+			protected: false
 		};
 		env.count += 1;
 		env.last ??= record;
@@ -121,14 +147,14 @@ function summariseEnvironments(names: string[], records: DeployRecord[]): Enviro
 
 async function fetchDeployments(owner: string, name: string): Promise<RepoDeployments> {
 	const records: DeployRecord[] = [];
-	let envNames: string[] = [];
+	let envNodes: EnvNode[] = [];
 	let total = 0;
 	let cursor: string | null = null;
 
 	for (let page = 0; page < MAX_PAGES; page++) {
 		const { repository }: RawPage = await graphql<RawPage>(QUERY, { owner, name, cursor });
 		if (!repository) return EMPTY;
-		if (!page) envNames = repository.environments.nodes.map((node) => node.name);
+		if (!page) envNodes = repository.environments.nodes;
 		total = repository.deployments.totalCount;
 		records.push(...repository.deployments.nodes.map(toRecord));
 		if (!repository.deployments.pageInfo.hasNextPage) break;
@@ -143,7 +169,7 @@ async function fetchDeployments(owner: string, name: string): Promise<RepoDeploy
 		sampled: total > records.length,
 		successRate: decisive.length ? passed / decisive.length : null,
 		lastDeployAt: records[0]?.createdAt ?? null,
-		environments: summariseEnvironments(envNames, records),
+		environments: summariseEnvironments(envNodes, records),
 		recent: records.slice(0, RECENT_LIMIT),
 		frequency: bucketOutcomes(
 			records.map((record) => ({ at: record.createdAt, outcome: deployBand(record.state) }))
@@ -151,7 +177,7 @@ async function fetchDeployments(owner: string, name: string): Promise<RepoDeploy
 	};
 }
 
-const key = (owner: string, name: string) => `repo:deployments:v1:${owner}/${name}`.toLowerCase();
+const key = (owner: string, name: string) => `repo:deployments:v2:${owner}/${name}`.toLowerCase();
 
 export const isRepoDeploymentsCached = (owner: string, name: string) => isCached(key(owner, name));
 

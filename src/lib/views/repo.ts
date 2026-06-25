@@ -275,6 +275,7 @@ export type WorkflowKpis = {
 	avgRuntimeSec: number | null;
 	active: number;
 	disabled: number;
+	retryRate: number | null;
 };
 export function workflowKpiStats(wf: RepoWorkflows): WorkflowKpis {
 	let passed = 0;
@@ -295,13 +296,19 @@ export function workflowKpiStats(wf: RepoWorkflows): WorkflowKpis {
 		if (workflow.state.startsWith('disabled')) disabled += 1;
 		else active += 1;
 	}
+	const retryRates = wf.workflows
+		.map((w) => w.retryRate)
+		.filter((r): r is number => r != null);
 	return {
 		workflows: wf.totalWorkflows,
 		passRate: decisive ? passed / decisive : null,
 		totalRuns: wf.totalRuns,
 		avgRuntimeSec: runtimeWeight ? Math.round(runtimeSum / runtimeWeight) : null,
 		active,
-		disabled
+		disabled,
+		retryRate: retryRates.length
+			? retryRates.reduce((sum, r) => sum + r, 0) / retryRates.length
+			: null
 	};
 }
 

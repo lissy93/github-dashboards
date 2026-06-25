@@ -15,6 +15,7 @@ export type ReleaseRow = {
 	downloads: number;
 	hasAssets: boolean;
 	url: string;
+	author: string | null;
 };
 export type RepoReleases = { releases: ReleaseRow[]; total: number; sampled: boolean };
 
@@ -27,11 +28,12 @@ type RawRelease = {
 	prerelease: boolean;
 	html_url: string;
 	assets: RawAsset[];
+	author?: { login: string } | null;
 };
 
 type ReleaseState = { rows: ReleaseRow[]; nextPage: number; complete: boolean };
 
-const key = (owner: string, name: string) => `repo:releases:v2:${owner}/${name}`.toLowerCase();
+const key = (owner: string, name: string) => `repo:releases:v3:${owner}/${name}`.toLowerCase();
 const syncing = new Map<string, Promise<ReleaseState>>();
 
 export const isRepoReleasesCached = (owner: string, name: string) => isCached(key(owner, name));
@@ -44,7 +46,8 @@ function toRow(raw: RawRelease): ReleaseRow {
 		prerelease: raw.prerelease,
 		downloads: raw.assets.reduce((sum, asset) => sum + asset.download_count, 0),
 		hasAssets: raw.assets.length > 0,
-		url: raw.html_url
+		url: raw.html_url,
+		author: raw.author?.login ?? null
 	};
 }
 

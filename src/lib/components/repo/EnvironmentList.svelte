@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ExternalLink, GitCommitHorizontal } from '@lucide/svelte';
+	import { ExternalLink, GitCommitHorizontal, ShieldCheck } from '@lucide/svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import Hint from '$lib/components/common/Hint.svelte';
 	import { STATUS_GLYPH } from '$lib/components/repo/status-glyph';
@@ -31,6 +31,11 @@
 						</Hint>
 					{/if}
 					<span class="truncate">{env.name}</span>
+					{#if env.protected}
+						<Hint text="Protected by deployment rules" class="text-muted-foreground shrink-0">
+							<Icon icon={ShieldCheck} size={13} />
+						</Hint>
+					{/if}
 				</span>
 				<span class="text-muted-foreground shrink-0 text-xs tabular-nums">
 					{compactNumber(env.count)}
