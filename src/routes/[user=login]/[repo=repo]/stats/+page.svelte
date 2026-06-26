@@ -6,11 +6,14 @@
 	import PunchCard from '$lib/components/charts/PunchCard.svelte';
 	import Donut from '$lib/components/charts/Donut.svelte';
 	import BarChart from '$lib/components/charts/BarChart.svelte';
+	import StackedBarChart from '$lib/components/charts/StackedBarChart.svelte';
 	import HBarList from '$lib/components/charts/HBarList.svelte';
 	import TimelineFilters from '$lib/components/repo/TimelineFilters.svelte';
+	import FlowBacklogChart from '$lib/components/repo/FlowBacklogChart.svelte';
 	import {
 		starChart,
-		timelineChart,
+		flowChart,
+		lifecycleView,
 		defaultTimelineView,
 		resolutionBars,
 		formatSpanHours,
@@ -93,16 +96,51 @@
 	>
 		{#snippet children(tl)}
 			<div class="space-y-4">
-				<TimelineFilters bind:view />
-				<MetricTimeChart
-					data={timelineChart(tl.points, view.metrics, {
-						cumulative: view.cumulative,
-						windowKey: view.windowKey
-					})}
-					area={view.area}
-					label="Issues and PRs over time"
-					height={20}
-				/>
+				<TimelineFilters bind:view base={tl.granularity} />
+				{#if view.mode === 'flow'}
+					<FlowBacklogChart chart={flowChart(tl.points, view, tl.granularity)} />
+				{:else}
+					<div class="space-y-5">
+						{#if view.scope !== 'prs'}
+							{@const lc = lifecycleView(
+								tl.points,
+								view,
+								tl.granularity,
+								tl.baseline.issues,
+								'issue'
+							)}
+							<div class="space-y-2">
+								{#if view.scope === 'both'}
+									<p class="text-muted-foreground text-xs font-medium">Issues</p>
+								{/if}
+								<StackedBarChart
+									bars={lc.bars}
+									series={lc.series}
+									ticks={lc.ticks}
+									totalUnit="issues"
+									height={view.scope === 'both' ? 12 : 18}
+									barGap={0.125}
+								/>
+							</div>
+						{/if}
+						{#if view.scope !== 'issues'}
+							{@const lc = lifecycleView(tl.points, view, tl.granularity, tl.baseline.prs, 'pr')}
+							<div class="space-y-2">
+								{#if view.scope === 'both'}
+									<p class="text-muted-foreground text-xs font-medium">Pull requests</p>
+								{/if}
+								<StackedBarChart
+									bars={lc.bars}
+									series={lc.series}
+									ticks={lc.ticks}
+									totalUnit="PRs"
+									height={view.scope === 'both' ? 12 : 18}
+									barGap={0.125}
+								/>
+							</div>
+						{/if}
+					</div>
+				{/if}
 				{#if tl.sampled}
 					<p class="text-muted-foreground text-xs">{TIMELINE_SAMPLED_NOTE}</p>
 				{/if}

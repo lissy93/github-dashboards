@@ -4,54 +4,162 @@ import type { Slice, StackBar, StackSeries } from '$lib/views/stats';
 import type { RepoRunActivity, RepoWorkflows } from '$lib/server/github/workflows';
 import type { RepoStarHistory } from '$lib/server/github/star-history';
 import type {
-	Granularity,
 	ResolutionStats,
 	TimelineBaseline,
 	TimelinePoint
 } from '$lib/server/github/repo-timeline';
 
-// Issue and PR timeline metrics, coloured from the shared chart tokens. The open
-// counts are the running backlog, the opened/closed counts are per-period flow
-export const TIMELINE_METRICS = [
-	{
-		key: 'openIssues',
-		label: 'Open issues',
-		color: 'var(--chart-1)',
-		hint: 'Issues still open at each point, the running backlog'
-	},
-	{
-		key: 'openedIssues',
-		label: 'Issues opened',
-		color: 'var(--chart-5)',
-		hint: 'New issues opened in each period'
-	},
-	{
-		key: 'closedIssues',
-		label: 'Issues closed',
-		color: 'var(--chart-3)',
-		hint: 'Issues closed in each period'
-	},
-	{
-		key: 'openPrs',
-		label: 'Open PRs',
-		color: 'var(--chart-2)',
-		hint: 'Pull requests still open at each point, the running backlog'
-	},
-	{
-		key: 'openedPrs',
-		label: 'PRs opened',
-		color: 'var(--muted-foreground)',
-		hint: 'New pull requests opened in each period'
-	},
-	{
-		key: 'closedPrs',
-		label: 'PRs closed',
-		color: 'var(--chart-4)',
-		hint: 'Pull requests closed or merged in each period'
-	}
-] as const;
+// Issues vs PRs, the chart mode, and the bar grouping for the flow timeline
+export type FlowScope = 'issues' | 'prs' | 'both';
+export type FlowMode = 'flow' | 'lifecycle';
+export type GroupUnit = 'week' | 'month' | 'quarter' | 'year';
+export type GroupChoice = 'auto' | GroupUnit;
 
-export type TimelineMetricKey = (typeof TIMELINE_METRICS)[number]['key'];
+// A point field that holds a count, the only fields a flow series can read
+type FlowField = keyof Omit<TimelinePoint, 'period'>;
+
+// One flow series: opened bars rise, closed bars drop, the open backlog is a line
+export type FlowSeriesDef = {
+	key: FlowField;
+	label: string;
+	color: string;
+	hint: string;
+	axis: 'up' | 'down' | 'line';
+	dash?: boolean;
+};
+
+// Bars and backlog lines per scope, coloured from the shared chart and lifecycle tokens
+const FLOW_SERIES: Record<
+	FlowScope,
+	{ up: FlowSeriesDef[]; down: FlowSeriesDef[]; lines: FlowSeriesDef[] }
+> = {
+	issues: {
+		up: [
+			{
+				key: 'openedIssues',
+				label: 'Opened',
+				color: 'var(--chart-1)',
+				hint: 'New issues opened in each period',
+				axis: 'up'
+			}
+		],
+		down: [
+			{
+				key: 'completedIssues',
+				label: 'Completed',
+				color: 'var(--lifecycle-resolved)',
+				hint: 'Issues closed as done',
+				axis: 'down'
+			},
+			{
+				key: 'discardedIssues',
+				label: 'Not planned',
+				color: 'var(--lifecycle-discarded)',
+				hint: 'Issues closed as not planned or duplicate',
+				axis: 'down'
+			}
+		],
+		lines: [
+			{
+				key: 'openIssues',
+				label: 'Open backlog',
+				color: 'var(--chart-1)',
+				hint: 'Issues still open at each point',
+				axis: 'line',
+				dash: true
+			}
+		]
+	},
+	prs: {
+		up: [
+			{
+				key: 'openedPrs',
+				label: 'Opened',
+				color: 'var(--chart-2)',
+				hint: 'New pull requests opened in each period',
+				axis: 'up'
+			}
+		],
+		down: [
+			{
+				key: 'mergedPrs',
+				label: 'Merged',
+				color: 'var(--lifecycle-resolved)',
+				hint: 'Pull requests merged in',
+				axis: 'down'
+			},
+			{
+				key: 'discardedPrs',
+				label: 'Closed',
+				color: 'var(--lifecycle-discarded)',
+				hint: 'Pull requests closed without merging',
+				axis: 'down'
+			}
+		],
+		lines: [
+			{
+				key: 'openPrs',
+				label: 'Open backlog',
+				color: 'var(--chart-2)',
+				hint: 'Pull requests still open at each point',
+				axis: 'line',
+				dash: true
+			}
+		]
+	},
+	both: {
+		up: [
+			{
+				key: 'openedIssues',
+				label: 'Issues opened',
+				color: 'var(--chart-1)',
+				hint: 'New issues opened in each period',
+				axis: 'up'
+			},
+			{
+				key: 'openedPrs',
+				label: 'PRs opened',
+				color: 'var(--chart-2)',
+				hint: 'New pull requests opened in each period',
+				axis: 'up'
+			}
+		],
+		down: [
+			{
+				key: 'closedIssues',
+				label: 'Issues closed',
+				color: 'color-mix(in oklch, var(--chart-1) 50%, var(--card))',
+				hint: 'Issues closed in each period',
+				axis: 'down'
+			},
+			{
+				key: 'closedPrs',
+				label: 'PRs closed',
+				color: 'color-mix(in oklch, var(--chart-2) 50%, var(--card))',
+				hint: 'Pull requests closed or merged in each period',
+				axis: 'down'
+			}
+		],
+		lines: [
+			{
+				key: 'openIssues',
+				label: 'Issue backlog',
+				color: 'var(--chart-1)',
+				hint: 'Issues still open at each point',
+				axis: 'line',
+				dash: true
+			},
+			{
+				key: 'openPrs',
+				label: 'PR backlog',
+				color: 'var(--chart-2)',
+				hint: 'Pull requests still open at each point',
+				axis: 'line',
+				dash: true
+			}
+		]
+	}
+};
 
 // Time windows for the timeline chart, all-time spans the repo's whole history
 export const TIMELINE_WINDOWS = [
@@ -62,14 +170,15 @@ export const TIMELINE_WINDOWS = [
 ];
 
 export type TimelineView = {
-	metrics: TimelineMetricKey[];
+	mode: FlowMode;
+	scope: FlowScope;
 	windowKey: string;
-	area: boolean;
-	cumulative: boolean;
+	group: GroupChoice;
+	backlog: boolean;
 };
 
 export function defaultTimelineView(): TimelineView {
-	return { metrics: ['openIssues', 'openPrs'], windowKey: 'all', area: false, cumulative: false };
+	return { mode: 'flow', scope: 'both', windowKey: 'all', group: 'auto', backlog: true };
 }
 
 // Start of the chosen window as a bucket date, empty for the unbounded all-time view
@@ -88,48 +197,113 @@ export function pointsInWindow(points: TimelinePoint[], windowKey: string): Time
 	return since ? points.filter((point) => point.period >= since) : points;
 }
 
-// The flow metrics that turn into running totals in cumulative mode
-const FLOW_KEYS = new Set(['openedIssues', 'closedIssues', 'openedPrs', 'closedPrs']);
+// Flow counts sum across a group, the open backlog snapshots the period's last value
+const FLOW_FIELDS: FlowField[] = [
+	'openedIssues',
+	'closedIssues',
+	'completedIssues',
+	'discardedIssues',
+	'openedPrs',
+	'closedPrs',
+	'mergedPrs',
+	'discardedPrs'
+];
+// Roughly the most bars that stay readable before auto coarsens the grouping
+const TARGET_BARS = 64;
 
-export type TimelineChartOptions = { cumulative?: boolean; windowKey?: string };
+// Coarser units a base granularity can roll up into, finest first
+export function groupUnitsFor(base: GroupUnit): GroupUnit[] {
+	return base === 'week' ? ['week', 'month', 'quarter'] : ['month', 'quarter', 'year'];
+}
 
-// Shape timeline points into the selected metric series. In cumulative mode the flow
-// metrics accumulate across the full history before the window is applied, so a windowed
-// view still starts from the real running total rather than zero
-export function timelineChart(
+// The bucket key a period falls in for a grouping unit
+function groupKeyOf(period: string, unit: GroupUnit): string {
+	const [year, month] = period.split('-');
+	if (unit === 'year') return year;
+	if (unit === 'quarter') return `${year}-Q${Math.floor((Number(month) - 1) / 3) + 1}`;
+	if (unit === 'month') return `${year}-${month}`;
+	return period;
+}
+
+// Auto picks the finest unit that stays under the bar target, else honours the choice
+export function resolveGroup(
 	points: TimelinePoint[],
-	keys: TimelineMetricKey[],
-	options: TimelineChartOptions = {}
-): ChartData {
-	const { cumulative = false, windowKey = 'all' } = options;
-	const since = windowStart(windowKey);
-	const defs = TIMELINE_METRICS.filter((metric) => keys.includes(metric.key));
-	const sums = new Map<string, number>(defs.map((def) => [def.key, 0]));
-
-	const dates: string[] = [];
-	const columns = defs.map(() => [] as number[]);
-	for (const point of points) {
-		const visible = !since || point.period >= since;
-		if (visible) dates.push(point.period);
-		defs.forEach((def, index) => {
-			let value = point[def.key];
-			if (cumulative && FLOW_KEYS.has(def.key)) {
-				value = (sums.get(def.key) ?? 0) + point[def.key];
-				sums.set(def.key, value);
-			}
-			if (visible) columns[index].push(value);
-		});
+	choice: GroupChoice,
+	base: GroupUnit
+): GroupUnit {
+	if (choice !== 'auto') return choice;
+	const units = groupUnitsFor(base);
+	for (const unit of units) {
+		const count = new Set(points.map((point) => groupKeyOf(point.period, unit))).size;
+		if (count <= TARGET_BARS) return unit;
 	}
+	return units[units.length - 1];
+}
 
-	const series = defs.map((def, index) => ({
-		key: def.key,
-		label: def.label,
-		color: def.color,
-		hint: def.hint,
-		values: columns[index]
-	}));
-	const max = Math.max(1, ...columns.flat());
-	return { dates, series, max };
+// Roll points up into a coarser unit, summing flow and keeping the latest backlog
+export function groupPoints(points: TimelinePoint[], unit: GroupUnit): TimelinePoint[] {
+	const order: string[] = [];
+	const groups = new Map<string, TimelinePoint[]>();
+	for (const point of points) {
+		const groupKey = groupKeyOf(point.period, unit);
+		if (!groups.has(groupKey)) {
+			groups.set(groupKey, []);
+			order.push(groupKey);
+		}
+		groups.get(groupKey)!.push(point);
+	}
+	return order.map((groupKey) => {
+		const members = groups.get(groupKey)!;
+		const rolled = { ...members[members.length - 1], period: members[0].period };
+		for (const field of FLOW_FIELDS) {
+			rolled[field] = members.reduce((sum, point) => sum + point[field], 0);
+		}
+		return rolled;
+	});
+}
+
+export type FlowChart = {
+	bars: { period: string; label: string; values: Record<string, number> }[];
+	up: FlowSeriesDef[];
+	down: FlowSeriesDef[];
+	lines: FlowSeriesDef[];
+	ticks: string[];
+	group: GroupUnit;
+};
+
+// Shape timeline points into the flow chart: opened and closed bars plus the backlog
+// line, windowed then grouped so a long history stays to a readable handful of bars
+export function flowChart(points: TimelinePoint[], view: TimelineView, base: GroupUnit): FlowChart {
+	const windowed = pointsInWindow(points, view.windowKey);
+	const group = resolveGroup(windowed, view.group, base);
+	const grouped = groupPoints(windowed, group);
+	const { up, down, lines } = FLOW_SERIES[view.scope];
+	const shownLines = view.backlog ? lines : [];
+	const fields = [...up, ...down, ...shownLines];
+	const bars = grouped.map((point) => {
+		const values: Record<string, number> = {};
+		for (const series of fields) values[series.key] = point[series.key];
+		return { period: point.period, label: bucketLabel(point.period, group), values };
+	});
+	return { bars, up, down, lines: shownLines, ticks: cumulativeTicks(grouped, group), group };
+}
+
+// Stacked lifecycle bars for one kind, windowed and grouped to match the flow chart
+export function lifecycleView(
+	points: TimelinePoint[],
+	view: TimelineView,
+	base: GroupUnit,
+	baseline: TimelineBaseline,
+	kind: 'issue' | 'pr'
+): { bars: StackBar[]; series: StackSeries[]; ticks: string[] } {
+	const windowed = pointsInWindow(points, view.windowKey);
+	const group = resolveGroup(windowed, view.group, base);
+	const grouped = groupPoints(windowed, group);
+	return {
+		bars: lifecycleBars(grouped, kind, group, baseline),
+		series: lifecycleSeries(kind),
+		ticks: cumulativeTicks(grouped, group)
+	};
 }
 
 // Lifecycle series for the cumulative total charts. Order is the stacking order from the
@@ -187,11 +361,14 @@ export const TIMELINE_SAMPLED_NOTE =
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-// Compact bar label from a bucket-start date: month and year, or day and month for weeks
-function bucketLabel(period: string, granularity: Granularity): string {
+// Compact bar label from a bucket-start date, in the grouping unit's own terms
+function bucketLabel(period: string, unit: GroupUnit): string {
 	const [year, monthNum, day] = period.split('-').map(Number);
-	if (granularity === 'week') return `${day} ${MONTHS[monthNum - 1]}`;
-	return `${MONTHS[monthNum - 1]} ${String(year).slice(2)}`;
+	const yy = String(year).slice(2);
+	if (unit === 'week') return `${day} ${MONTHS[monthNum - 1]}`;
+	if (unit === 'quarter') return `Q${Math.floor((monthNum - 1) / 3) + 1} ${yy}`;
+	if (unit === 'year') return String(year);
+	return `${MONTHS[monthNum - 1]} ${yy}`;
 }
 
 // Total issues or PRs ever opened per bucket, split into still open, resolved
@@ -200,7 +377,7 @@ function bucketLabel(period: string, granularity: Granularity): string {
 export function lifecycleBars(
 	points: TimelinePoint[],
 	kind: 'issue' | 'pr',
-	granularity: Granularity,
+	granularity: GroupUnit,
 	baseline: TimelineBaseline = { total: 0, open: 0 }
 ): StackBar[] {
 	const resolvedKey = kind === 'issue' ? 'completedIssues' : 'mergedPrs';
@@ -221,19 +398,20 @@ export function lifecycleBars(
 	});
 }
 
-// Sparse x-axis labels parallel to the cumulative bars: the year at each year change
-// for monthly data, the month at each month change for weekly data, blank elsewhere
-export function cumulativeTicks(points: TimelinePoint[], granularity: Granularity): string[] {
+// Sparse x-axis labels parallel to the bars: the month at each month change for weekly
+// data, the year for everything coarser, kept to one label per year, blank elsewhere
+export function cumulativeTicks(points: TimelinePoint[], unit: GroupUnit): string[] {
 	let prevYear = '';
 	let prevMonth = '';
 	return points.map((point) => {
 		const [year, month] = point.period.split('-');
-		if (granularity === 'week') {
+		if (unit === 'week') {
 			const changed = month !== prevMonth || year !== prevYear;
 			prevYear = year;
 			prevMonth = month;
 			return changed ? MONTHS[Number(month) - 1] : '';
 		}
+		if (unit === 'year') return year;
 		if (year !== prevYear) {
 			prevYear = year;
 			return year;
@@ -296,9 +474,7 @@ export function workflowKpiStats(wf: RepoWorkflows): WorkflowKpis {
 		if (workflow.state.startsWith('disabled')) disabled += 1;
 		else active += 1;
 	}
-	const retryRates = wf.workflows
-		.map((w) => w.retryRate)
-		.filter((r): r is number => r != null);
+	const retryRates = wf.workflows.map((w) => w.retryRate).filter((r): r is number => r != null);
 	return {
 		workflows: wf.totalWorkflows,
 		passRate: decisive ? passed / decisive : null,

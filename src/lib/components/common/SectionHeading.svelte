@@ -1,25 +1,56 @@
 <script lang="ts">
-	import type { Component } from 'svelte';
+	import type { Component, Snippet } from 'svelte';
+	import { ChevronDown } from '@lucide/svelte';
+	import { slide } from 'svelte/transition';
 	import { Separator } from '$lib/components/ui/separator';
 	import Icon from '$lib/components/common/Icon.svelte';
 
-	// A titled section divider, used to group related panels on a page
+	// A collapsible section of grouped panels, open by default, with a slug id for deep links
 	let {
 		title,
 		icon,
-		description
+		description,
+		open = $bindable(true),
+		children
 	}: {
 		title: string;
 		icon?: Component<{ size?: number | string; class?: string }>;
 		description?: string;
+		open?: boolean;
+		children: Snippet;
 	} = $props();
+
+	const id = $derived(
+		title
+			.toLowerCase()
+			.replace(/[^a-z0-9]+/g, '-')
+			.replace(/^-+|-+$/g, '')
+	);
 </script>
 
-<div class="space-y-1.5">
-	<div class="flex items-center gap-2">
-		{#if icon}<Icon {icon} size={18} class="text-muted-foreground" />{/if}
-		<h2 class="text-base font-semibold">{title}</h2>
+<section {id} class="scroll-mt-20 space-y-4">
+	<div class="space-y-1.5">
+		<button
+			type="button"
+			onclick={() => (open = !open)}
+			aria-expanded={open}
+			class="flex w-full items-center gap-2 text-left"
+		>
+			{#if icon}<Icon {icon} size={18} class="text-muted-foreground" />{/if}
+			<h2 class="text-base font-semibold">{title}</h2>
+			<Icon
+				icon={ChevronDown}
+				size={18}
+				class="text-muted-foreground ml-auto transition-transform {open ? '' : '-rotate-90'}"
+			/>
+		</button>
+		{#if description}<p class="text-muted-foreground text-sm">{description}</p>{/if}
+		<Separator class="mt-2" />
 	</div>
-	{#if description}<p class="text-muted-foreground text-sm">{description}</p>{/if}
-	<Separator class="mt-2" />
-</div>
+
+	{#if open}
+		<div class="space-y-4" transition:slide={{ duration: 150 }}>
+			{@render children()}
+		</div>
+	{/if}
+</section>

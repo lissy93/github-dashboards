@@ -1,14 +1,25 @@
 <script lang="ts">
+	import { ChevronDown } from '@lucide/svelte';
 	import * as Avatar from '$lib/components/ui/avatar';
+	import Icon from '$lib/components/common/Icon.svelte';
+	import { Button } from '$lib/components/ui/button';
 	import Sparkline from '$lib/components/charts/Sparkline.svelte';
 	import { formatNumber, compactNumber, formatDate, relativeTime } from '$lib/format';
 	import type { ContributorRow } from '$lib/server/github/contributors';
 
+	// Rows shown before the first Load more, and the count each click reveals
+	const INITIAL = 25;
+	const STEP = 25;
+
 	let { contributors }: { contributors: ContributorRow[] } = $props();
+
+	let shown = $state(INITIAL);
+	const rows = $derived(contributors.slice(0, shown));
+	const remaining = $derived(contributors.length - shown);
 </script>
 
 <ul class="divide-y">
-	{#each contributors as person, index (person.login)}
+	{#each rows as person, index (person.login)}
 		<li class="flex items-center gap-3 py-2">
 			<span class="text-muted-foreground w-5 shrink-0 text-right text-xs tabular-nums">
 				{index + 1}
@@ -53,3 +64,11 @@
 		</li>
 	{/each}
 </ul>
+
+{#if remaining > 0}
+	<div class="mt-3 flex justify-center">
+		<Button variant="outline" size="sm" onclick={() => (shown += STEP)}>
+			<Icon icon={ChevronDown} size={14} />Load more ({remaining})
+		</Button>
+	</div>
+{/if}

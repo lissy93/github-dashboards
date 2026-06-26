@@ -27,7 +27,6 @@
 	import SecurityChecks from '$lib/components/repo/SecurityChecks.svelte';
 	import AnalyticsDashboard from '$lib/components/analytics/AnalyticsDashboard.svelte';
 	import {
-		timelineChart,
 		starChart,
 		lifecycleBars,
 		lifecycleSeries,
@@ -92,8 +91,7 @@
 {/snippet}
 
 <div class="space-y-6">
-	<section class="space-y-4">
-		<SectionHeading title="Issues & PRs" icon={GitPullRequest} />
+	<SectionHeading title="Issues & PRs" icon={GitPullRequest}>
 		<div class="grid items-start gap-5 lg:grid-cols-2">
 			<div class="lg:space-y-5">
 				{@render totalMini('issue', 'issues', 'Total issues', CircleDot)}
@@ -139,26 +137,9 @@
 				</AsyncPanel>
 			</div>
 		</div>
+	</SectionHeading>
 
-		<AsyncPanel
-			title="Issues & PRs over time"
-			icon={GitPullRequest}
-			href={section('stats')}
-			result={data.timeline}
-			empty={(tl) => tl.points.length === 0}
-			emptyText="No history yet"
-		>
-			{#snippet children(tl)}
-				<MetricTimeChart
-					data={timelineChart(tl.points, ['openIssues', 'openPrs'])}
-					label="Open issues and PRs over time"
-				/>
-			{/snippet}
-		</AsyncPanel>
-	</section>
-
-	<section class="space-y-4">
-		<SectionHeading title="Activity & status" icon={Activity} />
+	<SectionHeading title="Activity & status" icon={Activity}>
 		<div class="grid items-start gap-5 lg:grid-cols-2">
 			<Panel title="Activity" icon={Activity} href={section('activity')}>
 				<RepoActivityFeed
@@ -173,7 +154,12 @@
 			</Panel>
 
 			<div class="space-y-5">
-				<AsyncPanel title="Workflows" icon={Workflow} href={ops('workflows')} result={data.workflows}>
+				<AsyncPanel
+					title="Workflows"
+					icon={Workflow}
+					href={ops('workflows')}
+					result={data.workflows}
+				>
 					{#snippet children(wf)}
 						{@const gauge = workflowGauge(wf)}
 						<div class="space-y-3">
@@ -254,10 +240,9 @@
 				</AsyncPanel>
 			</div>
 		</div>
-	</section>
+	</SectionHeading>
 
-	<section class="space-y-4">
-		<SectionHeading title="Repo info" icon={Info} />
+	<SectionHeading title="Repo info" icon={Info}>
 		<div class="grid items-start gap-5 lg:grid-cols-2">
 			<AsyncPanel
 				title="Star history"
@@ -272,7 +257,12 @@
 				{/snippet}
 			</AsyncPanel>
 
-			<AsyncPanel title="Security" icon={ShieldCheck} href={section('security')} result={data.security}>
+			<AsyncPanel
+				title="Security"
+				icon={ShieldCheck}
+				href={section('security')}
+				result={data.security}
+			>
 				{#snippet children(security)}
 					<SecurityChecks {security} slug={data.repo.nameWithOwner} />
 				{/snippet}
@@ -292,5 +282,5 @@
 				/>
 			</Panel>
 		{/if}
-	</section>
+	</SectionHeading>
 </div>
