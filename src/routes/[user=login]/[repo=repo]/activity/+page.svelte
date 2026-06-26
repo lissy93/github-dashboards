@@ -7,9 +7,9 @@
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { defaultView, type View } from '$lib/components/filter/sort-filter';
 	import { activityFilterConfig, activityQuery, activityUrl } from '$lib/views/activity';
-	import { COMMUNITY_EXCLUDE } from '$lib/components/activity/activity-config';
+	import { COMMUNITY_EXCLUDE, COMMUNITY_TYPES } from '$lib/components/activity/activity-config';
 	import { APP_NAME } from '$lib/config';
-	import type { ActivityEvent, ActivityPage } from '$lib/types';
+	import type { ActivityEvent, ActivityPage, ActivityType } from '$lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -19,6 +19,11 @@
 	let coreOnly = $state(true);
 	const query = $derived(activityQuery(view));
 	const exclude = $derived(coreOnly ? COMMUNITY_EXCLUDE : '');
+
+	// Core-only hides community types, so selecting one as a filter would show nothing; drop it
+	$effect(() => {
+		if (coreOnly && COMMUNITY_TYPES.includes(view.filters.type as ActivityType)) coreOnly = false;
+	});
 	const resetKey = $derived(`${query.type}|${query.q}|${query.dir}|${exclude}`);
 
 	// Fetch one older page of this repo's activity, carrying the current filters
