@@ -1,9 +1,9 @@
-import { graphql } from '$lib/server/github/client';
+import { graphql, rest } from '$lib/server/github/client';
 import { snapshotStars } from '$lib/server/github/stars';
 import { isCached, readCached, writeCached } from '$lib/server/cache';
 import { AppError, toAppError } from '$lib/errors';
 import { createLogger } from '$lib/logger';
-import type { Repo, UserOverview, UserProfile } from '$lib/types';
+import type { Org, Repo, UserOverview, UserProfile } from '$lib/types';
 
 const log = createLogger('user-overview');
 
@@ -58,7 +58,6 @@ const OVERVIEW_QUERY = `
 				name bio company location websiteUrl twitterUsername createdAt
 				followers { totalCount }
 				following { totalCount }
-				organizations(first: 12) { nodes { login name avatarUrl } }
 				contributionsCollection { contributionCalendar { totalContributions } }
 				ownedRepos: repositories(first: ${INITIAL_PAGE}, ${OWNED_ARGS}) {
 					totalCount nodes { ...repoFields } pageInfo { hasNextPage endCursor }
@@ -157,7 +156,7 @@ type RawOwner = {
 	createdAt: string;
 	followers?: { totalCount: number };
 	following?: { totalCount: number };
-	organizations?: { nodes: { login: string; name: string | null; avatarUrl: string }[] };
+	organizations?: { nodes: Org[] };
 	contributionsCollection?: { contributionCalendar: { totalContributions: number } };
 	ownedRepos: RawConn & { totalCount: number };
 };
@@ -236,6 +235,42 @@ export function mapRepo(raw: RawRepo): Repo {
 	};
 }
 
+// Display names for orgs in one batched query, since the REST list only carries logins
+async function fetchOrgNames(logins: string[]): Promise<Map<string, string>> {
+	if (!logins.length) return new Map();
+	const params = logins.map((_, index) => `$o${index}: String!`).join(', ');
+	const fields = logins
+		.map((_, index) => `o${index}: organization(login: $o${index}) { login name }`)
+		.join(' ');
+	const variables = Object.fromEntries(logins.map((login, index) => [`o${index}`, login]));
+	const data = await graphql<Record<string, { login: string; name: string | null } | null>>(
+		`query OrgNames(${params}) { ${fields} }`,
+		variables
+	).catch((caught) => {
+		log.warn('org name hydration failed', { code: toAppError(caught).code });
+		return {};
+	});
+	const named = Object.values(data).filter((org) => org?.name);
+	return new Map(named.map((org) => [org!.login, org!.name!]));
+}
+
+// Public org memberships via REST, since GraphQL User.organizations needs read:org
+async function fetchOrgs(login: string): Promise<Org[]> {
+	const orgs = await rest<{ login: string; avatar_url: string }[]>(
+		`/users/${encodeURIComponent(login)}/orgs?per_page=12`
+	).catch((caught) => {
+		log.warn(`org list failed for ${login}`, { code: toAppError(caught).code });
+		return null;
+	});
+	if (!orgs?.length) return [];
+	const names = await fetchOrgNames(orgs.map((org) => org.login));
+	return orgs.map((org) => ({
+		login: org.login,
+		name: names.get(org.login) ?? null,
+		avatarUrl: org.avatar_url
+	}));
+}
+
 function mapProfile(owner: RawOwner, ownedRepos: Repo[]): UserProfile {
 	return {
 		login: owner.login,
@@ -302,6 +337,8 @@ async function syncOverview(login: string, current?: OverviewState): Promise<Ove
 			{ login }
 		);
 		if (!owner) throw new AppError('not_found', `No user or org named ${login}`);
+		// Orgs only apply to users, fetched in parallel with the repo pagination below
+		const orgsTask = owner.__typename === 'User' ? fetchOrgs(login) : null;
 		const contributedData = owner.__typename === 'User' ? await contributedTask : null;
 		// A cold start still walks a few pages so the first paint is not just 30 repos
 		const pageBudget = PAGES_PER_SYNC;
@@ -361,6 +398,7 @@ async function syncOverview(login: string, current?: OverviewState): Promise<Ove
 						return contributedStart;
 					})
 				: progress();
+		if (orgsTask) owner.organizations = { nodes: await orgsTask };
 		const state = { owner, owned, contributed };
 		await writeCached(cacheKey, state, TTL);
 
