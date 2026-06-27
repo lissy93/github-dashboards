@@ -10,9 +10,13 @@
 	import HBarList from '$lib/components/charts/HBarList.svelte';
 	import TimelineFilters from '$lib/components/repo/TimelineFilters.svelte';
 	import FlowBacklogChart from '$lib/components/repo/FlowBacklogChart.svelte';
+	import ActivityHeatmap from '$lib/components/repo/ActivityHeatmap.svelte';
 	import {
 		starChart,
 		flowChart,
+		netVelocityChart,
+		resolutionTrendChart,
+		activityHeatmap,
 		lifecycleView,
 		defaultTimelineView,
 		resolutionBars,
@@ -28,12 +32,30 @@
 		summariseStats
 	} from '$lib/views/repo-stats';
 	import { compactNumber } from '$lib/format';
+	import { readStored, writeStored } from '$lib/storage';
 	import { APP_NAME } from '$lib/config';
 	import type { LoadResult } from '$lib/views/overview';
 	import type { PageData } from './$types';
 
+	const VIEW_KEY = 'repo:timeline-view';
+
 	let { data }: { data: PageData } = $props();
 	let view = $state<TimelineView>(defaultTimelineView());
+
+	// Restore the last chosen chart view after mount, then keep it in sync
+	$effect(() => {
+		const stored = readStored(VIEW_KEY);
+		if (stored) {
+			try {
+				view = { ...view, ...JSON.parse(stored) };
+			} catch {
+				// ignore a malformed stored view and keep the default
+			}
+		}
+	});
+	$effect(() => {
+		writeStored(VIEW_KEY, JSON.stringify(view));
+	});
 
 	// Unwrap a settled result to its data, or null when it failed or is still warming
 	const ok = <T,>(result: LoadResult<T>): T | null => (result.ok ? result.data : null);
@@ -99,6 +121,34 @@
 				<TimelineFilters bind:view base={tl.granularity} />
 				{#if view.mode === 'flow'}
 					<FlowBacklogChart chart={flowChart(tl.points, view, tl.granularity)} />
+				{:else if view.mode === 'velocity'}
+					<FlowBacklogChart chart={netVelocityChart(tl.points, view, tl.granularity)} />
+				{:else if view.mode === 'resolution'}
+					{@const trend = resolutionTrendChart(tl.points, view, tl.granularity)}
+					{#if trend.series.length}
+						<div class="space-y-2">
+							<MetricTimeChart
+								data={trend}
+								area={false}
+								unit="days"
+								label="Time to resolve over time"
+								height={20}
+							/>
+							<p class="text-muted-foreground text-xs">Median days to resolve, by close date</p>
+						</div>
+					{:else}
+						<p class="text-muted-foreground py-8 text-center text-sm">No resolved items in range</p>
+					{/if}
+				{:else if view.mode === 'heatmap'}
+					{@const heat = activityHeatmap(tl.points, view)}
+					<div class="space-y-2">
+						<ActivityHeatmap
+							data={heat}
+							scope={view.scope}
+							label="Issue and PR activity by month"
+						/>
+						<p class="text-muted-foreground text-xs">Issues and PRs opened or closed each month</p>
+					</div>
 				{:else}
 					<div class="space-y-5">
 						{#if view.scope !== 'prs'}

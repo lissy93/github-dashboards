@@ -9,6 +9,9 @@ import {
 	resolveGroup,
 	groupUnitsFor,
 	flowChart,
+	netVelocityChart,
+	resolutionTrendChart,
+	activityHeatmap,
 	defaultTimelineView
 } from '$lib/views/repo';
 
@@ -24,6 +27,8 @@ const point = (over: Partial<Parameters<typeof groupPoints>[0][number]> = {}) =>
 	mergedPrs: 0,
 	discardedPrs: 0,
 	openPrs: 0,
+	resolveIssuesHours: null,
+	resolvePrsHours: null,
 	...over
 });
 
@@ -158,6 +163,115 @@ describe('flowChart', () => {
 		const chart = flowChart(points, view, 'month');
 		expect(chart.lines).toHaveLength(0);
 		expect(chart.bars[0].values.openIssues).toBeUndefined();
+	});
+});
+
+describe('netVelocityChart', () => {
+	const points = [
+		point({ period: '2024-01-01', openedIssues: 4, closedIssues: 1, openedPrs: 0, closedPrs: 0 }),
+		point({ period: '2024-02-01', openedIssues: 1, closedIssues: 3, openedPrs: 0, closedPrs: 0 })
+	];
+
+	it('splits the net into a single signed bar per period', () => {
+		const view = { ...defaultTimelineView(), scope: 'issues' as const, group: 'month' as const };
+		const chart = netVelocityChart(points, view, 'month');
+
+		// Jan opened more than it closed, so the backlog grew (loss)
+		expect(chart.bars[0].values.loss).toBe(3);
+		expect(chart.bars[0].values.win).toBe(0);
+		// Feb closed more than it opened, so the backlog shrank (win)
+		expect(chart.bars[1].values.win).toBe(2);
+		expect(chart.bars[1].values.loss).toBe(0);
+	});
+
+	it('combines issues and PRs in the both scope', () => {
+		const both = [
+			point({ period: '2024-01-01', closedIssues: 5, openedIssues: 1, closedPrs: 0, openedPrs: 2 })
+		];
+		const view = { ...defaultTimelineView(), scope: 'both' as const, group: 'month' as const };
+		const chart = netVelocityChart(both, view, 'month');
+		// (5 + 0) closed minus (1 + 2) opened = net of 2 winning
+		expect(chart.bars[0].values.win).toBe(2);
+	});
+});
+
+describe('resolutionTrendChart', () => {
+	it('plots median days to resolve, weighting bucket medians by count on rollup', () => {
+		const points = [
+			point({ period: '2024-01-01', completedIssues: 1, resolveIssuesHours: 24 }),
+			point({ period: '2024-02-01', completedIssues: 3, resolveIssuesHours: 48 })
+		];
+		const view = { ...defaultTimelineView(), scope: 'issues' as const, group: 'quarter' as const };
+		const chart = resolutionTrendChart(points, view, 'month');
+
+		expect(chart.series).toHaveLength(1);
+		// One quarter: (1*24 + 3*48) / 4 = 42 hours = 1.75 days
+		expect(chart.series[0].values).toEqual([1.75]);
+	});
+
+	it('carries the last value across gaps and back-fills the lead-in', () => {
+		const points = [
+			point({ period: '2024-01-01' }),
+			point({ period: '2024-02-01', completedIssues: 2, resolveIssuesHours: 48 }),
+			point({ period: '2024-03-01' })
+		];
+		const view = { ...defaultTimelineView(), scope: 'issues' as const, group: 'month' as const };
+		const chart = resolutionTrendChart(points, view, 'month');
+		// 48h = 2 days, back-filled before and carried after the only data point
+		expect(chart.series[0].values).toEqual([2, 2, 2]);
+	});
+
+	it('returns no series when nothing was resolved', () => {
+		const view = { ...defaultTimelineView(), scope: 'both' as const };
+		const chart = resolutionTrendChart([point({ period: '2024-01-01' })], view, 'month');
+		expect(chart.series).toHaveLength(0);
+		expect(chart.dates).toEqual([]);
+	});
+});
+
+describe('activityHeatmap', () => {
+	it('sums opened and closed per calendar month, filling gap years', () => {
+		const points = [
+			point({ period: '2022-03-01', openedIssues: 2, closedIssues: 1 }),
+			point({ period: '2024-03-01', openedIssues: 3, closedIssues: 0 })
+		];
+		const view = { ...defaultTimelineView(), scope: 'issues' as const };
+		const heat = activityHeatmap(points, view);
+
+		expect(heat.rows.map((row) => row.year)).toEqual([2022, 2023, 2024]);
+		expect(heat.rows[0].cells[2].total).toBe(3);
+		expect(heat.rows[1].cells.every((cell) => cell.total === 0)).toBe(true);
+		expect(heat.rows[2].cells[2].total).toBe(3);
+		expect(heat.max).toBe(3);
+	});
+
+	it('breaks both scope into kind lines and an opened/closed split', () => {
+		const points = [
+			point({ period: '2024-05-01', openedIssues: 4, closedIssues: 1, openedPrs: 2, closedPrs: 3 })
+		];
+		const view = { ...defaultTimelineView(), scope: 'both' as const };
+		const cell = activityHeatmap(points, view).rows[0].cells[4];
+
+		expect(cell.total).toBe(10);
+		// Opened sums both kinds, closed too, for the status bar
+		expect(cell.opened).toBe(6);
+		expect(cell.closed).toBe(4);
+		// One line per kind, each carrying that kind's total
+		expect(cell.lines).toEqual([
+			{ kind: 'issue', role: 'total', value: 5 },
+			{ kind: 'pr', role: 'total', value: 5 }
+		]);
+	});
+
+	it('splits a single scope into opened and closed lines', () => {
+		const points = [point({ period: '2024-05-01', openedPrs: 7, closedPrs: 2 })];
+		const view = { ...defaultTimelineView(), scope: 'prs' as const };
+		const cell = activityHeatmap(points, view).rows[0].cells[4];
+
+		expect(cell.lines).toEqual([
+			{ kind: 'pr', role: 'opened', value: 7 },
+			{ kind: 'pr', role: 'closed', value: 2 }
+		]);
 	});
 });
 

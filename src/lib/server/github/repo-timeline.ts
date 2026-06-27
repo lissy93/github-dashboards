@@ -19,6 +19,9 @@ export type TimelinePoint = {
 	mergedPrs: number;
 	discardedPrs: number;
 	openPrs: number;
+	// Median hours to resolve items closed in this bucket, null when none resolved
+	resolveIssuesHours: number | null;
+	resolvePrsHours: number | null;
 };
 export type Granularity = 'month' | 'week';
 export type TimelineCore = {
@@ -106,6 +109,14 @@ const DURATION_BUCKETS: { label: string; max: number }[] = [
 const hoursBetween = (createdAt: string, closedAt: string) =>
 	Math.max(0, (Date.parse(closedAt) - Date.parse(createdAt)) / 3600000);
 
+// Middle value of a set, averaging the two middles for an even count
+function median(values: number[]): number | null {
+	if (!values.length) return null;
+	const sorted = [...values].sort((first, second) => first - second);
+	const mid = Math.floor(sorted.length / 2);
+	return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
 // Median duration and a per-band count over a set of resolution times. Pure, so the
 // histogram maths tests apart from the GraphQL walk
 export function resolutionStats(hours: number[]): ResolutionStats {
@@ -114,11 +125,7 @@ export function resolutionStats(hours: number[]): ResolutionStats {
 		const index = DURATION_BUCKETS.findIndex((band) => value < band.max);
 		buckets[index === -1 ? buckets.length - 1 : index].count += 1;
 	}
-	if (!hours.length) return { count: 0, medianHours: null, buckets };
-	const sorted = [...hours].sort((first, second) => first - second);
-	const mid = Math.floor(sorted.length / 2);
-	const medianHours = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-	return { count: hours.length, medianHours, buckets };
+	return { count: hours.length, medianHours: median(hours), buckets };
 }
 
 // Resolution times for completed issues and merged PRs, from the walked lifecycle nodes
@@ -247,21 +254,29 @@ async function syncKind<T extends Lifecycle & { id: string }>(
 	};
 }
 
-// Tally opened counts, and closed counts split by whether each item was resolved
+// Tally opened counts, and closed counts split by whether each item was resolved,
+// collecting resolution durations per close bucket for the speed trend
 function tally(
 	nodes: Lifecycle[],
 	granularity: Granularity,
 	opened: Map<string, number>,
 	resolved: Map<string, number>,
-	discarded: Map<string, number>
+	discarded: Map<string, number>,
+	resolvedHours: Map<string, number[]>
 ) {
 	for (const node of nodes) {
 		const open = bucketStart(node.createdAt, granularity);
 		opened.set(open, (opened.get(open) ?? 0) + 1);
 		if (node.closedAt) {
 			const close = bucketStart(node.closedAt, granularity);
-			const target = node.resolved === false ? discarded : resolved;
-			target.set(close, (target.get(close) ?? 0) + 1);
+			if (node.resolved === false) {
+				discarded.set(close, (discarded.get(close) ?? 0) + 1);
+			} else {
+				resolved.set(close, (resolved.get(close) ?? 0) + 1);
+				const hours = resolvedHours.get(close) ?? [];
+				hours.push(hoursBetween(node.createdAt, node.closedAt));
+				resolvedHours.set(close, hours);
+			}
 		}
 	}
 }
@@ -283,11 +298,13 @@ export function buildTimeline(
 	const openedIssues = new Map<string, number>();
 	const completedIssues = new Map<string, number>();
 	const discardedIssues = new Map<string, number>();
+	const issueResolvedHours = new Map<string, number[]>();
 	const openedPrs = new Map<string, number>();
 	const mergedPrs = new Map<string, number>();
 	const discardedPrs = new Map<string, number>();
-	tally(issues, granularity, openedIssues, completedIssues, discardedIssues);
-	tally(prs, granularity, openedPrs, mergedPrs, discardedPrs);
+	const prResolvedHours = new Map<string, number[]>();
+	tally(issues, granularity, openedIssues, completedIssues, discardedIssues, issueResolvedHours);
+	tally(prs, granularity, openedPrs, mergedPrs, discardedPrs, prResolvedHours);
 
 	const buckets = bucketRange(bucketStart(earliestIso, granularity), granularity);
 
@@ -315,7 +332,9 @@ export function buildTimeline(
 			closedPrs: cp,
 			mergedPrs: mp,
 			discardedPrs: discP,
-			openPrs: runningPrs
+			openPrs: runningPrs,
+			resolveIssuesHours: median(issueResolvedHours.get(period) ?? []),
+			resolvePrsHours: median(prResolvedHours.get(period) ?? [])
 		};
 	});
 

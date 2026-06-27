@@ -11,21 +11,31 @@ import type {
 
 // Issues vs PRs, the chart mode, and the bar grouping for the flow timeline
 export type FlowScope = 'issues' | 'prs' | 'both';
-export type FlowMode = 'flow' | 'lifecycle';
+export type FlowMode = 'flow' | 'lifecycle' | 'velocity' | 'resolution' | 'heatmap';
 export type GroupUnit = 'week' | 'month' | 'quarter' | 'year';
 export type GroupChoice = 'auto' | GroupUnit;
 
-// A point field that holds a count, the only fields a flow series can read
-type FlowField = keyof Omit<TimelinePoint, 'period'>;
+// A point field that holds a count, the raw fields a flow series reads
+type FlowField = Exclude<keyof TimelinePoint, 'period' | 'resolveIssuesHours' | 'resolvePrsHours'>;
 
-// One flow series: opened bars rise, closed bars drop, the open backlog is a line
+// One flow series: opened bars rise, closed bars drop, the open backlog is a line.
+// Net velocity uses its own computed keys, so the key is a plain string
 export type FlowSeriesDef = {
-	key: FlowField;
+	key: string;
 	label: string;
 	color: string;
 	hint: string;
 	axis: 'up' | 'down' | 'line';
 	dash?: boolean;
+};
+
+// Issues and PRs each keep a hue, opened bright and closed a muted shade of it. Shared
+// by the both-scope flow bars and the activity heatmap so the colours mean one thing
+const KIND_COLOR = {
+	issueOpen: 'var(--chart-1)',
+	issueClosed: 'color-mix(in oklch, var(--chart-1) 50%, var(--card))',
+	prOpen: 'var(--chart-2)',
+	prClosed: 'color-mix(in oklch, var(--chart-2) 50%, var(--card))'
 };
 
 // Bars and backlog lines per scope, coloured from the shared chart and lifecycle tokens
@@ -128,14 +138,14 @@ const FLOW_SERIES: Record<
 			{
 				key: 'closedIssues',
 				label: 'Issues closed',
-				color: 'color-mix(in oklch, var(--chart-1) 50%, var(--card))',
+				color: KIND_COLOR.issueClosed,
 				hint: 'Issues closed in each period',
 				axis: 'down'
 			},
 			{
 				key: 'closedPrs',
 				label: 'PRs closed',
-				color: 'color-mix(in oklch, var(--chart-2) 50%, var(--card))',
+				color: KIND_COLOR.prClosed,
 				hint: 'Pull requests closed or merged in each period',
 				axis: 'down'
 			}
@@ -282,10 +292,220 @@ export function flowChart(points: TimelinePoint[], view: TimelineView, base: Gro
 	const fields = [...up, ...down, ...shownLines];
 	const bars = grouped.map((point) => {
 		const values: Record<string, number> = {};
-		for (const series of fields) values[series.key] = point[series.key];
+		for (const series of fields) values[series.key] = point[series.key as FlowField];
 		return { period: point.period, label: bucketLabel(point.period, group), values };
 	});
 	return { bars, up, down, lines: shownLines, ticks: cumulativeTicks(grouped, group), group };
+}
+
+// Opened and closed counts for a scope, issues plus PRs when both are shown
+function scopeOpened(point: TimelinePoint, scope: FlowScope): number {
+	if (scope === 'issues') return point.openedIssues;
+	if (scope === 'prs') return point.openedPrs;
+	return point.openedIssues + point.openedPrs;
+}
+function scopeClosed(point: TimelinePoint, scope: FlowScope): number {
+	if (scope === 'issues') return point.closedIssues;
+	if (scope === 'prs') return point.closedPrs;
+	return point.closedIssues + point.closedPrs;
+}
+
+// Net velocity bars: closed minus opened, so a positive bar means the backlog shrank.
+// Rendered through the flow chart, with one signed bar and the same backlog line
+const NET_SERIES = {
+	up: {
+		key: 'win',
+		label: 'Net closed',
+		color: 'var(--success)',
+		hint: 'Closed more than opened, the backlog shrank',
+		axis: 'up' as const
+	},
+	down: {
+		key: 'loss',
+		label: 'Net opened',
+		color: 'var(--danger)',
+		hint: 'Opened more than closed, the backlog grew',
+		axis: 'down' as const
+	}
+};
+
+export function netVelocityChart(
+	points: TimelinePoint[],
+	view: TimelineView,
+	base: GroupUnit
+): FlowChart {
+	const windowed = pointsInWindow(points, view.windowKey);
+	const group = resolveGroup(windowed, view.group, base);
+	const grouped = groupPoints(windowed, group);
+	const lines = view.backlog ? FLOW_SERIES[view.scope].lines : [];
+	const bars = grouped.map((point) => {
+		const net = scopeClosed(point, view.scope) - scopeOpened(point, view.scope);
+		const values: Record<string, number> = { win: Math.max(0, net), loss: Math.max(0, -net) };
+		for (const series of lines) values[series.key] = point[series.key as FlowField];
+		return { period: point.period, label: bucketLabel(point.period, group), values };
+	});
+	return {
+		bars,
+		up: [NET_SERIES.up],
+		down: [NET_SERIES.down],
+		lines,
+		ticks: cumulativeTicks(grouped, group),
+		group
+	};
+}
+
+// Carry the last known value across gaps so a sparse trend stays a continuous line,
+// back-filling the lead-in with the first reading. Null when nothing was ever resolved
+function carryForward(values: (number | null)[]): number[] | null {
+	const first = values.findIndex((value) => value !== null);
+	if (first === -1) return null;
+	let last = values[first]!;
+	return values.map((value, index) => {
+		if (value !== null) last = value;
+		return index < first ? values[first]! : last;
+	});
+}
+
+// Median time-to-resolve over time, in days, as a line per shown kind. Per-group values
+// are a count-weighted blend of each bucket's median, an approximation past the base unit
+export function resolutionTrendChart(
+	points: TimelinePoint[],
+	view: TimelineView,
+	base: GroupUnit
+): ChartData {
+	const windowed = pointsInWindow(points, view.windowKey);
+	const group = resolveGroup(windowed, view.group, base);
+	const order: string[] = [];
+	const groups = new Map<
+		string,
+		{ period: string; issueSum: number; issueWeight: number; prSum: number; prWeight: number }
+	>();
+	for (const point of windowed) {
+		const groupKey = groupKeyOf(point.period, group);
+		let bucket = groups.get(groupKey);
+		if (!bucket) {
+			bucket = { period: point.period, issueSum: 0, issueWeight: 0, prSum: 0, prWeight: 0 };
+			groups.set(groupKey, bucket);
+			order.push(groupKey);
+		}
+		if (point.resolveIssuesHours !== null) {
+			bucket.issueSum += point.resolveIssuesHours * point.completedIssues;
+			bucket.issueWeight += point.completedIssues;
+		}
+		if (point.resolvePrsHours !== null) {
+			bucket.prSum += point.resolvePrsHours * point.mergedPrs;
+			bucket.prWeight += point.mergedPrs;
+		}
+	}
+	const buckets = order.map((groupKey) => groups.get(groupKey)!);
+	const dates = buckets.map((bucket) => bucket.period);
+	const toDays = (sum: number, weight: number) => (weight ? sum / weight / 24 : null);
+
+	const candidates = [
+		{
+			key: 'issues',
+			label: 'Issues',
+			color: 'var(--chart-1)',
+			hint: 'Median days to close an issue',
+			scope: 'issues'
+		},
+		{
+			key: 'prs',
+			label: 'PRs',
+			color: 'var(--chart-2)',
+			hint: 'Median days to merge a PR',
+			scope: 'prs'
+		}
+	];
+	const series = candidates
+		.filter((candidate) => view.scope === 'both' || view.scope === candidate.scope)
+		.map((candidate) => ({
+			...candidate,
+			values: carryForward(
+				buckets.map((bucket) =>
+					candidate.key === 'issues'
+						? toDays(bucket.issueSum, bucket.issueWeight)
+						: toDays(bucket.prSum, bucket.prWeight)
+				)
+			)
+		}))
+		.filter((entry): entry is typeof entry & { values: number[] } => entry.values !== null);
+
+	const max = Math.max(1, ...series.flatMap((entry) => entry.values));
+	return { dates: series.length ? dates : [], series, max };
+}
+
+// One readout line in a cell: the kind sets the icon, the role sets the colour. A both
+// scope shows a line per kind (role total), a single scope splits into opened and closed
+export type HeatmapLine = {
+	kind: 'issue' | 'pr';
+	role: 'opened' | 'closed' | 'total';
+	value: number;
+};
+export type HeatmapCell = { total: number; opened: number; closed: number; lines: HeatmapLine[] };
+export type HeatmapData = { rows: { year: number; cells: HeatmapCell[] }[]; max: number };
+
+type RawCell = { issueOpen: number; issueClosed: number; prOpen: number; prClosed: number };
+const emptyCell = (): RawCell => ({ issueOpen: 0, issueClosed: 0, prOpen: 0, prClosed: 0 });
+
+// Turn a month's raw counts into the readout lines and opened/closed split for a scope
+function heatmapCell(raw: RawCell, scope: FlowScope): HeatmapCell {
+	const issueTotal = raw.issueOpen + raw.issueClosed;
+	const prTotal = raw.prOpen + raw.prClosed;
+	if (scope === 'issues')
+		return {
+			total: issueTotal,
+			opened: raw.issueOpen,
+			closed: raw.issueClosed,
+			lines: [
+				{ kind: 'issue', role: 'opened', value: raw.issueOpen },
+				{ kind: 'issue', role: 'closed', value: raw.issueClosed }
+			]
+		};
+	if (scope === 'prs')
+		return {
+			total: prTotal,
+			opened: raw.prOpen,
+			closed: raw.prClosed,
+			lines: [
+				{ kind: 'pr', role: 'opened', value: raw.prOpen },
+				{ kind: 'pr', role: 'closed', value: raw.prClosed }
+			]
+		};
+	return {
+		total: issueTotal + prTotal,
+		opened: raw.issueOpen + raw.prOpen,
+		closed: raw.issueClosed + raw.prClosed,
+		lines: [
+			{ kind: 'issue', role: 'total', value: issueTotal },
+			{ kind: 'pr', role: 'total', value: prTotal }
+		]
+	};
+}
+
+// Activity per calendar month, split by kind and open/close state, as a year-by-month
+// grid for spotting seasonal rhythm. Window filters the years, grouping is ignored
+export function activityHeatmap(points: TimelinePoint[], view: TimelineView): HeatmapData {
+	const windowed = pointsInWindow(points, view.windowKey);
+	if (!windowed.length) return { rows: [], max: 0 };
+	const byYear = new Map<number, RawCell[]>();
+	for (const point of windowed) {
+		const [year, month] = point.period.split('-').map(Number);
+		if (!byYear.has(year)) byYear.set(year, Array.from({ length: 12 }, emptyCell));
+		const cell = byYear.get(year)![month - 1];
+		cell.issueOpen += point.openedIssues;
+		cell.issueClosed += point.closedIssues;
+		cell.prOpen += point.openedPrs;
+		cell.prClosed += point.closedPrs;
+	}
+	const years = [...byYear.keys()];
+	const rows = [];
+	for (let year = Math.min(...years); year <= Math.max(...years); year += 1) {
+		const raw = byYear.get(year) ?? Array.from({ length: 12 }, emptyCell);
+		rows.push({ year, cells: raw.map((cell) => heatmapCell(cell, view.scope)) });
+	}
+	const max = Math.max(0, ...rows.flatMap((row) => row.cells.map((cell) => cell.total)));
+	return { rows, max };
 }
 
 // Stacked lifecycle bars for one kind, windowed and grouped to match the flow chart

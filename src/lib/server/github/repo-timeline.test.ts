@@ -83,6 +83,18 @@ describe('buildTimeline', () => {
 		expect(point(points, '2024-02-01')?.discardedPrs).toBe(0);
 	});
 
+	it('records the median resolution hours for items closed in a bucket', () => {
+		// Two issues closed in Feb, resolved 24h and 72h after opening, median 48h
+		const issues = [
+			{ createdAt: '2024-02-01T00:00:00Z', closedAt: '2024-02-02T00:00:00Z', resolved: true },
+			{ createdAt: '2024-02-01T00:00:00Z', closedAt: '2024-02-04T00:00:00Z', resolved: true },
+			{ createdAt: '2024-02-01T00:00:00Z', closedAt: '2024-02-10T00:00:00Z', resolved: false }
+		];
+		const { points } = buildTimeline(issues, []);
+		expect(point(points, '2024-02-01')?.resolveIssuesHours).toBe(48);
+		expect(point(points, '2024-02-01')?.resolvePrsHours).toBeNull();
+	});
+
 	it('treats a closed item with no resolved flag as resolved', () => {
 		const issues = [{ createdAt: '2024-01-01T00:00:00Z', closedAt: '2024-02-05T00:00:00Z' }];
 		const { points } = buildTimeline(issues, []);

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Activity, Layers } from '@lucide/svelte';
+	import { Activity, Layers, Gauge, Timer, CalendarDays } from '@lucide/svelte';
 	import { Switch } from '$lib/components/ui/switch';
 	import * as Select from '$lib/components/ui/select';
 	import Icon from '$lib/components/common/Icon.svelte';
@@ -29,6 +29,24 @@
 			label: 'Lifecycle',
 			icon: Layers,
 			hint: 'Total ever created, stacked by state over time'
+		},
+		{
+			key: 'velocity',
+			label: 'Velocity',
+			icon: Gauge,
+			hint: 'Net of closed minus opened, are we keeping up'
+		},
+		{
+			key: 'resolution',
+			label: 'Speed',
+			icon: Timer,
+			hint: 'Median time to close issues and merge PRs over time'
+		},
+		{
+			key: 'heatmap',
+			label: 'Activity',
+			icon: CalendarDays,
+			hint: 'Activity by calendar month, year by year'
 		}
 	];
 	const SCOPES: { key: FlowScope; label: string }[] = [
@@ -101,7 +119,7 @@
 	</Select.Root>
 
 	<div class="ml-auto flex items-center gap-3">
-		{#if view.mode === 'flow'}
+		{#if view.mode === 'flow' || view.mode === 'velocity'}
 			<Hint text={view.backlog ? 'Hide the open backlog line' : 'Show the open backlog line'}>
 				<label class="flex items-center gap-1.5 text-xs">
 					<Switch size="sm" bind:checked={view.backlog} />
@@ -111,22 +129,24 @@
 		{/if}
 
 		<!-- Bar grouping -->
-		<div class="bg-muted inline-flex rounded-md p-0.5 text-xs">
-			{#each groupChoices as choice (choice)}
-				<button
-					type="button"
-					aria-pressed={view.group === choice}
-					onclick={() => (view.group = choice)}
-					class={cn(
-						'rounded px-2 py-1.5 transition-colors',
-						view.group === choice
-							? 'bg-background text-foreground shadow-sm'
-							: 'text-muted-foreground'
-					)}
-				>
-					{groupLabel(choice)}
-				</button>
-			{/each}
-		</div>
+		{#if view.mode !== 'heatmap'}
+			<div class="bg-muted inline-flex rounded-md p-0.5 text-xs">
+				{#each groupChoices as choice (choice)}
+					<button
+						type="button"
+						aria-pressed={view.group === choice}
+						onclick={() => (view.group = choice)}
+						class={cn(
+							'rounded px-2 py-1.5 transition-colors',
+							view.group === choice
+								? 'bg-background text-foreground shadow-sm'
+								: 'text-muted-foreground'
+						)}
+					>
+						{groupLabel(choice)}
+					</button>
+				{/each}
+			</div>
+		{/if}
 	</div>
 </div>

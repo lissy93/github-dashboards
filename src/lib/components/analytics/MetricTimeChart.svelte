@@ -11,8 +11,9 @@
 		data,
 		area = true,
 		height = 16,
-		label = 'Metric over time'
-	}: { data: ChartData; area?: boolean; height?: number; label?: string } = $props();
+		label = 'Metric over time',
+		unit
+	}: { data: ChartData; area?: boolean; height?: number; label?: string; unit?: string } = $props();
 
 	const PAD = { top: 12, right: 14, bottom: 22, left: 44 };
 	const Y_TICKS = 5;
@@ -88,7 +89,9 @@
 			title: formatDate(data.dates[nearest]),
 			rows: visible.map((item) => ({
 				label: item.label,
-				value: formatNumber(item.values[nearest]),
+				value: unit
+					? `${formatNumber(item.values[nearest])} ${unit}`
+					: formatNumber(item.values[nearest]),
 				color: item.color
 			}))
 		});

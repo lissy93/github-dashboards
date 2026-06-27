@@ -26,10 +26,9 @@
 	<div class="min-w-0 flex-1 space-y-1">
 		<div class="text-muted-foreground flex flex-wrap items-baseline gap-x-2 text-sm">
 			<span class="text-foreground">
-				{#if showActor && event.actor}<a
-						href={paths.user(event.actor)}
-						class="hover:underline">{event.actor}</a
-					>{' '}{/if}{activitySummary(event)}
+				{#if showActor && event.actor}<a href={paths.user(event.actor)} class="hover:underline"
+						>{event.actor}</a
+					>&nbsp;{/if}{activitySummary(event)}
 			</span>
 			{#if showRepo}
 				<a
@@ -72,10 +71,7 @@
 		<Hint text={event.actor} class="self-end shrink-0">
 			<a href={paths.user(event.actor)}>
 				<Avatar.Root size="sm" class="size-5">
-					<Avatar.Image
-						src="{GITHUB_WEB}/{event.actor}.png?size=40"
-						alt={event.actor}
-					/>
+					<Avatar.Image src="{GITHUB_WEB}/{event.actor}.png?size=40" alt={event.actor} />
 					<Avatar.Fallback class="text-[0.5rem]">
 						{event.actor.slice(0, 2).toUpperCase()}
 					</Avatar.Fallback>
