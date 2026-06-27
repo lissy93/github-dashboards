@@ -4,6 +4,8 @@ import type { StackBar, StackSeries } from '$lib/views/stats';
 const DAY_MS = 86400000;
 // Past this many days a daily axis gets too dense, so bars roll up into weeks
 const WEEKLY_SPAN_DAYS = 84;
+// Compact charts switch from weekly to monthly buckets once history passes a year
+const YEAR_DAYS = 365;
 
 // One day of run or deployment outcomes
 export type OutcomeBucket = { date: string; success: number; failure: number; other: number };
@@ -110,4 +112,73 @@ export function outcomeBars(buckets: OutcomeBucket[]): OutcomeChart {
 	// Year labels suit a long multi-year weekly span, month labels suit shorter ranges
 	const multiYear = weekly && dates[0].slice(0, 4) !== dates[dates.length - 1].slice(0, 4);
 	return { bars, series: OUTCOME_SERIES, ticks: axisTicks(dates, multiYear) };
+}
+
+type Rollup = 'week' | 'month';
+
+// First day of the week (Monday) or month containing a given YYYY-MM-DD date
+function periodStart(date: string, rollup: Rollup): string {
+	if (rollup === 'month') return `${date.slice(0, 7)}-01`;
+	const ms = Date.parse(date);
+	const weekday = (new Date(ms).getUTCDay() + 6) % 7; // Monday = 0
+	return new Date(ms - weekday * DAY_MS).toISOString().slice(0, 10);
+}
+
+// The start of the next period, used to step across a continuous axis
+function nextPeriod(date: string, rollup: Rollup): string {
+	if (rollup === 'month') {
+		const [year, month] = date.split('-').map(Number);
+		return new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10);
+	}
+	return new Date(Date.parse(date) + 7 * DAY_MS).toISOString().slice(0, 10);
+}
+
+// Sparse axis labels: the year at each year change for months, the month at each month
+// change for weeks, and always the first bar so a single-period span stays labelled
+function rollupTicks(dates: string[], rollup: Rollup): string[] {
+	let prev = '';
+	return dates.map((date, index) => {
+		const marker = rollup === 'month' ? date.slice(0, 4) : date.slice(0, 7);
+		if (marker === prev && index > 0) return '';
+		prev = marker;
+		const [, month] = date.split('-').map(Number);
+		return rollup === 'month' ? date.slice(0, 4) : MONTHS_SHORT[month - 1];
+	});
+}
+
+// Roll daily buckets up into weeks or months over a continuous axis, keeping empty periods so
+// the timeline stays honest while the bars themselves stay wide. For compact overview charts
+export function rollupOutcomeBars(buckets: OutcomeBucket[], rollup: Rollup): OutcomeChart {
+	if (!buckets.length) return { bars: [], series: OUTCOME_SERIES, ticks: [] };
+
+	const slots = new Map<string, OutcomeBucket>();
+	for (const bucket of buckets) {
+		const date = periodStart(bucket.date, rollup);
+		const slot = slots.get(date) ?? { date, success: 0, failure: 0, other: 0 };
+		slot.success += bucket.success;
+		slot.failure += bucket.failure;
+		slot.other += bucket.other;
+		slots.set(date, slot);
+	}
+
+	const last = periodStart(buckets[buckets.length - 1].date, rollup);
+	const dates: string[] = [];
+	const bars: StackBar[] = [];
+	for (let date = periodStart(buckets[0].date, rollup); date <= last; date = nextPeriod(date, rollup)) {
+		const slot = slots.get(date) ?? { date, success: 0, failure: 0, other: 0 };
+		dates.push(date);
+		bars.push({
+			label: barLabel(date),
+			values: { success: slot.success, failure: slot.failure, other: slot.other },
+			total: slot.success + slot.failure + slot.other
+		});
+	}
+	return { bars, series: OUTCOME_SERIES, ticks: rollupTicks(dates, rollup) };
+}
+
+// Compact rollup picking weekly buckets under a year of history and monthly beyond it
+export function miniOutcomeBars(buckets: OutcomeBucket[]): OutcomeChart {
+	if (!buckets.length) return { bars: [], series: OUTCOME_SERIES, ticks: [] };
+	const span = (Date.parse(buckets[buckets.length - 1].date) - Date.parse(buckets[0].date)) / DAY_MS;
+	return rollupOutcomeBars(buckets, span < YEAR_DAYS ? 'week' : 'month');
 }

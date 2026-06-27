@@ -1,4 +1,10 @@
-import { outcomeBars, withinDays, type OutcomeChart, type OutcomeKind } from '$lib/views/outcomes';
+import {
+	outcomeBars,
+	miniOutcomeBars,
+	withinDays,
+	type OutcomeChart,
+	type OutcomeKind
+} from '$lib/views/outcomes';
 import type { DeployRecord, RepoDeployments } from '$lib/server/github/deployments';
 
 // Trailing windows for the deployment frequency chart, all-time spans the whole sample
@@ -56,6 +62,12 @@ export function deployState(state: string | null): {
 export function frequencyChart(deployments: RepoDeployments, windowKey: string): OutcomeChart {
 	const days = DEPLOY_WINDOWS.find((window) => window.key === windowKey)?.days ?? Infinity;
 	return outcomeBars(withinDays(deployments.frequency, days));
+}
+
+// All-time frequency rolled up into weeks or months for the compact overview panel, so bars
+// stay wide and readable instead of a forest of thin daily slivers
+export function deploymentMiniChart(deployments: RepoDeployments): OutcomeChart {
+	return miniOutcomeBars(deployments.frequency);
 }
 
 // Recent deployments, optionally narrowed to one environment

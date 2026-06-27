@@ -19,6 +19,7 @@
 	import { STATUS_GLYPH } from '$lib/components/repo/status-glyph';
 	import type { RepoPages } from '$lib/server/github/pages';
 	import { relativeTime, formatDateTime } from '$lib/format';
+	import { formatDuration } from '$lib/views/repo';
 	import { APP_NAME } from '$lib/config';
 	import type { LoadResult } from '$lib/views/overview';
 	import type { PageData } from './$types';
@@ -153,7 +154,7 @@
 										{/if}
 									</td>
 									<td class="text-muted-foreground px-2 py-2 text-right whitespace-nowrap max-sm:hidden">
-										{build.duration ? `${build.duration}s` : '-'}
+										{build.duration ? formatDuration(build.duration) : '-'}
 									</td>
 									<td class="text-muted-foreground px-2 py-2 text-right whitespace-nowrap last:pr-0">
 										<Hint text={formatDateTime(build.createdAt)}>

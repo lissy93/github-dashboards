@@ -5,13 +5,21 @@
 	import { compactNumber, formatNumber } from '$lib/format';
 	import type { Slice, TipData } from '$lib/views/stats';
 
-	// centerValue is the headline shown inside the arc, data stacks across the half ring
+	// centerValue is the headline shown inside the arc, data stacks across the half ring.
+	// compact sits the legend beside the gauge (wrapping below when narrow) to save height
 	let {
 		data,
 		centerValue,
 		centerLabel,
-		valueLabel = 'Value'
-	}: { data: Slice[]; centerValue: string; centerLabel: string; valueLabel?: string } = $props();
+		valueLabel = 'Value',
+		compact = false
+	}: {
+		data: Slice[];
+		centerValue: string;
+		centerLabel: string;
+		valueLabel?: string;
+		compact?: boolean;
+	} = $props();
 
 	const CX = 50;
 	const CY = 50;
@@ -59,50 +67,52 @@
 	});
 </script>
 
-<div class="mx-auto max-w-[15rem]">
-	<svg viewBox="0 0 100 56" class="w-full" role="img" aria-label="{centerLabel} {centerValue}">
-		<path d={track} fill="none" stroke="var(--muted)" stroke-width={STROKE} />
-		{#each segments as segment (segment.label)}
-			<path
-				d={segment.d}
-				fill="none"
-				stroke={segment.color}
-				stroke-width={STROKE}
-				role="img"
-				aria-label="{segment.label}: {formatNumber(segment.value)}"
-				onpointermove={(event) => tip.show(event, tipFor(segment, segment.color))}
-				onpointerleave={tip.hide}
-			/>
-		{/each}
-		<text
-			x="50"
-			y="38"
-			text-anchor="middle"
-			font-size="15"
-			font-weight="600"
-			class="fill-foreground"
-		>
-			{centerValue}
-		</text>
-		<text x="50" y="47" text-anchor="middle" font-size="5.5" class="fill-muted-foreground">
-			{centerLabel}
-		</text>
-	</svg>
-</div>
+<div class={compact ? 'flex flex-wrap items-center justify-center gap-x-5 gap-y-1' : ''}>
+	<div class={compact ? 'min-w-[7rem] max-w-[10rem] flex-1' : 'mx-auto max-w-[15rem]'}>
+		<svg viewBox="0 0 100 56" class="w-full" role="img" aria-label="{centerLabel} {centerValue}">
+			<path d={track} fill="none" stroke="var(--muted)" stroke-width={STROKE} />
+			{#each segments as segment (segment.label)}
+				<path
+					d={segment.d}
+					fill="none"
+					stroke={segment.color}
+					stroke-width={STROKE}
+					role="img"
+					aria-label="{segment.label}: {formatNumber(segment.value)}"
+					onpointermove={(event) => tip.show(event, tipFor(segment, segment.color))}
+					onpointerleave={tip.hide}
+				/>
+			{/each}
+			<text
+				x="50"
+				y="38"
+				text-anchor="middle"
+				font-size="15"
+				font-weight="600"
+				class="fill-foreground"
+			>
+				{centerValue}
+			</text>
+			<text x="50" y="47" text-anchor="middle" font-size="5.5" class="fill-muted-foreground">
+				{centerLabel}
+			</text>
+		</svg>
+	</div>
 
-<ul class="mt-1 flex justify-center gap-5 text-xs">
-	{#each data as slice, index (slice.label)}
-		{@const color = slice.color ?? seriesColor(index)}
-		<li
-			class="flex items-center gap-1.5"
-			onpointermove={(event) => tip.show(event, tipFor(slice, color))}
-			onpointerleave={tip.hide}
-		>
-			<span class="size-2.5 shrink-0 rounded-sm" style="background-color: {color}"></span>
-			<span class="text-muted-foreground">{slice.label}</span>
-			<span class="font-medium tabular-nums">{compactNumber(slice.value)}</span>
-		</li>
-	{/each}
-</ul>
+	<ul class={compact ? 'flex flex-col gap-1.5 text-xs' : 'mt-1 flex justify-center gap-5 text-xs'}>
+		{#each data as slice, index (slice.label)}
+			{@const color = slice.color ?? seriesColor(index)}
+			<li
+				class="flex items-center gap-1.5"
+				onpointermove={(event) => tip.show(event, tipFor(slice, color))}
+				onpointerleave={tip.hide}
+			>
+				<span class="size-2.5 shrink-0 rounded-sm" style="background-color: {color}"></span>
+				<span class="text-muted-foreground">{slice.label}</span>
+				<span class="font-medium tabular-nums">{compactNumber(slice.value)}</span>
+			</li>
+		{/each}
+	</ul>
+</div>
 
 <ChartTooltip data={tip.data} x={tip.x} y={tip.y} />

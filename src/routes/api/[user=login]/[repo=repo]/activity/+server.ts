@@ -17,6 +17,8 @@ export const GET: RequestHandler = async ({ params, locals, url, setHeaders }) =
 		dir: url.searchParams.get('dir'),
 		exclude: url.searchParams.get('exclude')
 	};
+	// "My activity" scopes to the signed-in viewer, taken from the session not a client param
+	const login = url.searchParams.get('mine') ? (locals.user?.login ?? null) : null;
 	const seed = () =>
 		backfillRepoActivity(params.user, params.repo).catch((caught) =>
 			logError('repo-activity-backfill', caught)
@@ -25,14 +27,15 @@ export const GET: RequestHandler = async ({ params, locals, url, setHeaders }) =
 	try {
 		const repo = await requireRepo(params.user, params.repo, locals.user?.login);
 		setHeaders({
-			'cache-control': repo.isPrivate ? 'private, no-store' : 'public, max-age=30'
+			// A viewer-scoped response is per-session, so never cache it publicly
+			'cache-control': repo.isPrivate || login ? 'private, no-store' : 'public, max-age=30'
 		});
-		let page = await getActivityPage(null, options);
+		let page = await getActivityPage(login, options);
 		if (cursor) {
 			if (page.nextCursor) void seed();
 			else {
 				await seed();
-				page = await getActivityPage(null, options);
+				page = await getActivityPage(login, options);
 			}
 		}
 		return json(page);

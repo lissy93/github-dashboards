@@ -16,7 +16,8 @@
 		totalUnit,
 		maxLabels,
 		ticks,
-		barGap = 0.375
+		barGap = 0.375,
+		miniView = false
 	}: {
 		bars: StackBar[];
 		series: StackSeries[];
@@ -27,6 +28,7 @@
 		maxLabels?: number;
 		ticks?: string[];
 		barGap?: number;
+		miniView?: boolean;
 	} = $props();
 
 	const legend = legendState();
@@ -57,8 +59,10 @@
 		shown.reduce((sum, entry) => sum + (bar.values[entry.key] ?? 0), 0);
 
 	const max = $derived(niceMax(Math.max(1, ...bars.map(barTotal))));
-	// Keep count-based grid steps on whole numbers
-	const Y_TICKS = 5;
+	// Keep count-based grid steps on whole numbers, thinning them right down for the compact view
+	const Y_TICKS = $derived(miniView ? 2 : 5);
+	// Narrower y-axis gutter in the compact view so the bars get the space
+	const gutter = $derived(miniView ? 'w-5' : 'w-7');
 	const step = $derived(Math.max(1, Math.round(niceStep(max, Y_TICKS))));
 	const yTicks = $derived(
 		Array.from({ length: Math.floor(max / step) + 1 }, (_, index) => index * step)
@@ -96,12 +100,14 @@
 	});
 </script>
 
-<div class="flex flex-col gap-3">
-	<ChartLegend {items} state={legend} {format} more={occurring.length - items.length} />
+<div class="flex flex-col {miniView ? 'gap-0' : 'gap-3'}">
+	{#if !miniView}
+		<ChartLegend {items} state={legend} {format} more={occurring.length - items.length} />
+	{/if}
 	<div class="flex flex-col gap-2">
 		<div class="flex gap-1.5">
 			<!-- Y-axis ticks, centred on their gridline -->
-			<div class="relative w-7 shrink-0" style="height: {height}rem" aria-hidden="true">
+			<div class="relative {gutter} shrink-0" style="height: {height}rem" aria-hidden="true">
 				{#each yTicks as value (value)}
 					<span
 						class="text-muted-foreground absolute right-0 translate-y-1/2 text-[0.6rem] tabular-nums"
@@ -152,7 +158,7 @@
 		</div>
 		<!-- X-axis labels, offset to clear the y-axis gutter -->
 		<div class="flex gap-1.5">
-			<div class="w-7 shrink-0" aria-hidden="true"></div>
+			<div class="{gutter} shrink-0" aria-hidden="true"></div>
 			<div class="text-muted-foreground flex flex-1 text-[0.65rem]" style="gap: {barGap}rem">
 				{#each bars as bar, index (bar.label)}
 					<span

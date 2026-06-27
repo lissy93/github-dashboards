@@ -85,7 +85,8 @@ async function fetchPages(owner: string, name: string): Promise<RepoPages> {
 		builds: rawBuilds.map((b) => ({
 			status: b.status,
 			createdAt: b.created_at,
-			duration: b.duration,
+			// The Pages builds API reports duration in milliseconds, store it in seconds like the rest
+			duration: Math.round((b.duration ?? 0) / 1000),
 			commitSha: b.commit,
 			url: b.url,
 			error: b.error?.message ?? null
@@ -96,7 +97,7 @@ async function fetchPages(owner: string, name: string): Promise<RepoPages> {
 	};
 }
 
-const key = (owner: string, name: string) => `repo:pages:v2:${owner}/${name}`.toLowerCase();
+const key = (owner: string, name: string) => `repo:pages:v3:${owner}/${name}`.toLowerCase();
 
 export const isRepoPagesCached = (owner: string, name: string) => isCached(key(owner, name));
 

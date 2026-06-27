@@ -23,7 +23,8 @@ export function activityUrl(
 	view: View,
 	cursor: string | null,
 	repo?: string,
-	exclude?: string
+	exclude?: string,
+	mine?: boolean
 ): string {
 	const params = new URLSearchParams();
 	const { type, q, dir } = activityQuery(view);
@@ -32,6 +33,8 @@ export function activityUrl(
 	if (q) params.set('q', q);
 	if (dir) params.set('dir', dir);
 	if (exclude) params.set('exclude', exclude);
+	// Scope to the signed-in viewer's own events, resolved server-side from the session
+	if (mine) params.set('mine', '1');
 	const base = repo ? `/api/${user}/${repo}/activity` : `/api/${user}/activity`;
 	return `${base}?${params}`;
 }

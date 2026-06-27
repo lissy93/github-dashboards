@@ -4,14 +4,19 @@ import {
 	isRepoTasksCached
 } from '$lib/server/github/repo-tasks';
 import { getRepoIssuePrTimeline } from '$lib/server/github/repo-timeline';
-import { getActivityPage } from '$lib/server/github/activity';
+import { getActivityPage, syncRepoActivity } from '$lib/server/github/activity';
 import { getRepoStarHistory } from '$lib/server/github/star-history';
-import { getRepoWorkflows } from '$lib/server/github/workflows';
+import { getRepoWorkflows, isRepoWorkflowsCached } from '$lib/server/github/workflows';
+import { getRepoDeployments, isRepoDeploymentsCached } from '$lib/server/github/deployments';
+import { getRepoPages, isRepoPagesCached } from '$lib/server/github/pages';
+import { getRepoReleases, isRepoReleasesCached } from '$lib/server/github/releases';
 import { getRepoSecurity } from '$lib/server/github/security';
 import { settle } from '$lib/server/load';
+import { logError } from '$lib/errors';
 import type { PageServerLoad } from './$types';
 
 const PREVIEW = 6;
+const ACTIVITY_PREVIEW = 10;
 
 export const load: PageServerLoad = async ({ params }) => {
 	const owner = params.user;
@@ -23,16 +28,29 @@ export const load: PageServerLoad = async ({ params }) => {
 	const timeline = settle('repo-timeline', getRepoIssuePrTimeline(owner, name));
 	const stars = settle('repo-stars', getRepoStarHistory(owner, name));
 	const workflows = settle('repo-workflows', getRepoWorkflows(owner, name));
+	const deployments = settle('repo-deployments', getRepoDeployments(owner, name));
+	const pages = settle('repo-pages', getRepoPages(owner, name));
+	const releases = settle('repo-releases', getRepoReleases(owner, name));
 	const security = settle('repo-security', getRepoSecurity(owner, name));
 
-	// Activity is a quick store read, resolve it inline and never block on GitHub here
-	const activity = await settle(
+	// Refresh repo-wide events best-effort then read the preview, so the panel shows all
+	// contributors' activity rather than only what a user-level sync happened to store.
+	// Streamed (not awaited) to keep the page fast
+	const activity = settle(
 		'repo-activity',
-		getActivityPage(null, { repo: `${owner}/${name}`, limit: PREVIEW }).then((page) => page.events)
+		syncRepoActivity(owner, name)
+			.catch((caught) => logError('repo-activity-sync', caught))
+			.then(() => getActivityPage(null, { repo: `${owner}/${name}`, limit: ACTIVITY_PREVIEW }))
 	);
 
-	// Render the open lists inline when already cached, stream only a cold miss
-	const tasksReady = await isRepoTasksCached(owner, name);
+	// Render the open lists and ops summaries inline when already cached, stream only a cold miss
+	const [tasksReady, wfReady, depReady, pgReady, relReady] = await Promise.all([
+		isRepoTasksCached(owner, name),
+		isRepoWorkflowsCached(owner, name),
+		isRepoDeploymentsCached(owner, name),
+		isRepoPagesCached(owner, name),
+		isRepoReleasesCached(owner, name)
+	]);
 
 	return {
 		preview: PREVIEW,
@@ -40,7 +58,10 @@ export const load: PageServerLoad = async ({ params }) => {
 		prs: tasksReady ? await prs : prs,
 		timeline,
 		stars,
-		workflows,
+		workflows: wfReady ? await workflows : workflows,
+		deployments: depReady ? await deployments : deployments,
+		pages: pgReady ? await pages : pages,
+		releases: relReady ? await releases : releases,
 		security,
 		activity
 	};
