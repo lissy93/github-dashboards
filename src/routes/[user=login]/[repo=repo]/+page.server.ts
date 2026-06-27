@@ -28,7 +28,7 @@ export const load: PageServerLoad = async ({ params }) => {
 	// Activity is a quick store read, resolve it inline and never block on GitHub here
 	const activity = await settle(
 		'repo-activity',
-		getActivityPage(owner, { repo: `${owner}/${name}`, limit: PREVIEW }).then((page) => page.events)
+		getActivityPage(null, { repo: `${owner}/${name}`, limit: PREVIEW }).then((page) => page.events)
 	);
 
 	// Render the open lists inline when already cached, stream only a cold miss

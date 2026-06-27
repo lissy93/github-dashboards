@@ -22,7 +22,8 @@ export function activityUrl(
 	user: string,
 	view: View,
 	cursor: string | null,
-	repo?: string
+	repo?: string,
+	exclude?: string
 ): string {
 	const params = new URLSearchParams();
 	const { type, q, dir } = activityQuery(view);
@@ -30,6 +31,7 @@ export function activityUrl(
 	if (type) params.set('type', type);
 	if (q) params.set('q', q);
 	if (dir) params.set('dir', dir);
+	if (exclude) params.set('exclude', exclude);
 	const base = repo ? `/api/${user}/${repo}/activity` : `/api/${user}/activity`;
 	return `${base}?${params}`;
 }

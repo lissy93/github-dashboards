@@ -1,9 +1,10 @@
 <script lang="ts">
+	import * as Avatar from '$lib/components/ui/avatar';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import Hint from '$lib/components/common/Hint.svelte';
 	import Reactions from '$lib/components/activity/Reactions.svelte';
 	import { relativeTime, formatDateTime } from '$lib/format';
-	import { GITHUB_WEB } from '$lib/config';
+	import { GITHUB_WEB, paths } from '$lib/config';
 	import {
 		activityIcon,
 		activityColor,
@@ -12,22 +13,34 @@
 	} from '$lib/components/activity/activity-config';
 	import type { ActivityEvent } from '$lib/types';
 
-	let { event }: { event: ActivityEvent } = $props();
+	type Props = {
+		event: ActivityEvent;
+		showActor?: boolean;
+		showRepo?: boolean;
+	};
+	let { event, showActor = false, showRepo = true }: Props = $props();
 </script>
 
 <article class="flex gap-3 px-4 py-3">
 	<Icon icon={activityIcon(event)} size={16} class="mt-0.5 shrink-0 {activityColor(event)}" />
 	<div class="min-w-0 flex-1 space-y-1">
 		<div class="text-muted-foreground flex flex-wrap items-baseline gap-x-2 text-sm">
-			<span class="text-foreground">{activitySummary(event)}</span>
-			<a
-				href="{GITHUB_WEB}/{event.repo}"
-				target="_blank"
-				rel="noreferrer"
-				class="hover:text-foreground truncate"
-			>
-				{event.repo}
-			</a>
+			<span class="text-foreground">
+				{#if showActor && event.actor}<a
+						href={paths.user(event.actor)}
+						class="hover:underline">{event.actor}</a
+					>{' '}{/if}{activitySummary(event)}
+			</span>
+			{#if showRepo}
+				<a
+					href="{GITHUB_WEB}/{event.repo}"
+					target="_blank"
+					rel="noreferrer"
+					class="hover:text-foreground truncate"
+				>
+					{event.repo}
+				</a>
+			{/if}
 			<span class="bg-muted rounded px-1.5 py-0.5 text-[0.65rem] tracking-wide uppercase">
 				{activityLabel(event.type)}
 			</span>
@@ -55,4 +68,19 @@
 			<Reactions {event} />
 		{/if}
 	</div>
+	{#if showActor && event.actor}
+		<Hint text={event.actor} class="self-end shrink-0">
+			<a href={paths.user(event.actor)}>
+				<Avatar.Root size="sm" class="size-5">
+					<Avatar.Image
+						src="{GITHUB_WEB}/{event.actor}.png?size=40"
+						alt={event.actor}
+					/>
+					<Avatar.Fallback class="text-[0.5rem]">
+						{event.actor.slice(0, 2).toUpperCase()}
+					</Avatar.Fallback>
+				</Avatar.Root>
+			</a>
+		</Hint>
+	{/if}
 </article>

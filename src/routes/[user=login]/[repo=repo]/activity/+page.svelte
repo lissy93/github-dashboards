@@ -3,9 +3,11 @@
 	import Feed from '$lib/components/common/Feed.svelte';
 	import ActivityItem from '$lib/components/activity/ActivityItem.svelte';
 	import ErrorState from '$lib/components/common/ErrorState.svelte';
+	import { Switch } from '$lib/components/ui/switch';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { defaultView, type View } from '$lib/components/filter/sort-filter';
 	import { activityFilterConfig, activityQuery, activityUrl } from '$lib/views/activity';
+	import { COMMUNITY_EXCLUDE } from '$lib/components/activity/activity-config';
 	import { APP_NAME } from '$lib/config';
 	import type { ActivityEvent, ActivityPage } from '$lib/types';
 	import type { PageData } from './$types';
@@ -14,14 +16,17 @@
 
 	const config = activityFilterConfig();
 	let view = $state<View>(defaultView(config));
+	let coreOnly = $state(true);
 	const query = $derived(activityQuery(view));
-	const resetKey = $derived(`${query.type}|${query.q}|${query.dir}`);
+	const exclude = $derived(coreOnly ? COMMUNITY_EXCLUDE : '');
+	const resetKey = $derived(`${query.type}|${query.q}|${query.dir}|${exclude}`);
 
 	// Fetch one older page of this repo's activity, carrying the current filters
 	async function fetchPage(
 		cursor: string | null
 	): Promise<{ items: ActivityEvent[]; nextCursor: string | null }> {
-		const response = await fetch(activityUrl(data.user, view, cursor, data.repo.name));
+		const url = activityUrl(data.user, view, cursor, data.repo.name, exclude);
+		const response = await fetch(url);
 		const body = await response.json();
 		if (!response.ok) throw body;
 		const page = body as ActivityPage;
@@ -45,13 +50,21 @@
 {:then result}
 	{#if result.ok}
 		<div class="space-y-3">
-			<SortFilterBar
-				{config}
-				bind:view
-				showSort={false}
-				showDir={false}
-				searchPlaceholder="Search activity"
-			/>
+			<div class="flex flex-wrap items-center gap-2">
+				<div class="min-w-0 flex-1">
+					<SortFilterBar
+						{config}
+						bind:view
+						showSort={false}
+						showDir={false}
+						searchPlaceholder="Search activity"
+					/>
+				</div>
+				<label class="flex shrink-0 items-center gap-1.5 text-sm">
+					<Switch size="sm" bind:checked={coreOnly} />
+					<span class="text-muted-foreground">Core only</span>
+				</label>
+			</div>
 			<div class="bg-card overflow-hidden rounded-md border">
 				<Feed
 					initial={result.data.events}
@@ -62,7 +75,7 @@
 					empty="No activity found for this repo"
 				>
 					{#snippet item(event)}
-						<ActivityItem {event} />
+						<ActivityItem {event} showActor showRepo={false} />
 					{/snippet}
 				</Feed>
 			</div>

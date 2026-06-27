@@ -186,6 +186,7 @@ export type ActivityEvent = {
 	url: string;
 	payload: Record<string, unknown> | null;
 	reactions: Reactions | null;
+	actor?: string | null;
 };
 
 // One page of the timeline, newest first, with the cursor for the next older page

@@ -80,6 +80,7 @@ type RawPayload = {
 export type RawEvent = {
 	id: string;
 	type: string;
+	actor?: { login: string };
 	repo?: { name: string };
 	payload: RawPayload;
 	created_at: string;

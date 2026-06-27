@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, ilike, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, ilike, lt, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import { graphql, rest } from '$lib/server/github/client';
 import { cached, isCached, readCached, writeCached } from '$lib/server/cache';
 import { logError } from '$lib/errors';
@@ -50,7 +50,7 @@ async function store(login: string, events: ActivityEvent[]): Promise<void> {
 	if (!byId.size) return;
 	const rows = [...byId.values()].map((event) => ({
 		...event,
-		user: login.toLowerCase(),
+		user: (event.actor ?? login).toLowerCase(),
 		createdAt: new Date(event.createdAt)
 	}));
 	await db
@@ -90,6 +90,43 @@ export function syncActivity(login: string): Promise<{ stored: number }> {
 		async () => {
 			const events = await fetchEvents(login);
 			await store(login, events);
+			return { stored: events.length };
+		},
+		SYNC_TTL
+	);
+}
+
+// Walk the repo events feed, capturing each event's actor for multi-user attribution
+async function fetchRepoEvents(owner: string, repo: string): Promise<ActivityEvent[]> {
+	const out: ActivityEvent[] = [];
+	for (let page = 1; page <= EVENT_PAGES; page++) {
+		const raw = await rest<RawEvent[]>(
+			`/repos/${owner}/${repo}/events?per_page=${PER_PAGE}&page=${page}`
+		);
+		if (!raw?.length) break;
+		for (const event of raw) {
+			const mapped = mapEvent(event);
+			if (mapped) {
+				mapped.actor = event.actor?.login ?? null;
+				out.push(mapped);
+			}
+		}
+		if (raw.length < PER_PAGE) break;
+	}
+	return out;
+}
+
+// Refresh the newest repo-wide events, throttled per repo
+export function syncRepoActivity(
+	owner: string,
+	repo: string
+): Promise<{ stored: number }> {
+	const fullName = `${owner}/${repo}`;
+	return cached(
+		`activity:repo-sync:${fullName.toLowerCase()}`,
+		async () => {
+			const events = await fetchRepoEvents(owner, repo);
+			await store(owner, events);
 			return { stored: events.length };
 		},
 		SYNC_TTL
@@ -354,6 +391,157 @@ export async function backfillActivity(login: string): Promise<{ stored: number 
 	return task;
 }
 
+// Repo-scoped backfill: fetch historical PRs and issues with author attribution
+type RepoBackfillItem = BackfillItem & { author?: { login: string } | null };
+
+const REPO_PR_QUERY = `
+	query RepoBackfillPRs($owner: String!, $name: String!, $cursor: String) {
+		repository(owner: $owner, name: $name) {
+			pullRequests(first: ${PER_PAGE}, after: $cursor, orderBy: { field: CREATED_AT, direction: DESC }) {
+				nodes { number title url createdAt mergedAt closedAt repository { nameWithOwner } author { login } reactionGroups { content reactors { totalCount } } }
+				pageInfo { hasNextPage endCursor }
+			}
+		}
+	}
+`;
+
+const REPO_ISSUE_QUERY = `
+	query RepoBackfillIssues($owner: String!, $name: String!, $cursor: String) {
+		repository(owner: $owner, name: $name) {
+			issues(first: ${PER_PAGE}, after: $cursor, orderBy: { field: CREATED_AT, direction: DESC }) {
+				nodes { number title url createdAt closedAt repository { nameWithOwner } author { login } reactionGroups { content reactors { totalCount } } }
+				pageInfo { hasNextPage endCursor }
+			}
+		}
+	}
+`;
+
+// Page one repo-level connection, same shape as the user-level fetcher
+async function fetchRepoBackfill<Node>(
+	owner: string,
+	name: string,
+	query: string,
+	field: string,
+	cursor: string | null,
+	pages: number
+): Promise<{ items: Node[]; progress: BackfillProgress }> {
+	const items: Node[] = [];
+	let complete = false;
+	for (let page = 0; page < pages; page++) {
+		const data: { repository: Record<string, Conn<Node>> | null } = await graphql(query, {
+			owner,
+			name,
+			cursor
+		});
+		const conn = data.repository?.[field];
+		if (!conn) {
+			complete = true;
+			break;
+		}
+		items.push(...conn.nodes);
+		if (!conn.pageInfo.hasNextPage || !conn.pageInfo.endCursor) {
+			cursor = null;
+			complete = true;
+			break;
+		}
+		cursor = conn.pageInfo.endCursor;
+	}
+	return { items, progress: { cursor, complete } };
+}
+
+// Resume or start a repo-scoped backfill source with the same cursor pattern
+async function repoBackfillSource<T>(
+	owner: string,
+	name: string,
+	query: string,
+	field: string,
+	progress: BackfillProgress
+): Promise<{ items: T[]; progress: BackfillProgress }> {
+	if (!progress.cursor && !progress.complete) {
+		return fetchRepoBackfill<T>(owner, name, query, field, null, BACKFILL_PAGES);
+	}
+	const latest = await fetchRepoBackfill<T>(owner, name, query, field, null, 1);
+	if (progress.complete) return { items: latest.items, progress };
+	const older = await fetchRepoBackfill<T>(
+		owner,
+		name,
+		query,
+		field,
+		progress.cursor,
+		BACKFILL_PAGES
+	);
+	return { items: [...latest.items, ...older.items], progress: older.progress };
+}
+
+const repoBackfilling = new Map<string, Promise<{ stored: number }>>();
+
+// Backfill all PRs and issues for a repo with per-event author attribution
+export async function backfillRepoActivity(
+	owner: string,
+	repo: string
+): Promise<{ stored: number }> {
+	const fullName = `${owner}/${repo}`;
+	const cacheKey = `activity:repo-backfill-state:v1:${fullName.toLowerCase()}`;
+	const running = repoBackfilling.get(cacheKey);
+	if (running) return running;
+
+	const task = (async () => {
+		const stored = await readCached<BackfillState>(cacheKey).catch(() => null);
+		if (stored && Date.now() - stored.fetchedAt.getTime() < BACKFILL_TTL * 1000) {
+			return { stored: 0 };
+		}
+		const current = stored?.value ?? {};
+		const pending = (field: string) => current[field] ?? { cursor: null, complete: false };
+		const [prs, issues] = await Promise.all([
+			source(
+				'repo-prs',
+				() =>
+					repoBackfillSource<RepoBackfillItem>(
+						owner,
+						repo,
+						REPO_PR_QUERY,
+						'pullRequests',
+						pending('prs')
+					),
+				pending('prs')
+			),
+			source(
+				'repo-issues',
+				() =>
+					repoBackfillSource<RepoBackfillItem>(
+						owner,
+						repo,
+						REPO_ISSUE_QUERY,
+						'issues',
+						pending('issues')
+					),
+				pending('issues')
+			)
+		]);
+		const events: ActivityEvent[] = [];
+		for (const pr of prs.items) {
+			const mapped = prToActivities(pr);
+			for (const e of mapped) e.actor = pr.author?.login ?? null;
+			events.push(...mapped);
+		}
+		for (const issue of issues.items) {
+			const mapped = issueToActivities(issue);
+			for (const e of mapped) e.actor = issue.author?.login ?? null;
+			events.push(...mapped);
+		}
+		await store(owner, events);
+		await writeCached(
+			cacheKey,
+			{ prs: prs.progress, issues: issues.progress },
+			BACKFILL_TTL
+		);
+		return { stored: events.length };
+	})().finally(() => repoBackfilling.delete(cacheKey));
+
+	repoBackfilling.set(cacheKey, task);
+	return task;
+}
+
 // Whether this user has been synced before, so the page renders inline vs streams
 export const isSynced = (login: string) => isCached(`activity:sync:${login.toLowerCase()}`);
 
@@ -460,7 +648,8 @@ function toEvent(row: typeof activityEvent.$inferSelect): ActivityEvent {
 		body: row.body,
 		url: row.url,
 		payload: row.payload as Record<string, unknown> | null,
-		reactions: row.reactions as Reactions | null
+		reactions: row.reactions as Reactions | null,
+		actor: row.user
 	};
 }
 
@@ -471,21 +660,26 @@ type PageOptions = {
 	dir?: string | null;
 	limit?: number;
 	repo?: string | null;
+	exclude?: string | null;
 };
 
-// Read one page from the store, with keyset paging, filters and time direction
+// Read one page from the store, with keyset paging, filters and time direction.
+// Pass login for user-scoped feeds, or null with a repo for repo-wide feeds
 export async function getActivityPage(
-	login: string,
+	login: string | null,
 	options: PageOptions = {}
 ): Promise<ActivityPage> {
 	const limit = Math.min(Math.max(options.limit ?? PAGE_SIZE, 1), 100);
 	const ascending = options.dir === 'asc';
-	const conditions: SQL[] = [eq(activityEvent.user, login.toLowerCase())];
+	const conditions: SQL[] = [];
+	if (login) conditions.push(eq(activityEvent.user, login.toLowerCase()));
 
 	// Match the stored repo case-insensitively, so the lower(repo) index can serve it
 	if (options.repo)
 		conditions.push(eq(sql`lower(${activityEvent.repo})`, options.repo.toLowerCase()));
+	if (!conditions.length) return { events: [], nextCursor: null };
 	if (options.type) conditions.push(eq(activityEvent.type, options.type));
+	if (options.exclude) conditions.push(notInArray(activityEvent.type, options.exclude.split(',')));
 	if (options.q) {
 		// Escape LIKE wildcards so a literal % or _ in the query stays literal
 		const like = `%${options.q.replace(/[\\%_]/g, '\\$&')}%`;

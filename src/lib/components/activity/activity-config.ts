@@ -132,3 +132,7 @@ export const ACTIVITY_TYPE_OPTIONS = (Object.keys(META) as ActivityType[]).map((
 	value: type,
 	label: META[type].label
 }));
+
+// Community types excluded when the repo feed is set to core-only mode
+export const COMMUNITY_TYPES: ActivityType[] = ['star', 'fork', 'public', 'sponsor'];
+export const COMMUNITY_EXCLUDE = COMMUNITY_TYPES.join(',');
