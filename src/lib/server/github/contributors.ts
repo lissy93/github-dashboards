@@ -48,7 +48,14 @@ export type ContributorRow = {
 	lastCommit: string | null;
 	spark: number[];
 };
-export type RepoContributors = { contributors: ContributorRow[]; total: number; sampled: boolean };
+// One week of repo-wide code churn, additions and deletions across all authors
+export type WeekChurn = { week: string; additions: number; deletions: number };
+export type RepoContributors = {
+	contributors: ContributorRow[];
+	total: number;
+	sampled: boolean;
+	weekly: WeekChurn[];
+};
 
 type StatWeek = { w: number; a: number; d: number; c: number };
 type RawStat = {
@@ -92,6 +99,26 @@ export function summariseContributors(raw: RawStat[]): ContributorRow[] {
 		.sort((first, second) => second.contributions - first.contributions);
 }
 
+// Repo-wide weekly churn, summed across contributors. The stats endpoint already
+// carries per-week lines, so this reuses that payload with no extra request
+export function weeklyChurn(raw: RawStat[]): WeekChurn[] {
+	const byWeek = new Map<number, { additions: number; deletions: number }>();
+	for (const stat of raw) {
+		for (const week of stat.weeks ?? []) {
+			const slot = byWeek.get(week.w) ?? { additions: 0, deletions: 0 };
+			slot.additions += week.a;
+			slot.deletions += week.d;
+			byWeek.set(week.w, slot);
+		}
+	}
+	const weeks = [...byWeek.entries()]
+		.sort((first, second) => first[0] - second[0])
+		.map(([seconds, churn]) => ({ week: toIso(seconds), ...churn }));
+	// Drop the quiet lead-in so the chart opens on the first real activity
+	const firstActive = weeks.findIndex((week) => week.additions || week.deletions);
+	return firstActive <= 0 ? weeks : weeks.slice(firstActive);
+}
+
 async function fetchContributors(owner: string, name: string): Promise<RepoContributors> {
 	const [stats, total] = await Promise.all([
 		fetchStatsEndpoint<RawStat>(
@@ -109,11 +136,11 @@ async function fetchContributors(owner: string, name: string): Promise<RepoContr
 	const contributors = summariseContributors(stats);
 	// The stats endpoint tops out at 100 contributors, so flag when there are more
 	const sampled = total > contributors.length;
-	return { contributors, total, sampled };
+	return { contributors, total, sampled, weekly: weeklyChurn(stats) };
 }
 
 const repoKey = (owner: string, name: string) =>
-	`repo:contributors:v2:${owner}/${name}`.toLowerCase();
+	`repo:contributors:v3:${owner}/${name}`.toLowerCase();
 
 export const isRepoContributorsCached = (owner: string, name: string) =>
 	isCached(repoKey(owner, name));

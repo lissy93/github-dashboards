@@ -2,6 +2,7 @@ const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFracti
 const number = new Intl.NumberFormat('en');
 const decimal = new Intl.NumberFormat('en', { maximumFractionDigits: 1 });
 const SIZE_UNITS = ['KB', 'MB', 'GB', 'TB'];
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB'];
 const relative = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
 const dateFmt = new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short', year: 'numeric' });
 const dateTimeFmt = new Intl.DateTimeFormat('en', {
@@ -36,15 +37,27 @@ export function formatDecimal(value: number): string {
 	return decimal.format(value);
 }
 
+// Step a raw amount up through 1024-based units until it fits
+function scaleUnit(amount: number, units: string[]): { value: number; unit: string } {
+	let value = amount;
+	let step = 0;
+	while (value >= 1024 && step < units.length - 1) {
+		value /= 1024;
+		step++;
+	}
+	return { value, unit: units[step] };
+}
+
 // Human disk size from a kilobyte count, e.g. 2048 -> 2 MB
 export function formatSize(kb: number): string {
-	let value = kb;
-	let unit = 0;
-	while (value >= 1024 && unit < SIZE_UNITS.length - 1) {
-		value /= 1024;
-		unit++;
-	}
-	return `${decimal.format(value)} ${SIZE_UNITS[unit]}`;
+	const { value, unit } = scaleUnit(kb, SIZE_UNITS);
+	return `${decimal.format(value)} ${unit}`;
+}
+
+// Human byte size from a raw byte count, e.g. 2048 -> 2 KB
+export function formatBytes(bytes: number): string {
+	const { value, unit } = scaleUnit(bytes, BYTE_UNITS);
+	return `${unit === 'B' ? value : decimal.format(value)} ${unit}`;
 }
 
 // Relative time from now, e.g. 3 days ago

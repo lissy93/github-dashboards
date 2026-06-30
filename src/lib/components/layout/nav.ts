@@ -13,9 +13,12 @@ import {
 	Tag,
 	Container,
 	Users,
-	ShieldCheck
+	ShieldCheck,
+	FolderTree,
+	GitGraph,
+	Code
 } from '@lucide/svelte';
-import { paths, REPO_NAV, OPS_NAV } from '$lib/config';
+import { paths, REPO_NAV, CODE_NAV, OPS_NAV } from '$lib/config';
 import { TASK_BUCKETS } from '$lib/components/tasks/tasks-config';
 import type { TaskBucket } from '$lib/types';
 
@@ -80,12 +83,19 @@ export function userNav(user: string, isOrg: boolean, viewer: NavViewer): NavIte
 const REPO_SECTION_ICONS: Record<string, IconComponent> = {
 	'': LayoutGrid,
 	tasks: GitPullRequest,
-	activity: Activity,
+	code: Code,
 	traffic: ChartArea,
 	stats: ChartColumn,
 	ops: Container,
 	people: Users,
 	security: ShieldCheck
+};
+
+// Icons for Code sub-sections
+const CODE_SECTION_ICONS: Record<string, IconComponent> = {
+	activity: Activity,
+	files: FolderTree,
+	'git-tree': GitGraph
 };
 
 // Icons for ops sub-sections
@@ -107,6 +117,18 @@ export function repoNav(user: string, repo: string, viewer: NavViewer): NavItem[
 				icon,
 				disabled: true,
 				tooltip: viewer.loggedIn ? `Only ${user} can view traffic` : 'Sign in to view traffic'
+			};
+		}
+		if (section === 'code') {
+			return {
+				label,
+				href,
+				icon,
+				children: CODE_NAV.map(({ label: subLabel, section: subSection }) => ({
+					label: subLabel,
+					href: paths.repoCodeSection(user, repo, subSection),
+					icon: CODE_SECTION_ICONS[subSection]
+				}))
 			};
 		}
 		if (section === 'ops') {

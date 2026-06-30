@@ -51,6 +51,16 @@ export function splinePath(points: { x: number; y: number }[], smooth = false): 
 	return path;
 }
 
+// Whole calendar-year starts within a time span, for vertical year gridlines. The first
+// partial year is skipped so a label never lands on the axis origin
+export function yearMarks(firstMs: number, lastMs: number): { year: number; ms: number }[] {
+	const start = new Date(firstMs).getUTCFullYear();
+	const end = new Date(lastMs).getUTCFullYear();
+	const marks: { year: number; ms: number }[] = [];
+	for (let year = start + 1; year <= end; year++) marks.push({ year, ms: Date.UTC(year, 0, 1) });
+	return marks;
+}
+
 // Round an axis maximum up to a clean step so bar heights read nicely
 export function niceMax(value: number): number {
 	if (value <= 0) return 1;

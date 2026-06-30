@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { parseContributorCount, summariseContributors } from '$lib/server/github/contributors';
+import {
+	parseContributorCount,
+	summariseContributors,
+	weeklyChurn
+} from '$lib/server/github/contributors';
 
 // One unix week timestamp in seconds, weeks are 604800s apart
 const WEEK = 604800;
@@ -65,5 +69,49 @@ describe('summariseContributors', () => {
 			{ total: 4, author: author('real'), weeks: [{ w: WEEK, a: 1, d: 1, c: 4 }] }
 		]);
 		expect(rows.map((row) => row.login)).toEqual(['real']);
+	});
+});
+
+describe('weeklyChurn', () => {
+	it('sums additions and deletions per week across contributors', () => {
+		const churn = weeklyChurn([
+			{
+				total: 2,
+				author: author('alice'),
+				weeks: [
+					{ w: WEEK, a: 10, d: 2, c: 1 },
+					{ w: 2 * WEEK, a: 0, d: 5, c: 1 }
+				]
+			},
+			{
+				total: 2,
+				author: author('bob'),
+				weeks: [
+					{ w: WEEK, a: 3, d: 1, c: 1 },
+					{ w: 2 * WEEK, a: 7, d: 0, c: 1 }
+				]
+			}
+		]);
+		const iso = (multiplier: number) =>
+			new Date(multiplier * WEEK * 1000).toISOString().slice(0, 10);
+		expect(churn).toEqual([
+			{ week: iso(1), additions: 13, deletions: 3 },
+			{ week: iso(2), additions: 7, deletions: 5 }
+		]);
+	});
+
+	it('drops the quiet lead-in before the first real activity', () => {
+		const churn = weeklyChurn([
+			{
+				total: 1,
+				author: author('alice'),
+				weeks: [
+					{ w: WEEK, a: 0, d: 0, c: 0 },
+					{ w: 2 * WEEK, a: 4, d: 1, c: 1 }
+				]
+			}
+		]);
+		expect(churn).toHaveLength(1);
+		expect(churn[0].additions).toBe(4);
 	});
 });

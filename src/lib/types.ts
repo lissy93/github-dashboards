@@ -77,6 +77,52 @@ export type RepoExtras = {
 	stats?: RepoStats;
 };
 
+// One node in a repo's file tree, directories carry children and rolled-up metrics
+export type TreeNode = {
+	name: string;
+	path: string;
+	type: 'file' | 'dir';
+	size: number;
+	children?: TreeNode[];
+	fileCount?: number;
+};
+
+// A repo's full file tree on its default branch, with headline counts
+export type RepoTree = {
+	branch: string;
+	root: TreeNode[];
+	totalFiles: number;
+	totalDirs: number;
+	totalSize: number;
+	truncated: boolean;
+};
+
+// A branch or tag label pointing at a commit
+export type CommitRef = { name: string; type: 'branch' | 'tag'; isDefault: boolean };
+
+// One commit in the history graph, parents drive the DAG edges
+export type GraphCommit = {
+	oid: string;
+	short: string;
+	message: string;
+	date: string;
+	author: string | null;
+	login: string | null;
+	parents: string[];
+	refs: CommitRef[];
+};
+
+// One page of commit history, newest first, with a cursor when older commits remain
+export type CommitPage = { commits: GraphCommit[]; nextCursor: string | null };
+
+// A repo's commit history as a DAG: the first page plus branch and tag context
+export type RepoCommitGraph = CommitPage & {
+	defaultBranch: string;
+	branches: string[];
+	branchCount: number;
+	tagCount: number;
+};
+
 export type UserProfile = {
 	login: string;
 	name: string | null;

@@ -50,6 +50,7 @@
 
 	const preview = $derived(data.preview);
 	const section = (slug: string) => paths.repoSection(data.user, data.repo.name, slug);
+	const code = (slug: string) => paths.repoCodeSection(data.user, data.repo.name, slug);
 	const ops = (slug: string) => paths.repoOpsSection(data.user, data.repo.name, slug);
 </script>
 
@@ -141,7 +142,7 @@
 
 	<SectionHeading title="Activity & status" icon={Activity}>
 		<div class="grid items-start gap-5 lg:grid-cols-2">
-			<Panel title="Activity" icon={Activity} href={section('activity')}>
+			<Panel title="Activity" icon={Activity} href={code('activity')}>
 				<RepoActivityFeed
 					user={data.user}
 					repo={data.repo.name}

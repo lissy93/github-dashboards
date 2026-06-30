@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { stackColor, niceStep, splinePath } from './chart';
+	import { stackColor, niceStep, splinePath, yearMarks } from './chart';
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
 	import { compactNumber, formatNumber, formatDate } from '$lib/format';
@@ -69,19 +69,13 @@
 	const xTicks = $derived.by(() => {
 		const days = data.days;
 		if (!days.length) return [];
-		const startYear = new Date(Date.parse(days[0])).getUTCFullYear();
-		const endYear = new Date(Date.parse(days[days.length - 1])).getUTCFullYear();
-		const years = [];
-		for (let year = startYear + 1; year <= endYear; year++) {
-			const fraction =
-				(Date.UTC(year, 0, 1) - Date.parse(days[0])) /
-				(Date.parse(days.at(-1)!) - Date.parse(days[0]) || 1);
-			years.push({
-				label: String(year),
-				x: geom.xs[0] + fraction * (geom.xs.at(-1)! - geom.xs[0]),
-				line: true
-			});
-		}
+		const first = Date.parse(days[0]);
+		const span = Date.parse(days.at(-1)!) - first || 1;
+		const years = yearMarks(first, Date.parse(days.at(-1)!)).map((mark) => ({
+			label: String(mark.year),
+			x: geom.xs[0] + ((mark.ms - first) / span) * (geom.xs.at(-1)! - geom.xs[0]),
+			line: true
+		}));
 		if (years.length >= 2) return years;
 		return [...new Set([0, Math.floor((days.length - 1) / 2), days.length - 1])].map((index) => ({
 			label: formatDate(days[index]),

@@ -2,6 +2,7 @@ import { languageBreakdown } from '$lib/views/stats';
 import type { Slice } from '$lib/views/stats';
 import type { LanguageUsage } from '$lib/types';
 import type { ReleaseRow } from '$lib/server/github/releases';
+import type { LabelCount } from '$lib/server/github/repo-labels';
 
 // Language byte breakdown as donut/bar slices, reusing the user-stats shaping
 export function languageSlices(usage: LanguageUsage[], limit = 8): Slice[] {
@@ -54,6 +55,18 @@ export type StatsSummary = {
 	topContributorShare: number | null;
 };
 
+// Fewest of the ranked counts whose running total reaches the given share
+function countForShare(countsDesc: number[], total: number, share: number): number {
+	let running = 0;
+	let count = 0;
+	for (const value of countsDesc) {
+		running += value;
+		count += 1;
+		if (running >= total * share) break;
+	}
+	return count;
+}
+
 // Fewest contributors whose commits together clear half the total, a rough bus factor
 function busFactor(contributors: { contributions: number }[]): {
 	factor: number;
@@ -62,14 +75,10 @@ function busFactor(contributors: { contributions: number }[]): {
 	const counts = contributors.map((person) => person.contributions).sort((a, b) => b - a);
 	const total = counts.reduce((sum, count) => sum + count, 0);
 	if (!total) return { factor: 0, topShare: 0 };
-	let running = 0;
-	let factor = 0;
-	for (const count of counts) {
-		running += count;
-		factor += 1;
-		if (running * 2 >= total) break;
-	}
-	return { factor, topShare: Math.round((counts[0] / total) * 100) };
+	return {
+		factor: countForShare(counts, total, 0.5),
+		topShare: Math.round((counts[0] / total) * 100)
+	};
 }
 
 // Reduce the streamed datasets to the headline numbers, leaving any source that
@@ -89,4 +98,115 @@ export function summariseStats(parts: SummaryParts): StatsSummary {
 		busFactor: factor ? factor.factor : null,
 		topContributorShare: factor ? factor.topShare : null
 	};
+}
+
+// ---- Contribution distribution (Lorenz curve) -----------------------------
+
+// The 50% bus factor saturates at 1-2 on most repos, so the chart marks the more
+// telling core team, the people behind the bulk of the commits
+const CORE_THRESHOLD = 0.8;
+
+export type CurvePoint = { x: number; y: number };
+export type ContributionCurve = {
+	points: CurvePoint[];
+	gini: number;
+	busFactor: number;
+	coreFactor: number;
+	coreThreshold: number;
+	topShare: number;
+	contributors: number;
+};
+
+// Gini coefficient of a value set, 0 perfectly even and 1 fully concentrated
+function giniCoefficient(values: number[], total: number): number {
+	const asc = [...values].sort((first, second) => first - second);
+	let weighted = 0;
+	for (let index = 0; index < asc.length; index++) {
+		weighted += (2 * (index + 1) - asc.length - 1) * asc[index];
+	}
+	return total ? weighted / (asc.length * total) : 0;
+}
+
+// Cumulative share of commits held by the top contributors, with a Gini coefficient
+// and the core team marker. Pure, so the concentration maths tests apart from the page
+export function contributionCurve(
+	contributors: { contributions: number }[]
+): ContributionCurve | null {
+	const counts = contributors.map((person) => person.contributions).filter((count) => count > 0);
+	if (counts.length < 2) return null;
+	const total = counts.reduce((sum, count) => sum + count, 0);
+	const desc = [...counts].sort((first, second) => second - first);
+	const points: CurvePoint[] = [{ x: 0, y: 0 }];
+	let running = 0;
+	for (let index = 0; index < desc.length; index++) {
+		running += desc[index];
+		points.push({ x: (index + 1) / desc.length, y: running / total });
+	}
+	const { factor, topShare } = busFactor(contributors);
+	return {
+		points,
+		gini: giniCoefficient(desc, total),
+		busFactor: factor,
+		coreFactor: countForShare(desc, total, CORE_THRESHOLD),
+		coreThreshold: CORE_THRESHOLD,
+		topShare,
+		contributors: desc.length
+	};
+}
+
+// ---- Release cadence ------------------------------------------------------
+
+export type ReleaseMarker = {
+	tag: string;
+	date: string;
+	time: number;
+	prerelease: boolean;
+	gapDays: number | null;
+};
+export type ReleaseCadence = { markers: ReleaseMarker[]; medianGapDays: number | null };
+
+// Middle value of a set, averaging the two middles for an even count
+function medianOf(values: number[]): number | null {
+	if (!values.length) return null;
+	const sorted = [...values].sort((first, second) => first - second);
+	const mid = Math.floor(sorted.length / 2);
+	return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
+// Releases on a real time axis, each carrying the gap since the previous one, plus
+// the median cadence. Releases arrive oldest first so the gaps read forward in time
+export function releaseCadence(releases: ReleaseRow[]): ReleaseCadence {
+	const markers: ReleaseMarker[] = [];
+	const gaps: number[] = [];
+	let previous: number | null = null;
+	for (const release of releases) {
+		if (!release.publishedAt) continue;
+		const time = Date.parse(release.publishedAt);
+		const gapDays = previous === null ? null : Math.round((time - previous) / 86400000);
+		if (gapDays !== null) gaps.push(gapDays);
+		markers.push({
+			tag: release.tag,
+			date: release.publishedAt.slice(0, 10),
+			time,
+			prerelease: release.prerelease,
+			gapDays
+		});
+		previous = time;
+	}
+	return { markers, medianGapDays: medianOf(gaps) };
+}
+
+// ---- Label work-mix -------------------------------------------------------
+
+// Labels as treemap tiles sized by usage and filled with their own GitHub colour
+export function labelTreemap(labels: LabelCount[], limit = 16): Slice[] {
+	return labels.slice(0, limit).map((label) => ({
+		label: label.name,
+		value: label.total,
+		color: `#${label.color}`,
+		rows: [
+			{ label: 'Issues', value: label.issues.toLocaleString() },
+			{ label: 'PRs', value: label.prs.toLocaleString() }
+		]
+	}));
 }

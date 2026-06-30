@@ -744,11 +744,16 @@ const RESOLUTION_COLORS = [
 	'var(--danger)' // 6mo+
 ];
 
-// Resolution histogram bands as bars, coloured by how slow each band is
-export function resolutionBars(stats: ResolutionStats): Slice[] {
-	return stats.buckets.map((bucket, index) => ({
+// Resolution histogram bands as bars, coloured by how slow each band is.
+// Pass open to append a grey backlog bar for items that are still open
+export function resolutionBars(stats: ResolutionStats, open?: number): Slice[] {
+	const bars: Slice[] = stats.buckets.map((bucket, index) => ({
 		label: bucket.label,
 		value: bucket.count,
 		color: RESOLUTION_COLORS[index] ?? 'var(--muted-foreground)'
 	}));
+	if (open != null) {
+		bars.push({ label: 'Still open', value: open, color: 'var(--muted-foreground)' });
+	}
+	return bars;
 }

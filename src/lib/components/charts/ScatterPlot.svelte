@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { seriesColor, niceMax, niceStep } from './chart';
+	import { seriesColor, niceMax, niceStep, yearMarks } from './chart';
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
 	import { compactNumber, formatDate } from '$lib/format';
@@ -41,12 +41,10 @@
 			const max = Math.max(...values);
 			const span = max - min || 1;
 			const norm = (value: number) => (value - min) / span;
-			const ticks: Tick[] = [];
-			const startYear = new Date(min).getUTCFullYear();
-			const endYear = new Date(max).getUTCFullYear();
-			for (let year = startYear + 1; year <= endYear; year++) {
-				ticks.push({ frac: norm(Date.UTC(year, 0, 1)), label: String(year) });
-			}
+			const ticks: Tick[] = yearMarks(min, max).map((mark) => ({
+				frac: norm(mark.ms),
+				label: String(mark.year)
+			}));
 			if (ticks.length < 2) {
 				for (const value of [...new Set([min, (min + max) / 2, max])]) {
 					ticks.push({ frac: norm(value), label: formatDate(new Date(value).toISOString()) });

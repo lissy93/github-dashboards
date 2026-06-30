@@ -1,13 +1,26 @@
 <script lang="ts">
-	import { Star, Code, Clock, Tag, GitPullRequest, CircleDot } from '@lucide/svelte';
+	import {
+		Star,
+		Code,
+		Clock,
+		GitPullRequest,
+		CircleDot,
+		Scale,
+		FileDiff,
+		Rocket,
+		Tags
+	} from '@lucide/svelte';
 	import AsyncPanel from '$lib/components/repo/AsyncPanel.svelte';
 	import RepoStatStrip from '$lib/components/repo/RepoStatStrip.svelte';
 	import MetricTimeChart from '$lib/components/analytics/MetricTimeChart.svelte';
 	import PunchCard from '$lib/components/charts/PunchCard.svelte';
 	import Donut from '$lib/components/charts/Donut.svelte';
-	import BarChart from '$lib/components/charts/BarChart.svelte';
 	import StackedBarChart from '$lib/components/charts/StackedBarChart.svelte';
 	import HBarList from '$lib/components/charts/HBarList.svelte';
+	import LorenzCurve from '$lib/components/charts/LorenzCurve.svelte';
+	import DivergingAreaChart from '$lib/components/charts/DivergingAreaChart.svelte';
+	import MarkerTimeline from '$lib/components/charts/MarkerTimeline.svelte';
+	import Treemap from '$lib/components/charts/Treemap.svelte';
 	import TimelineFilters from '$lib/components/repo/TimelineFilters.svelte';
 	import FlowBacklogChart from '$lib/components/repo/FlowBacklogChart.svelte';
 	import ActivityHeatmap from '$lib/components/repo/ActivityHeatmap.svelte';
@@ -27,9 +40,10 @@
 	import type { ResolutionStats } from '$lib/server/github/repo-timeline';
 	import {
 		languageSlices,
-		releaseDownloadBars,
-		hasReleaseDownloads,
-		summariseStats
+		summariseStats,
+		contributionCurve,
+		releaseCadence,
+		labelTreemap
 	} from '$lib/views/repo-stats';
 	import { compactNumber } from '$lib/format';
 	import { readStored, writeStored } from '$lib/storage';
@@ -42,12 +56,13 @@
 	let { data }: { data: PageData } = $props();
 	let view = $state<TimelineView>(defaultTimelineView());
 
-	// Restore the last chosen chart view after mount, then keep it in sync
+	// Restore the last chosen chart view after mount, then keep it in sync. Rebuild from
+	// the default rather than the current view, so this effect never reads what it writes
 	$effect(() => {
 		const stored = readStored(VIEW_KEY);
 		if (stored) {
 			try {
-				view = { ...view, ...JSON.parse(stored) };
+				view = { ...defaultTimelineView(), ...JSON.parse(stored) };
 			} catch {
 				// ignore a malformed stored view and keep the default
 			}
@@ -65,8 +80,8 @@
 	<title>Stats · {data.repo.nameWithOwner} · {APP_NAME}</title>
 </svelte:head>
 
-<!-- One kind's resolution histogram under its median headline -->
-{#snippet resolution(stats: ResolutionStats, unit: string)}
+<!-- One kind's resolution histogram under its median headline, with a grey still-open bar -->
+{#snippet resolution(stats: ResolutionStats, unit: string, open: number)}
 	<div class="space-y-3">
 		<p class="text-muted-foreground text-xs">
 			median
@@ -77,7 +92,7 @@
 			{unit}
 		</p>
 		<HBarList
-			data={resolutionBars(stats)}
+			data={resolutionBars(stats, open)}
 			colored
 			valueLabel={unit}
 			format={compactNumber}
@@ -207,7 +222,7 @@
 			emptyText="No closed issues yet"
 		>
 			{#snippet children(tl)}
-				{@render resolution(tl.resolution.issues, 'issues')}
+				{@render resolution(tl.resolution.issues, 'issues', tl.baseline.issues.open)}
 			{/snippet}
 		</AsyncPanel>
 
@@ -219,27 +234,100 @@
 			emptyText="No merged PRs yet"
 		>
 			{#snippet children(tl)}
-				{@render resolution(tl.resolution.prs, 'PRs')}
+				{@render resolution(tl.resolution.prs, 'PRs', tl.baseline.prs.open)}
 			{/snippet}
 		</AsyncPanel>
 	</div>
 
 	<div class="grid items-start gap-5 lg:grid-cols-2">
 		<AsyncPanel
-			title="Star history"
-			icon={Star}
-			result={data.stars}
-			empty={(history) => history.days.length === 0}
-			emptyText="No stars yet"
+			title="Contribution distribution"
+			icon={Scale}
+			result={data.contributors}
+			empty={(people) => contributionCurve(people.contributors) === null}
+			emptyText="Not enough contributors yet"
 		>
-			{#snippet children(history)}
-				<div class="space-y-3">
-					<MetricTimeChart data={starChart(history)} label="Star history" height={16} />
-					{#if history.sampled}
+			{#snippet children(people)}
+				{@const curve = contributionCurve(people.contributors)}
+				{#if curve}
+					<div class="space-y-3">
 						<p class="text-muted-foreground text-xs">
-							Sampled across stargazer pages, GitHub only dates the first 40k stars
+							Top
+							<span class="text-foreground font-medium tabular-nums">{curve.busFactor}</span>
+							wrote half,
+							<span class="text-foreground font-medium tabular-nums">{curve.coreFactor}</span>
+							of {curve.contributors} wrote
+							{Math.round(curve.coreThreshold * 100)}%, Gini
+							<span class="text-foreground font-medium tabular-nums">{curve.gini.toFixed(2)}</span>
 						</p>
-					{/if}
+						<LorenzCurve {curve} />
+					</div>
+				{/if}
+			{/snippet}
+		</AsyncPanel>
+
+		<AsyncPanel
+			title="Work mix"
+			icon={Tags}
+			result={data.labels}
+			capped={(labels) => labels.sampled}
+			empty={(labels) => labels.labels.length === 0}
+			emptyText="No labels in use"
+		>
+			{#snippet children(labels)}
+				<Treemap data={labelTreemap(labels.labels)} />
+			{/snippet}
+		</AsyncPanel>
+	</div>
+
+	<AsyncPanel
+		title="Code churn"
+		icon={FileDiff}
+		result={data.contributors}
+		empty={(people) => people.weekly.length < 2}
+		emptyText="No churn data yet"
+	>
+		{#snippet children(people)}
+			<div class="space-y-3">
+				<DivergingAreaChart data={people.weekly} />
+				<p class="text-muted-foreground text-xs">Lines added and removed each week, all authors</p>
+			</div>
+		{/snippet}
+	</AsyncPanel>
+
+	<AsyncPanel
+		title="Star history"
+		icon={Star}
+		result={data.stars}
+		empty={(history) => history.days.length === 0}
+		emptyText="No stars yet"
+	>
+		{#snippet children(history)}
+			<div class="space-y-3">
+				<MetricTimeChart data={starChart(history)} label="Star history" height={16} />
+				{#if history.sampled}
+					<p class="text-muted-foreground text-xs">
+						Sampled across stargazer pages, GitHub only dates the first 40k stars
+					</p>
+				{/if}
+			</div>
+		{/snippet}
+	</AsyncPanel>
+
+	<div class="grid items-start gap-5 lg:grid-cols-2">
+		<AsyncPanel
+			title="Commit punch card"
+			icon={Clock}
+			result={data.punchCard}
+			empty={(rhythm) => rhythm.total === 0}
+			emptyText="No commit data yet"
+		>
+			{#snippet children(rhythm)}
+				<div class="flex flex-col gap-3">
+					<PunchCard punch={rhythm.punch} peak={rhythm.peak} />
+					<p class="text-muted-foreground text-[0.65rem]">
+						When commits land, by weekday and hour, shown in UTC
+					</p>
 				</div>
 			{/snippet}
 		</AsyncPanel>
@@ -262,43 +350,26 @@
 	</div>
 
 	<AsyncPanel
-		title="Commit punch card"
-		icon={Clock}
-		result={data.punchCard}
-		empty={(rhythm) => rhythm.total === 0}
-		emptyText="No commit data yet"
-	>
-		{#snippet children(rhythm)}
-			<div class="flex flex-col gap-3">
-				<PunchCard punch={rhythm.punch} peak={rhythm.peak} />
-				<p class="text-muted-foreground text-[0.65rem]">
-					When commits land, by weekday and hour, shown in UTC
-				</p>
-			</div>
-		{/snippet}
-	</AsyncPanel>
-
-	<AsyncPanel
-		title="Releases"
-		icon={Tag}
+		title="Release cadence"
+		icon={Rocket}
 		result={data.releases}
-		count={(r) => r.total}
-		capped={(r) => r.sampled}
-		empty={(r) => r.total === 0}
-		emptyText="No releases yet"
+		count={(releases) => releases.total}
+		capped={(releases) => releases.sampled}
+		empty={(releases) => releaseCadence(releases.releases).markers.length < 2}
+		emptyText="Not enough releases yet"
 	>
 		{#snippet children(releases)}
-			{#if hasReleaseDownloads(releases.releases)}
-				<BarChart
-					data={releaseDownloadBars(releases.releases)}
-					color="var(--chart-4)"
-					valueLabel="Downloads"
-				/>
-			{:else}
-				<p class="text-muted-foreground text-sm">
-					{compactNumber(releases.total)} releases, none with downloadable assets
-				</p>
-			{/if}
+			{@const cadence = releaseCadence(releases.releases)}
+			<div class="space-y-3">
+				<MarkerTimeline {cadence} />
+				{#if cadence.medianGapDays !== null}
+					<p class="text-muted-foreground text-xs">
+						Typically
+						<span class="text-foreground font-medium tabular-nums">{cadence.medianGapDays}d</span>
+						between releases
+					</p>
+				{/if}
+			</div>
 		{/snippet}
 	</AsyncPanel>
 </div>
