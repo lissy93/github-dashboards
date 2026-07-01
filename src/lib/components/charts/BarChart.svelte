@@ -5,9 +5,11 @@
 	import { formatNumber } from '$lib/format';
 	import type { Slice } from '$lib/views/stats';
 
+	// colored uses each bar's own slice colour, else a single accent for the whole set
 	let {
 		data,
 		color = 'var(--chart-1)',
+		colored = false,
 		height = 9,
 		valueLabel = 'Value',
 		maxLabels,
@@ -15,6 +17,7 @@
 	}: {
 		data: Slice[];
 		color?: string;
+		colored?: boolean;
 		height?: number;
 		valueLabel?: string;
 		maxLabels?: number;
@@ -22,6 +25,7 @@
 	} = $props();
 
 	const max = $derived(niceMax(Math.max(0, ...data.map((point) => point.value))));
+	const fill = (point: Slice) => (colored ? (point.color ?? color) : color);
 	// Thin the x-axis labels so a long list stays readable, bars still render in full
 	const labelStep = $derived(
 		maxLabels && data.length > maxLabels ? Math.ceil(data.length / maxLabels) : 1
@@ -33,22 +37,24 @@
 
 <!-- Vertical bars on a shared baseline, hover for the full breakdown -->
 <div class="flex flex-col gap-2">
-	<div class="border-chart-grid flex items-end border-b" style="height: {height}rem; gap: {barGap}rem">
+	<div
+		class="border-chart-grid flex items-end border-b"
+		style="height: {height}rem; gap: {barGap}rem"
+	>
 		{#each data as point (point.label)}
 			<div
 				class="flex h-full flex-1 items-end"
 				role="img"
 				aria-label="{point.label}: {formatNumber(point.value)}"
 				onpointermove={(event) =>
-					tip.show(event, { title: point.label, color, rows: rowsFor(point) })}
+					tip.show(event, { title: point.label, color: fill(point), rows: rowsFor(point) })}
 				onpointerleave={tip.hide}
 			>
 				<!-- Zero-value bars still get a short muted stub so they stay visible without an axis -->
 				<div
 					class="hover:brightness-110 w-full rounded-t-sm transition-[height]"
-					style="height: {(point.value / max) *
-						100}%; background-color: {point.value > 0
-						? color
+					style="height: {(point.value / max) * 100}%; background-color: {point.value > 0
+						? fill(point)
 						: 'var(--muted)'}; min-height: 2px"
 				></div>
 			</div>

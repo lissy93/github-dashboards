@@ -44,7 +44,7 @@
 	}: Props = $props();
 </script>
 
-<Card.Root class={cn('gap-0 overflow-hidden py-0', className)}>
+<Card.Root class={cn('gap-0 overflow-hidden py-0 h-full', className)}>
 	<Card.Header
 		class="flex flex-row items-center justify-between gap-2 border-b px-4 py-2.5 [.border-b]:pb-2.5"
 	>

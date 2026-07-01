@@ -16,6 +16,7 @@ import {
 	ShieldCheck,
 	FolderTree,
 	GitGraph,
+	Package,
 	Code
 } from '@lucide/svelte';
 import { paths, REPO_NAV, CODE_NAV, OPS_NAV } from '$lib/config';
@@ -95,7 +96,8 @@ const REPO_SECTION_ICONS: Record<string, IconComponent> = {
 const CODE_SECTION_ICONS: Record<string, IconComponent> = {
 	activity: Activity,
 	files: FolderTree,
-	'git-tree': GitGraph
+	'git-tree': GitGraph,
+	'supply-chain': Package
 };
 
 // Icons for ops sub-sections

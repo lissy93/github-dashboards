@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { slide } from 'svelte/transition';
 	import { seriesColor } from './chart';
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
@@ -6,13 +7,15 @@
 	import type { Slice } from '$lib/views/stats';
 
 	// colored uses each slice's own colour, else a single accent for the whole list
+	// animate slides rows in and out when the list grows or shrinks
 	let {
 		data,
 		colored = false,
 		color = 'var(--chart-1)',
 		valueLabel = 'Value',
 		format = compactNumber,
-		labelWidth = '7rem'
+		labelWidth = '7rem',
+		animate = false
 	}: {
 		data: Slice[];
 		colored?: boolean;
@@ -20,6 +23,7 @@
 		valueLabel?: string;
 		format?: (value: number) => string;
 		labelWidth?: string;
+		animate?: boolean;
 	} = $props();
 
 	const max = $derived(Math.max(1, ...data.map((row) => row.value)));
@@ -35,6 +39,7 @@
 		<li
 			class="grid items-center gap-3 text-xs"
 			style="grid-template-columns: {labelWidth} 1fr auto"
+			transition:slide={{ duration: animate ? 200 : 0 }}
 			onpointermove={(event) =>
 				tip.show(event, { title: row.label, color: fill(row, index), rows: rowsFor(row) })}
 			onpointerleave={tip.hide}

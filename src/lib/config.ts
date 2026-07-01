@@ -40,7 +40,8 @@ export const REPO_NAV = [
 export const CODE_NAV = [
 	{ label: 'Activity', section: 'activity' },
 	{ label: 'Files', section: 'files' },
-	{ label: 'History', section: 'git-tree' }
+	{ label: 'History', section: 'git-tree' },
+	{ label: 'Supply chain', section: 'supply-chain' }
 ];
 
 // Sub-sections under the CI/CD (ops) tab

@@ -19,6 +19,8 @@
 
 	// Pick black or white text from a tile's perceived brightness
 	function ink(hex: string): string {
+		// Theme tokens (var(--chart-n)) aren't hex and are all light, so ink them dark
+		if (!/^#?[0-9a-f]{6}$/i.test(hex)) return INK_DARK;
 		const value = hex.replace('#', '');
 		const red = parseInt(value.slice(0, 2), 16);
 		const green = parseInt(value.slice(2, 4), 16);

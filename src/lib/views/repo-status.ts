@@ -5,6 +5,7 @@ import type { RepoWorkflows } from '$lib/server/github/workflows';
 import type { RepoDeployments } from '$lib/server/github/deployments';
 import type { RepoPages } from '$lib/server/github/pages';
 import type { RepoReleases } from '$lib/server/github/releases';
+import type { SupplyChain } from '$lib/server/github/supply-chain';
 
 // One-line status summaries for the ops panels, shared by the ops tab and the repo overview
 
@@ -41,6 +42,15 @@ export function releasesSummary(r: RepoReleases): string {
 	if (!r.releases.length) return 'No published releases';
 	const latest = r.releases.at(-1)!;
 	return `${compactNumber(r.total)} releases · latest ${latest.tag}`;
+}
+
+export function supplyChainSummary(sc: SupplyChain): string {
+	const s = sc.summary;
+	if (!s.total) return 'No dependency data';
+	const parts = [`${compactNumber(s.total)} dependencies`, `${compactNumber(s.direct)} direct`];
+	if (s.vulnerabilities) parts.push(`${compactNumber(s.vulnerabilities)} advisories`);
+	else parts.push(`${s.ecosystems} ecosystem${s.ecosystems === 1 ? '' : 's'}`);
+	return parts.join(' · ');
 }
 
 // Pass/fail split of recently sampled workflow runs for the overview gauge, weighted by run

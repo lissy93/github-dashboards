@@ -6,6 +6,7 @@
 	import type { Slice } from '$lib/views/stats';
 
 	// HBarList that starts collapsed and reveals more rows on demand
+	// align places the toggle at the start or end of the row below the bars
 	let {
 		data,
 		collapsed = 8,
@@ -13,7 +14,9 @@
 		valueLabel = 'Value',
 		color = 'var(--chart-1)',
 		colored = false,
-		format = compactNumber
+		format = compactNumber,
+		animate = false,
+		align = 'start'
 	}: {
 		data: Slice[];
 		collapsed?: number;
@@ -22,6 +25,8 @@
 		color?: string;
 		colored?: boolean;
 		format?: (value: number) => string;
+		animate?: boolean;
+		align?: 'start' | 'center' | 'end';
 	} = $props();
 
 	// null keeps the default collapsed count, a number is an explicit expanded limit
@@ -31,18 +36,21 @@
 	const more = $derived(data.length - current);
 </script>
 
-<HBarList data={shown} {valueLabel} {color} {colored} {format} />
+<HBarList data={shown} {valueLabel} {color} {colored} {format} {animate} />
 
 {#if more > 0 || current > collapsed}
-	<button
-		type="button"
-		onclick={() => (limit = more > 0 ? current + step : null)}
-		class="text-muted-foreground hover:text-foreground mt-3 flex items-center gap-1 text-xs font-medium"
-	>
-		{#if more > 0}
-			<Icon icon={ChevronDown} size={14} />Show more ({formatNumber(more)})
-		{:else}
-			<Icon icon={ChevronUp} size={14} />Show less
-		{/if}
-	</button>
+  <div></div>
+  <div class="flex" class:justify-center={align === 'center'} class:justify-end={align === 'end'}>
+		<button
+			type="button"
+			onclick={() => (limit = more > 0 ? current + step : null)}
+			class="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs font-medium"
+		>
+			{#if more > 0}
+				<Icon icon={ChevronDown} size={14} />Show more ({formatNumber(more)})
+			{:else}
+				<Icon icon={ChevronUp} size={14} />Show less
+			{/if}
+		</button>
+	</div>
 {/if}
