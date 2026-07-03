@@ -217,14 +217,14 @@ type VulnPage = {
 	} | null;
 };
 
-const severityOf = (value: string): VulnSeverity => {
+export const severityOf = (value: string): VulnSeverity => {
 	const lower = value.toLowerCase();
 	return lower === 'critical' || lower === 'high' || lower === 'moderate' || lower === 'low'
 		? lower
 		: 'moderate';
 };
 
-async function fetchVulns(owner: string, name: string): Promise<Vulnerability[]> {
+export async function fetchVulns(owner: string, name: string): Promise<Vulnerability[]> {
 	const out: Vulnerability[] = [];
 	let cursor: string | null = null;
 	do {

@@ -1,4 +1,4 @@
-import { languageBreakdown } from '$lib/views/stats';
+import { languageBreakdown, FALLBACK_COLORS } from '$lib/views/stats';
 import type { Slice } from '$lib/views/stats';
 import type { LanguageUsage } from '$lib/types';
 import type { ReleaseRow } from '$lib/server/github/releases';
@@ -198,12 +198,12 @@ export function releaseCadence(releases: ReleaseRow[]): ReleaseCadence {
 
 // ---- Label work-mix -------------------------------------------------------
 
-// Labels as treemap tiles sized by usage and filled with their own GitHub colour
+// Labels as treemap tiles sized by usage, filled with their own GitHub colour or a fallback
 export function labelTreemap(labels: LabelCount[], limit = 16): Slice[] {
-	return labels.slice(0, limit).map((label) => ({
+	return labels.slice(0, limit).map((label, index) => ({
 		label: label.name,
 		value: label.total,
-		color: `#${label.color}`,
+		color: label.color ? `#${label.color}` : FALLBACK_COLORS[index % FALLBACK_COLORS.length],
 		rows: [
 			{ label: 'Issues', value: label.issues.toLocaleString() },
 			{ label: 'PRs', value: label.prs.toLocaleString() }

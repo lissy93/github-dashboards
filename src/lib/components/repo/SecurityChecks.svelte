@@ -1,13 +1,11 @@
 <script lang="ts">
-	import { ShieldCheck, ExternalLink } from '@lucide/svelte';
+	import { ExternalLink } from '@lucide/svelte';
+	import Hint from '$lib/components/common/Hint.svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
+	import { GRADE_COLOR } from '$lib/views/security';
 	import type { RepoSecurity, CheckStatus } from '$lib/server/github/security';
 
-	let {
-		security,
-		slug,
-		detailed = false
-	}: { security: RepoSecurity; slug: string; detailed?: boolean } = $props();
+	let { security, detailed = false }: { security: RepoSecurity; detailed?: boolean } = $props();
 
 	const STATUS: Record<CheckStatus, { color: string; label: string }> = {
 		pass: { color: 'text-success', label: 'pass' },
@@ -15,15 +13,6 @@
 		fail: { color: 'text-danger', label: 'fail' },
 		na: { color: 'text-muted-foreground', label: 'n/a' }
 	};
-
-	// OpenSSF returns a single 0-10 score, colour it on the same scale as our checks
-	function scoreColor(score: number): string {
-		if (score >= 8) return 'text-success';
-		if (score >= 5) return 'text-warning';
-		return 'text-danger';
-	}
-
-	const scorecard = $derived(security.scorecard);
 </script>
 
 <div class="space-y-4">
@@ -49,7 +38,12 @@
 					</span>
 				</div>
 				{#if detailed}
-					<p class="text-muted-foreground pl-4 text-xs">{check.detail}</p>
+					<Hint
+						text={check.hint}
+						class="text-muted-foreground self-start pl-4 text-xs {check.hint ? 'cursor-help' : ''}"
+					>
+						{check.detail}
+					</Hint>
 				{/if}
 			</li>
 		{/each}
@@ -57,24 +51,11 @@
 
 	<div class="text-muted-foreground flex items-center justify-between gap-3 text-xs">
 		<span class="tabular-nums">{security.passed}/{security.applicable} checks passed</span>
-		{#if scorecard.available && scorecard.score !== null}
-			<a
-				href="https://scorecard.dev/viewer/?uri=github.com/{slug}"
-				target="_blank"
-				rel="noopener noreferrer"
-				class="hover:text-foreground inline-flex items-center gap-1"
-			>
-				<Icon icon={ShieldCheck} size={13} />
-				OpenSSF
-				<span class="tabular-nums {scoreColor(scorecard.score)}"
-					>{scorecard.score.toFixed(1)}/10</span
-				>
-			</a>
-		{:else}
-			<span class="inline-flex items-center gap-1">
-				<Icon icon={ShieldCheck} size={13} />
-				OpenSSF not published
+		<span>
+			Grade
+			<span class="font-medium {GRADE_COLOR[security.grade.letter]}">
+				{security.grade.letter}
 			</span>
-		{/if}
+		</span>
 	</div>
 </div>

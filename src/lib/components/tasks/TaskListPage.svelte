@@ -5,14 +5,18 @@
 	import ItemRow from '$lib/components/tasks/ItemRow.svelte';
 	import { applyView, defaultView, type View } from '$lib/components/filter/sort-filter';
 	import { taskConfig } from '$lib/views/tasks';
-	import { TASK_BUCKETS } from '$lib/components/tasks/tasks-config';
-	import type { TaskBucket, TaskList } from '$lib/types';
+	import type { TaskList } from '$lib/types';
 
-	let { bucket, list }: { bucket: TaskBucket; list: TaskList } = $props();
+	type Props = {
+		list: TaskList;
+		kind: 'pr' | 'issue' | 'mixed';
+		title: string;
+		empty: string;
+	};
+	let { list, kind, title, empty }: Props = $props();
 
 	const PAGE_SIZE = 25;
-	const meta = $derived(TASK_BUCKETS[bucket]);
-	const config = $derived(taskConfig(list.items, meta.kind));
+	const config = $derived(taskConfig(list.items, kind));
 
 	let view = $state<View>(untrack(() => defaultView(config)));
 	let page = $state(1);
@@ -30,10 +34,10 @@
 </script>
 
 {#if !list.items.length}
-	<p class="text-muted-foreground py-16 text-center text-sm">{meta.empty}</p>
+	<p class="text-muted-foreground py-16 text-center text-sm">{empty}</p>
 {:else}
 	<div class="space-y-3">
-		<SortFilterBar {config} bind:view searchPlaceholder="Search {meta.title.toLowerCase()}" />
+		<SortFilterBar {config} bind:view searchPlaceholder="Search {title.toLowerCase()}" />
 		{#if visible.length}
 			<div class="bg-card overflow-hidden rounded-md border">
 				<ul class="divide-y">

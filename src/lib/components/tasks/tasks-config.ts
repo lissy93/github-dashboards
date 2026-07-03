@@ -3,9 +3,12 @@ import {
 	GitPullRequest,
 	GitPullRequestArrow,
 	GitPullRequestDraft,
+	GitPullRequestClosed,
+	GitMerge,
 	CircleDot,
 	CircleDotDashed,
 	CircleCheck,
+	CircleSlash,
 	CircleX,
 	CircleDashed,
 	Check,
@@ -69,13 +72,21 @@ export const BUCKET_BY_SECTION: Record<string, TaskBucket> = Object.fromEntries(
 	])
 );
 
-// State glyph for a row, a hollow draft icon when the PR is still a draft
+// State glyph for a row, reflecting merged, closed, draft and open work
 export function itemIcon(item: TaskItem): IconComponent {
-	if (item.kind === 'pr') return item.draft ? GitPullRequestDraft : GitPullRequest;
-	return CircleDot;
+	if (item.kind === 'pr') {
+		if (item.state === 'merged') return GitMerge;
+		if (item.state === 'closed') return GitPullRequestClosed;
+		return item.draft ? GitPullRequestDraft : GitPullRequest;
+	}
+	return item.state === 'closed' ? CircleSlash : CircleDot;
 }
 
-export const itemColor = (item: TaskItem): string => (item.draft ? 'text-draft' : 'text-open');
+export function itemColor(item: TaskItem): string {
+	if (item.state === 'merged') return 'text-merged';
+	if (item.state === 'closed') return 'text-closed';
+	return item.draft ? 'text-draft' : 'text-open';
+}
 
 type StatusMeta = { icon: IconComponent; color: string; label: string };
 

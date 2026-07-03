@@ -456,8 +456,8 @@ export function contributionsPerYear(years: YearCalendar[]): StackBar[] {
 
 export type YearLanguageBars = { bars: StackBar[]; series: StackSeries[] };
 
-// Distinct fallbacks for languages GitHub gives no colour, untyped repos stay muted
-const FALLBACK_COLORS = [
+// Distinct fallbacks for series GitHub gives no colour, untyped ones stay muted
+export const FALLBACK_COLORS = [
 	'var(--chart-1)',
 	'var(--chart-2)',
 	'var(--chart-3)',

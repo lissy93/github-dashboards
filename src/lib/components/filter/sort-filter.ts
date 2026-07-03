@@ -11,6 +11,7 @@ export type FilterDef<T> = {
 	label: string;
 	options: { value: string; label: string }[];
 	test: (item: T, value: string) => boolean;
+	defaultValue?: string;
 };
 export type SortFilterConfig<T> = {
 	search?: (item: T) => string;
@@ -29,7 +30,9 @@ export function defaultView<T>(config: SortFilterConfig<T>): View {
 		search: '',
 		sortKey: config.sorts[0].key,
 		dir: 'desc',
-		filters: Object.fromEntries((config.filters ?? []).map((filter) => [filter.key, '']))
+		filters: Object.fromEntries(
+			(config.filters ?? []).map((filter) => [filter.key, filter.defaultValue ?? ''])
+		)
 	};
 }
 

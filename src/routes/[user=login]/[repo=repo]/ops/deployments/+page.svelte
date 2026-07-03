@@ -98,6 +98,7 @@
 						series={freq.series}
 						ticks={freq.ticks}
 						height={12}
+						barGap={0.125}
 						totalUnit="deploys"
 					/>
 				{:else}

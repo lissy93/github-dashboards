@@ -9,12 +9,14 @@
 		cumulativeTicks,
 		TIMELINE_SAMPLED_NOTE
 	} from '$lib/views/repo';
-	import { APP_NAME } from '$lib/config';
+	import { APP_NAME, paths } from '$lib/config';
 	import type { RepoTimeline } from '$lib/server/github/repo-timeline';
 	import type { TaskList } from '$lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+
+	const section = (slug: string) => paths.repoTasksSection(data.user, data.repo.name, slug);
 </script>
 
 <svelte:head>
@@ -69,6 +71,7 @@
 		<AsyncPanel
 			title="Open issues"
 			icon={CircleDot}
+			href={section('issues')}
 			result={data.tasks}
 			count={(t) => t.issues.total}
 			capped={(t) => t.issues.capped}
@@ -97,6 +100,7 @@
 		<AsyncPanel
 			title="Open PRs"
 			icon={GitPullRequest}
+			href={section('prs')}
 			result={data.tasks}
 			count={(t) => t.prs.total}
 			capped={(t) => t.prs.capped}

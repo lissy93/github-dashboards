@@ -10,7 +10,7 @@ const MAX_PAGES = 4;
 const TTL = 300;
 
 const PR_FIELDS = `
-	id number title url isDraft createdAt updatedAt
+	id number title url state isDraft createdAt updatedAt
 	reviewDecision additions deletions changedFiles
 	repository { nameWithOwner }
 	author { login avatarUrl }
@@ -21,7 +21,7 @@ const PR_FIELDS = `
 `;
 
 const ISSUE_FIELDS = `
-	id number title url createdAt updatedAt
+	id number title url state createdAt updatedAt
 	repository { nameWithOwner }
 	author { login avatarUrl }
 	assignees(first: 5) { nodes { login avatarUrl } }
@@ -30,9 +30,9 @@ const ISSUE_FIELDS = `
 `;
 
 const PR_QUERY = `
-	query RepoPRs($owner: String!, $name: String!, $cursor: String) {
+	query RepoPRs($owner: String!, $name: String!, $cursor: String, $states: [PullRequestState!]) {
 		repository(owner: $owner, name: $name) {
-			pullRequests(states: OPEN, first: ${PER_PAGE}, after: $cursor,
+			pullRequests(states: $states, first: ${PER_PAGE}, after: $cursor,
 				orderBy: { field: UPDATED_AT, direction: DESC }) {
 				totalCount
 				pageInfo { hasNextPage endCursor }
@@ -43,9 +43,9 @@ const PR_QUERY = `
 `;
 
 const ISSUE_QUERY = `
-	query RepoIssues($owner: String!, $name: String!, $cursor: String) {
+	query RepoIssues($owner: String!, $name: String!, $cursor: String, $states: [IssueState!]) {
 		repository(owner: $owner, name: $name) {
-			issues(states: OPEN, first: ${PER_PAGE}, after: $cursor,
+			issues(states: $states, first: ${PER_PAGE}, after: $cursor,
 				orderBy: { field: UPDATED_AT, direction: DESC }) {
 				totalCount
 				pageInfo { hasNextPage endCursor }
@@ -63,9 +63,14 @@ type Conn = {
 type PrPage = { repository: { pullRequests: Conn } | null };
 type IssuePage = { repository: { issues: Conn } | null };
 
-// Walk an OPEN issue or PR connection up to the page cap, tagging the kind so the
-// shared mapper builds the right row. capped is set when GitHub has more than we hold
-async function collect(owner: string, name: string, kind: 'pr' | 'issue'): Promise<TaskList> {
+// Walk an issue or PR connection up to the page cap, tagging the kind so the shared
+// mapper builds the right row. capped is set when GitHub has more than we hold
+async function collect(
+	owner: string,
+	name: string,
+	kind: 'pr' | 'issue',
+	states: string[]
+): Promise<TaskList> {
 	const typename = kind === 'pr' ? 'PullRequest' : 'Issue';
 	const items: TaskItem[] = [];
 	let cursor: string | null = null;
@@ -73,10 +78,15 @@ async function collect(owner: string, name: string, kind: 'pr' | 'issue'): Promi
 	for (let page = 0; page < MAX_PAGES; page++) {
 		let conn: Conn | null | undefined;
 		if (kind === 'pr') {
-			const data: PrPage = await graphql<PrPage>(PR_QUERY, { owner, name, cursor });
+			const data: PrPage = await graphql<PrPage>(PR_QUERY, { owner, name, cursor, states });
 			conn = data.repository?.pullRequests;
 		} else {
-			const data: IssuePage = await graphql<IssuePage>(ISSUE_QUERY, { owner, name, cursor });
+			const data: IssuePage = await graphql<IssuePage>(ISSUE_QUERY, {
+				owner,
+				name,
+				cursor,
+				states
+			});
 			conn = data.repository?.issues;
 		}
 		if (!conn) break;
@@ -88,27 +98,83 @@ async function collect(owner: string, name: string, kind: 'pr' | 'issue'): Promi
 	return { items, total, capped: items.length < total };
 }
 
+// Open work refreshes on visit, closed history is stable so it can live longer
+const CLOSED_TTL = 3600;
+
 const issuesKey = (owner: string, name: string) => `repo:issues:${owner}/${name}`.toLowerCase();
 const prsKey = (owner: string, name: string) => `repo:prs:${owner}/${name}`.toLowerCase();
-
-// Both lists warm and expire independently, so the page is only ready when each is cached
-export async function isRepoTasksCached(owner: string, name: string): Promise<boolean> {
-	const [issues, prs] = await Promise.all([
-		isCached(issuesKey(owner, name)),
-		isCached(prsKey(owner, name))
-	]);
-	return issues && prs;
-}
+const closedIssuesKey = (owner: string, name: string) =>
+	`repo:issues-closed:${owner}/${name}`.toLowerCase();
+const closedPrsKey = (owner: string, name: string) =>
+	`repo:prs-closed:${owner}/${name}`.toLowerCase();
 
 // Currently open issues for a repo, newest activity first
 export function getRepoIssues(owner: string, name: string): Promise<TaskList> {
-	return cached(issuesKey(owner, name), () => collect(owner, name, 'issue'), TTL);
+	return cached(issuesKey(owner, name), () => collect(owner, name, 'issue', ['OPEN']), TTL);
 }
 
 // Currently open pull requests for a repo, with checks and diff stats per row
 export function getRepoPullRequests(owner: string, name: string): Promise<TaskList> {
-	return cached(prsKey(owner, name), () => collect(owner, name, 'pr'), TTL);
+	return cached(prsKey(owner, name), () => collect(owner, name, 'pr', ['OPEN']), TTL);
 }
+
+// Recently closed issues, capped to the most recent, for the state-filtered detail page
+export function getRepoClosedIssues(owner: string, name: string): Promise<TaskList> {
+	return cached(
+		closedIssuesKey(owner, name),
+		() => collect(owner, name, 'issue', ['CLOSED']),
+		CLOSED_TTL
+	);
+}
+
+// Recently closed and merged PRs, capped to the most recent
+export function getRepoClosedPullRequests(owner: string, name: string): Promise<TaskList> {
+	return cached(
+		closedPrsKey(owner, name),
+		() => collect(owner, name, 'pr', ['CLOSED', 'MERGED']),
+		CLOSED_TTL
+	);
+}
+
+// Merge an open and closed list into one, keeping totals and the capped flag
+function merge(open: TaskList, closed: TaskList): TaskList {
+	return {
+		items: [...open.items, ...closed.items],
+		total: open.total + closed.total,
+		capped: open.capped || closed.capped
+	};
+}
+
+// Open plus recent closed issues, for the filterable detail page
+export async function getRepoIssuesAll(owner: string, name: string): Promise<TaskList> {
+	const [open, closed] = await Promise.all([
+		getRepoIssues(owner, name),
+		getRepoClosedIssues(owner, name)
+	]);
+	return merge(open, closed);
+}
+
+// Open plus recent closed and merged PRs, for the filterable detail page
+export async function getRepoPullRequestsAll(owner: string, name: string): Promise<TaskList> {
+	const [open, closed] = await Promise.all([
+		getRepoPullRequests(owner, name),
+		getRepoClosedPullRequests(owner, name)
+	]);
+	return merge(open, closed);
+}
+
+const allCached = (a: string, b: string) =>
+	Promise.all([isCached(a), isCached(b)]).then(([x, y]) => x && y);
+
+export const isRepoIssuesAllCached = (owner: string, name: string): Promise<boolean> =>
+	allCached(issuesKey(owner, name), closedIssuesKey(owner, name));
+
+export const isRepoPullRequestsAllCached = (owner: string, name: string): Promise<boolean> =>
+	allCached(prsKey(owner, name), closedPrsKey(owner, name));
+
+// Both open lists warm and expire independently, so the overview is only ready when each is
+export const isRepoTasksCached = (owner: string, name: string): Promise<boolean> =>
+	allCached(issuesKey(owner, name), prsKey(owner, name));
 
 // Both open lists together, for the combined repo tasks page
 export async function getRepoTasks(

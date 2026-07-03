@@ -6,6 +6,10 @@ import type { RepoDeployments } from '$lib/server/github/deployments';
 import type { RepoPages } from '$lib/server/github/pages';
 import type { RepoReleases } from '$lib/server/github/releases';
 import type { SupplyChain } from '$lib/server/github/supply-chain';
+import type { RepoSecurity } from '$lib/server/github/security';
+import type { RepoContributors } from '$lib/server/github/contributors';
+import type { RepoTrafficSummary } from '$lib/server/github/traffic';
+import type { Repo } from '$lib/types';
 
 // One-line status summaries for the ops panels, shared by the ops tab and the repo overview
 
@@ -51,6 +55,34 @@ export function supplyChainSummary(sc: SupplyChain): string {
 	if (s.vulnerabilities) parts.push(`${compactNumber(s.vulnerabilities)} advisories`);
 	else parts.push(`${s.ecosystems} ecosystem${s.ecosystems === 1 ? '' : 's'}`);
 	return parts.join(' · ');
+}
+
+// One-line summaries for the Info tab panels
+
+export function statsSummary(repo: Repo): string {
+	const parts = [
+		`${compactNumber(repo.stars)} star${repo.stars === 1 ? '' : 's'}`,
+		`${compactNumber(repo.forks)} fork${repo.forks === 1 ? '' : 's'}`
+	];
+	if (repo.openIssues) parts.push(`${compactNumber(repo.openIssues)} open issues`);
+	return parts.join(' · ');
+}
+
+export function trafficSummary(t: RepoTrafficSummary): string {
+	if (!t.available) return 'No traffic data';
+	return `${compactNumber(t.views.count)} views · ${compactNumber(t.views.uniques)} unique visitors`;
+}
+
+export function peopleSummary(c: RepoContributors, repo: Repo): string {
+	const parts = [`${compactNumber(c.total)}${c.sampled ? '+' : ''} contributors`];
+	if (repo.stars) parts.push(`${compactNumber(repo.stars)} stargazers`);
+	if (repo.watchers) parts.push(`${compactNumber(repo.watchers)} watchers`);
+	return parts.join(' · ');
+}
+
+export function securitySummary(sec: RepoSecurity): string {
+	if (!sec.applicable) return 'No checks applicable';
+	return `Grade ${sec.grade.letter} · ${sec.passed}/${sec.applicable} checks passing`;
 }
 
 // Pass/fail split of recently sampled workflow runs for the overview gauge, weighted by run

@@ -17,11 +17,17 @@ export const paths = {
 	userTaskList: (user: string, list: string) => `/${user}/tasks/${list}`,
 	repo: (user: string, repo: string) => `/${user}/${repo}`,
 	repoSection: (user: string, repo: string, section: string) => `/${user}/${repo}/${section}`,
+	repoTasksSection: (user: string, repo: string, section: string) =>
+		`/${user}/${repo}/tasks/${section}`,
 	repoCode: (user: string, repo: string) => `/${user}/${repo}/code`,
 	repoCodeSection: (user: string, repo: string, section: string) =>
 		`/${user}/${repo}/code/${section}`,
 	repoOps: (user: string, repo: string) => `/${user}/${repo}/ops`,
-	repoOpsSection: (user: string, repo: string, section: string) => `/${user}/${repo}/ops/${section}`
+	repoOpsSection: (user: string, repo: string, section: string) =>
+		`/${user}/${repo}/ops/${section}`,
+	repoInfo: (user: string, repo: string) => `/${user}/${repo}/info`,
+	repoInfoSection: (user: string, repo: string, section: string) =>
+		`/${user}/${repo}/info/${section}`
 };
 
 // Tabs shown on repo pages, section is appended to the repo base path
@@ -29,11 +35,8 @@ export const REPO_NAV = [
 	{ label: 'Overview', section: '' },
 	{ label: 'Issues & PRs', section: 'tasks' },
 	{ label: 'Code', section: 'code' },
-	{ label: 'Traffic', section: 'traffic' },
-	{ label: 'Stats', section: 'stats' },
 	{ label: 'CI/CD', section: 'ops' },
-	{ label: 'People', section: 'people' },
-	{ label: 'Security', section: 'security' }
+	{ label: 'Info', section: 'info' }
 ];
 
 // Sub-sections under the Code tab
@@ -50,4 +53,12 @@ export const OPS_NAV = [
 	{ label: 'Deployments', section: 'deployments' },
 	{ label: 'Pages', section: 'pages' },
 	{ label: 'Releases', section: 'releases' }
+];
+
+// Sub-sections under the Info tab
+export const INFO_NAV = [
+	{ label: 'Stats', section: 'stats' },
+	{ label: 'Traffic', section: 'traffic' },
+	{ label: 'People', section: 'people' },
+	{ label: 'Security', section: 'security' }
 ];

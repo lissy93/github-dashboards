@@ -10,6 +10,7 @@
 		icon?: Component<{ size?: number | string; class?: string }>;
 		delta?: number;
 		hint?: string;
+		class?: string;
 	};
 
 	// A card holding a responsive grid of stat tiles, shared by the headline strips
@@ -25,6 +26,7 @@
 				icon={tile.icon}
 				delta={tile.delta}
 				hint={tile.hint}
+				class={tile.class}
 			/>
 		{/each}
 	</Card.Root>

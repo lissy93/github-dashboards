@@ -52,6 +52,7 @@
 	const section = (slug: string) => paths.repoSection(data.user, data.repo.name, slug);
 	const code = (slug: string) => paths.repoCodeSection(data.user, data.repo.name, slug);
 	const ops = (slug: string) => paths.repoOpsSection(data.user, data.repo.name, slug);
+	const info = (slug: string) => paths.repoInfoSection(data.user, data.repo.name, slug);
 </script>
 
 <svelte:head>
@@ -248,7 +249,7 @@
 			<AsyncPanel
 				title="Star history"
 				icon={Star}
-				href={section('stats')}
+				href={info('stats')}
 				result={data.stars}
 				empty={(history) => history.days.length === 0}
 				emptyText="No stars yet"
@@ -261,17 +262,17 @@
 			<AsyncPanel
 				title="Security"
 				icon={ShieldCheck}
-				href={section('security')}
+				href={info('security')}
 				result={data.security}
 			>
 				{#snippet children(security)}
-					<SecurityChecks {security} slug={data.repo.nameWithOwner} />
+					<SecurityChecks {security} />
 				{/snippet}
 			</AsyncPanel>
 		</div>
 
 		{#if data.canSeeTraffic}
-			<Panel title="Traffic" icon={ChartArea} href={section('traffic')}>
+			<Panel title="Traffic" icon={ChartArea} href={info('traffic')}>
 				<AnalyticsDashboard user={data.user} repo={data.repo.name} compact />
 			</Panel>
 		{:else}

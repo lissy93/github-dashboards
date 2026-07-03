@@ -26,7 +26,7 @@ const SEARCH = `
 			nodes {
 				__typename
 				... on PullRequest {
-					id number title url isDraft createdAt updatedAt
+					id number title url state isDraft createdAt updatedAt
 					reviewDecision additions deletions changedFiles
 					repository { nameWithOwner }
 					author { login avatarUrl }
@@ -36,7 +36,7 @@ const SEARCH = `
 					commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
 				}
 				... on Issue {
-					id number title url createdAt updatedAt
+					id number title url state createdAt updatedAt
 					repository { nameWithOwner }
 					author { login avatarUrl }
 					assignees(first: 5) { nodes { login avatarUrl } }
@@ -54,6 +54,7 @@ export type RawNode = {
 	number: number;
 	title: string;
 	url: string;
+	state?: string;
 	isDraft?: boolean;
 	createdAt: string;
 	updatedAt: string;
@@ -85,6 +86,12 @@ function toReview(decision?: string | null): ReviewDecision | null {
 	return null;
 }
 
+function toState(state?: string): TaskItem['state'] {
+	if (state === 'MERGED') return 'merged';
+	if (state === 'CLOSED') return 'closed';
+	return 'open';
+}
+
 // Normalise a search node into the shared row, PR-only fields stay null on issues
 export function toItem(node: RawNode): TaskItem {
 	const isPr = node.__typename === 'PullRequest';
@@ -95,6 +102,7 @@ export function toItem(node: RawNode): TaskItem {
 		title: node.title,
 		url: node.url,
 		repo: node.repository.nameWithOwner,
+		state: toState(node.state),
 		draft: Boolean(node.isDraft),
 		createdAt: node.createdAt,
 		updatedAt: node.updatedAt,

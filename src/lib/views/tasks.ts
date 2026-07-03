@@ -7,6 +7,11 @@ const CHECK_OPTIONS = [
 	{ value: 'pending', label: 'Running' }
 ];
 
+const STATE_OPTIONS = [
+	{ value: 'open', label: 'Open' },
+	{ value: 'closed', label: 'Closed' }
+];
+
 // Sorted, de-duped select options from a list of raw values
 function toOptions(values: string[]): { value: string; label: string }[] {
 	return [...new Set(values)].sort().map((value) => ({ value, label: value }));
@@ -34,6 +39,15 @@ export function taskConfig(
 	const repoOptions = toOptions(items.map((item) => item.repo));
 	const labelOptions = toOptions(items.flatMap((item) => item.labels.map((label) => label.name)));
 	const filters: FilterDef<TaskItem>[] = [];
+	// Only worth offering when the list actually carries closed work, open by default
+	if (items.some((item) => item.state !== 'open'))
+		filters.push({
+			key: 'state',
+			label: 'State',
+			options: STATE_OPTIONS,
+			defaultValue: 'open',
+			test: (item, value) => (value === 'open' ? item.state === 'open' : item.state !== 'open')
+		});
 	if (repoOptions.length > 1)
 		filters.push({
 			key: 'repo',

@@ -17,9 +17,10 @@ import {
 	FolderTree,
 	GitGraph,
 	Package,
-	Code
+	Code,
+	Info
 } from '@lucide/svelte';
-import { paths, REPO_NAV, CODE_NAV, OPS_NAV } from '$lib/config';
+import { paths, REPO_NAV, CODE_NAV, OPS_NAV, INFO_NAV } from '$lib/config';
 import { TASK_BUCKETS } from '$lib/components/tasks/tasks-config';
 import type { TaskBucket } from '$lib/types';
 
@@ -85,9 +86,14 @@ const REPO_SECTION_ICONS: Record<string, IconComponent> = {
 	'': LayoutGrid,
 	tasks: GitPullRequest,
 	code: Code,
-	traffic: ChartArea,
-	stats: ChartColumn,
 	ops: Container,
+	info: Info
+};
+
+// Icons for Info sub-sections
+const INFO_SECTION_ICONS: Record<string, IconComponent> = {
+	stats: ChartColumn,
+	traffic: ChartArea,
 	people: Users,
 	security: ShieldCheck
 };
@@ -113,12 +119,28 @@ export function repoNav(user: string, repo: string, viewer: NavViewer): NavItem[
 	return REPO_NAV.map(({ label, section }) => {
 		const icon = REPO_SECTION_ICONS[section];
 		const href = section ? paths.repoSection(user, repo, section) : paths.repo(user, repo);
-		if (section === 'traffic' && !viewer.isOwner) {
+		if (section === 'info') {
 			return {
 				label,
+				href,
 				icon,
-				disabled: true,
-				tooltip: viewer.loggedIn ? `Only ${user} can view traffic` : 'Sign in to view traffic'
+				children: INFO_NAV.map(({ label: subLabel, section: subSection }) => {
+					const subIcon = INFO_SECTION_ICONS[subSection];
+					// Traffic is private, so only the owner may open it
+					if (subSection === 'traffic' && !viewer.isOwner) {
+						return {
+							label: subLabel,
+							icon: subIcon,
+							disabled: true,
+							tooltip: viewer.loggedIn ? `Only ${user} can view traffic` : 'Sign in to view traffic'
+						};
+					}
+					return {
+						label: subLabel,
+						href: paths.repoInfoSection(user, repo, subSection),
+						icon: subIcon
+					};
+				})
 			};
 		}
 		if (section === 'code') {

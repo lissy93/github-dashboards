@@ -271,6 +271,7 @@ export type TaskItem = {
 	title: string;
 	url: string;
 	repo: string;
+	state: 'open' | 'closed' | 'merged';
 	draft: boolean;
 	createdAt: string;
 	updatedAt: string;
