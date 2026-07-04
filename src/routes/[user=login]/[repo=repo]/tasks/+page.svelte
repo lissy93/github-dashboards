@@ -20,7 +20,7 @@
 </script>
 
 <svelte:head>
-	<title>Issues & PRs · {data.repo.nameWithOwner} · {APP_NAME}</title>
+	<title>Tasks · {data.repo.nameWithOwner} · {APP_NAME}</title>
 </svelte:head>
 
 <!-- The running total chart for one kind, split open/resolved/discarded -->

@@ -100,6 +100,9 @@ export type RepoTree = {
 // A branch or tag label pointing at a commit
 export type CommitRef = { name: string; type: 'branch' | 'tag'; isDefault: boolean };
 
+// The pull request that brought a commit in, external when raised from a fork
+export type CommitPr = { number: number; state: 'open' | 'closed' | 'merged'; external: boolean };
+
 // One commit in the history graph, parents drive the DAG edges
 export type GraphCommit = {
 	oid: string;
@@ -110,6 +113,7 @@ export type GraphCommit = {
 	login: string | null;
 	parents: string[];
 	refs: CommitRef[];
+	pr: CommitPr | null;
 };
 
 // One page of commit history, newest first, with a cursor when older commits remain

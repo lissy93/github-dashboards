@@ -1,5 +1,8 @@
 import type { Component } from 'svelte';
 import { File, FileCode, FileJson, FileText, FileImage, FileCog } from '@lucide/svelte';
+import { seriesColor } from '$lib/components/charts/chart';
+import { formatBytes, formatNumber } from '$lib/format';
+import type { Slice } from '$lib/views/stats';
 import type { TreeNode } from '$lib/types';
 
 export type TreeSort = 'name' | 'size';
@@ -37,6 +40,35 @@ export function filterTree(nodes: TreeNode[], query: string): TreeNode[] {
 		}
 	}
 	return kept;
+}
+
+// Top-level entries by size for the overview treemap, the tail rolled into Other
+export function treeSizeSlices(root: TreeNode[], limit = 8): Slice[] {
+	const sized = root
+		.filter((node) => node.size > 0)
+		.sort((first, second) => second.size - first.size)
+		.map((node) => ({
+			label: node.type === 'dir' ? `${node.name}/` : node.name,
+			size: node.size,
+			files: node.type === 'dir' ? (node.fileCount ?? 0) : 1
+		}));
+	const top = sized.slice(0, limit);
+	const rest = sized.slice(limit);
+	if (rest.length)
+		top.push({
+			label: 'Other',
+			size: rest.reduce((sum, entry) => sum + entry.size, 0),
+			files: rest.reduce((sum, entry) => sum + entry.files, 0)
+		});
+	return top.map((entry, index) => ({
+		label: entry.label,
+		value: entry.size,
+		color: seriesColor(index),
+		rows: [
+			{ label: 'Size', value: formatBytes(entry.size) },
+			{ label: 'Files', value: formatNumber(entry.files) }
+		]
+	}));
 }
 
 // Every directory path in the tree, used to expand or collapse all at once

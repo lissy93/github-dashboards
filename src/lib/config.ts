@@ -33,10 +33,16 @@ export const paths = {
 // Tabs shown on repo pages, section is appended to the repo base path
 export const REPO_NAV = [
 	{ label: 'Overview', section: '' },
-	{ label: 'Issues & PRs', section: 'tasks' },
+	{ label: 'Tasks', section: 'tasks' },
 	{ label: 'Code', section: 'code' },
 	{ label: 'CI/CD', section: 'ops' },
 	{ label: 'Info', section: 'info' }
+];
+
+// Sub-sections under the Tasks tab
+export const TASKS_NAV = [
+	{ label: 'Issues', section: 'issues' },
+	{ label: 'Pull requests', section: 'prs' }
 ];
 
 // Sub-sections under the Code tab

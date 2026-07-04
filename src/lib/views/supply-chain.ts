@@ -26,6 +26,18 @@ export const SEVERITY_COLOR: Record<VulnSeverity, string> = {
 	low: 'var(--info)'
 };
 
+// Advisory counts per severity, worst first, for compact chip rows
+export function severitySlices(vulnerabilities: { severity: VulnSeverity }[]): Slice[] {
+	const order: VulnSeverity[] = ['critical', 'high', 'moderate', 'low'];
+	return order
+		.map((severity) => ({
+			label: severity,
+			value: vulnerabilities.filter((vuln) => vuln.severity === severity).length,
+			color: SEVERITY_COLOR[severity]
+		}))
+		.filter((slice) => slice.value > 0);
+}
+
 // Tally packages into labelled buckets, dropping empties and sorting big first
 function tally(packages: Dependency[], pick: (pkg: Dependency) => string): Map<string, number> {
 	const counts = new Map<string, number>();

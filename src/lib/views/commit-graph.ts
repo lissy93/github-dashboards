@@ -21,17 +21,17 @@ export type GraphRow = {
 	passes: number[];
 	top: Connector[];
 	bottom: Connector[];
+	hasStub: boolean;
 };
 
 export type CommitGraph = { rows: GraphRow[]; laneCount: number };
 
-// Append a newer-loaded page to the accumulated commits, dropping duplicate oids and
-// keeping the whole list newest first so the lane layout stays consistent
+// Append an older page to the accumulated commits, dropping duplicate oids. The API
+// order is kept as-is: git history puts children above parents, which the lane layout
+// relies on, and re-sorting by date can violate that (clock skew, imported history)
 export function mergeCommits(existing: GraphCommit[], incoming: GraphCommit[]): GraphCommit[] {
 	const seen = new Set(existing.map((commit) => commit.oid));
-	const merged = [...existing];
-	for (const commit of incoming) if (!seen.has(commit.oid)) merged.push(commit);
-	return merged.sort((first, second) => second.date.localeCompare(first.date));
+	return [...existing, ...incoming.filter((commit) => !seen.has(commit.oid))];
 }
 
 // Lay commits out as a railroad DAG. Lanes track which commit each column is waiting
@@ -90,9 +90,14 @@ export function computeGraph(commits: GraphCommit[]): CommitGraph {
 			bottom.push({ from: col, to: target, color: laneColor(target) });
 		}
 
+		// Parents below the loaded window get a stub so the row isn't drawn as a dead end,
+		// unless an edge already continues straight down this column
+		const offPage = commit.parents.some((parent) => !present.has(parent));
+		const hasStub = offPage && !bottom.some((edge) => edge.to === col);
+
 		const used = lanes.reduce((max, oid, index) => (oid !== null ? index + 1 : max), 0);
 		laneCount = Math.max(laneCount, used, col + 1, ...passes.map((lane) => lane + 1));
-		rows.push({ commit, col, color: laneColor(col), passes, top, bottom });
+		rows.push({ commit, col, color: laneColor(col), passes, top, bottom, hasStub });
 	}
 
 	return { rows, laneCount };

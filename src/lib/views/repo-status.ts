@@ -1,4 +1,4 @@
-import { compactNumber, relativeTime } from '$lib/format';
+import { compactNumber, formatBytes, relativeTime } from '$lib/format';
 import { workflowKpiStats, formatDuration } from '$lib/views/repo';
 import type { Slice } from '$lib/views/stats';
 import type { RepoWorkflows } from '$lib/server/github/workflows';
@@ -9,7 +9,7 @@ import type { SupplyChain } from '$lib/server/github/supply-chain';
 import type { RepoSecurity } from '$lib/server/github/security';
 import type { RepoContributors } from '$lib/server/github/contributors';
 import type { RepoTrafficSummary } from '$lib/server/github/traffic';
-import type { Repo } from '$lib/types';
+import type { Repo, RepoTree } from '$lib/types';
 
 // One-line status summaries for the ops panels, shared by the ops tab and the repo overview
 
@@ -48,13 +48,21 @@ export function releasesSummary(r: RepoReleases): string {
 	return `${compactNumber(r.total)} releases · latest ${latest.tag}`;
 }
 
-export function supplyChainSummary(sc: SupplyChain): string {
+export function supplyChainSummary(sc: Pick<SupplyChain, 'summary'>): string {
 	const s = sc.summary;
 	if (!s.total) return 'No dependency data';
 	const parts = [`${compactNumber(s.total)} dependencies`, `${compactNumber(s.direct)} direct`];
 	if (s.vulnerabilities) parts.push(`${compactNumber(s.vulnerabilities)} advisories`);
 	else parts.push(`${s.ecosystems} ecosystem${s.ecosystems === 1 ? '' : 's'}`);
 	return parts.join(' · ');
+}
+
+export function filesSummary(tree: RepoTree): string {
+	return [
+		`${compactNumber(tree.totalFiles)} files`,
+		`${compactNumber(tree.totalDirs)} folders`,
+		formatBytes(tree.totalSize)
+	].join(' · ');
 }
 
 // One-line summaries for the Info tab panels

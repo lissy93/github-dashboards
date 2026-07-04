@@ -7,6 +7,7 @@
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { defaultView, type View } from '$lib/components/filter/sort-filter';
 	import { activityFilterConfig, activityQuery, activityUrl } from '$lib/views/activity';
+	import { fetchApi } from '$lib/api';
 	import { COMMUNITY_EXCLUDE, COMMUNITY_TYPES } from '$lib/components/activity/activity-config';
 	import type { ActivityEvent, ActivityPage, ActivityType } from '$lib/types';
 	import type { LoadResult } from '$lib/views/overview';
@@ -54,10 +55,7 @@
 		cursor: string | null
 	): Promise<{ items: ActivityEvent[]; nextCursor: string | null }> {
 		const url = activityUrl(user, view, cursor, repo, exclude, mine);
-		const response = await fetch(url);
-		const body = await response.json();
-		if (!response.ok) throw body;
-		const page = body as ActivityPage;
+		const page = await fetchApi<ActivityPage>(url);
 		return { items: page.events, nextCursor: page.nextCursor };
 	}
 </script>

@@ -4,7 +4,11 @@
 	import { compactNumber, formatNumber } from '$lib/format';
 	import type { Slice } from '$lib/views/stats';
 
-	let { data, height = 16 }: { data: Slice[]; height?: number } = $props();
+	let {
+		data,
+		height = 16,
+		format = compactNumber
+	}: { data: Slice[]; height?: number; format?: (value: number) => string } = $props();
 
 	// Tile fills are arbitrary GitHub label hex, so the contrast ink must be fixed
 	// near-black/near-white rather than a theme token that tracks the background
@@ -108,14 +112,13 @@
 				background-color: {tile.slice.color}; color: {ink(tile.slice.color ?? '#888888')};
 				outline: 1px solid var(--card)"
 			role="img"
-			aria-label="{tile.slice.label}, {tile.slice.value}"
+			aria-label="{tile.slice.label}, {format(tile.slice.value)}"
 			onpointermove={(event) => show(event, tile.slice)}
 			onpointerleave={tip.hide}
 		>
 			{#if tile.w > 52 && tile.h > 26}
 				<span class="truncate text-[0.7rem] leading-tight font-medium">{tile.slice.label}</span>
-				<span class="text-[0.65rem] tabular-nums opacity-80">{compactNumber(tile.slice.value)}</span
-				>
+				<span class="text-[0.65rem] tabular-nums opacity-80">{format(tile.slice.value)}</span>
 			{/if}
 		</div>
 	{/each}

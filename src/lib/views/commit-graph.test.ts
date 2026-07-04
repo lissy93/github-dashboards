@@ -11,15 +11,24 @@ const commit = (oid: string, parents: string[], date = oid): GraphCommit => ({
 	author: null,
 	login: null,
 	parents,
-	refs: []
+	refs: [],
+	pr: null
 });
 
 describe('mergeCommits', () => {
-	it('appends an older page, drops duplicate oids and keeps newest first', () => {
+	it('appends an older page and drops duplicate oids', () => {
 		const existing = [commit('a', ['b'], '2024-03-03'), commit('b', ['c'], '2024-03-02')];
 		const incoming = [commit('b', ['c'], '2024-03-02'), commit('c', [], '2024-03-01')];
 		const merged = mergeCommits(existing, incoming);
 		expect(merged.map((entry) => entry.oid)).toEqual(['a', 'b', 'c']);
+	});
+
+	it('keeps the API order even when commit dates interleave', () => {
+		// b was committed after a but git history still walks a first, keep it that way
+		const existing = [commit('a', ['b'], '2024-03-01')];
+		const incoming = [commit('b', [], '2024-03-05')];
+		const merged = mergeCommits(existing, incoming);
+		expect(merged.map((entry) => entry.oid)).toEqual(['a', 'b']);
 	});
 });
 
@@ -68,9 +77,27 @@ describe('computeGraph', () => {
 		expect(byOid.f.passes).toEqual([]);
 	});
 
-	it('drops edges to parents that fall outside the window', () => {
+	it('flags a stub instead of an edge when all parents fall outside the window', () => {
 		const { rows } = computeGraph([commit('a', ['b']), commit('b', ['off-screen'])]);
 		expect(rows[1].bottom).toEqual([]);
+		expect(rows[1].hasStub).toBe(true);
+		// a true root has no stub, its history really does end
+		expect(computeGraph([commit('root', [])]).rows[0].hasStub).toBe(false);
+	});
+
+	it('stubs a merge whose off-page parent leaves its column with no edge', () => {
+		// m's in-view parent d already owns lane 0, so its own column would dead-end
+		const { rows } = computeGraph([
+			commit('a', ['d']),
+			commit('m', ['off-screen', 'd']),
+			commit('d', [])
+		]);
+		const merge = rows.find((row) => row.commit.oid === 'm')!;
+		expect(merge.bottom).toEqual([{ from: 1, to: 0, color: expect.any(String) }]);
+		expect(merge.hasStub).toBe(true);
+		// but no stub when the in-view parent already continues straight down
+		const straight = computeGraph([commit('m2', ['d2', 'off']), commit('d2', [])]);
+		expect(straight.rows[0].hasStub).toBe(false);
 	});
 
 	it('passes unrelated lanes straight through a row', () => {

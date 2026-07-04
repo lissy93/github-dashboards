@@ -6,6 +6,7 @@ import {
 	ChartArea,
 	Activity,
 	ListTodo,
+	CircleDot,
 	GitPullRequest,
 	Workflow,
 	Rocket,
@@ -20,7 +21,7 @@ import {
 	Code,
 	Info
 } from '@lucide/svelte';
-import { paths, REPO_NAV, CODE_NAV, OPS_NAV, INFO_NAV } from '$lib/config';
+import { paths, REPO_NAV, TASKS_NAV, CODE_NAV, OPS_NAV, INFO_NAV } from '$lib/config';
 import { TASK_BUCKETS } from '$lib/components/tasks/tasks-config';
 import type { TaskBucket } from '$lib/types';
 
@@ -84,10 +85,16 @@ export function userNav(user: string, isOrg: boolean, viewer: NavViewer): NavIte
 // Icon per repo section, keyed by the section slug defined in REPO_NAV
 const REPO_SECTION_ICONS: Record<string, IconComponent> = {
 	'': LayoutGrid,
-	tasks: GitPullRequest,
+	tasks: ListTodo,
 	code: Code,
 	ops: Container,
 	info: Info
+};
+
+// Icons for Tasks sub-sections
+const TASKS_SECTION_ICONS: Record<string, IconComponent> = {
+	issues: CircleDot,
+	prs: GitPullRequest
 };
 
 // Icons for Info sub-sections
@@ -114,60 +121,45 @@ const OPS_SECTION_ICONS: Record<string, IconComponent> = {
 	releases: Tag
 };
 
+// Dropdown list, icons and path builder for each repo tab with sub-sections
+const REPO_SUB_NAVS: Record<
+	string,
+	{
+		list: { label: string; section: string }[];
+		icons: Record<string, IconComponent>;
+		path: (user: string, repo: string, section: string) => string;
+	}
+> = {
+	tasks: { list: TASKS_NAV, icons: TASKS_SECTION_ICONS, path: paths.repoTasksSection },
+	code: { list: CODE_NAV, icons: CODE_SECTION_ICONS, path: paths.repoCodeSection },
+	ops: { list: OPS_NAV, icons: OPS_SECTION_ICONS, path: paths.repoOpsSection },
+	info: { list: INFO_NAV, icons: INFO_SECTION_ICONS, path: paths.repoInfoSection }
+};
+
 // Repo-level nav tree. Traffic is private, so only the owner may open it
 export function repoNav(user: string, repo: string, viewer: NavViewer): NavItem[] {
 	return REPO_NAV.map(({ label, section }) => {
-		const icon = REPO_SECTION_ICONS[section];
-		const href = section ? paths.repoSection(user, repo, section) : paths.repo(user, repo);
-		if (section === 'info') {
-			return {
-				label,
-				href,
-				icon,
-				children: INFO_NAV.map(({ label: subLabel, section: subSection }) => {
-					const subIcon = INFO_SECTION_ICONS[subSection];
-					// Traffic is private, so only the owner may open it
-					if (subSection === 'traffic' && !viewer.isOwner) {
-						return {
-							label: subLabel,
-							icon: subIcon,
-							disabled: true,
-							tooltip: viewer.loggedIn ? `Only ${user} can view traffic` : 'Sign in to view traffic'
-						};
-					}
+		const sub = REPO_SUB_NAVS[section];
+		return {
+			label,
+			href: section ? paths.repoSection(user, repo, section) : paths.repo(user, repo),
+			icon: REPO_SECTION_ICONS[section],
+			children: sub?.list.map(({ label: subLabel, section: subSection }) => {
+				if (subSection === 'traffic' && !viewer.isOwner) {
 					return {
 						label: subLabel,
-						href: paths.repoInfoSection(user, repo, subSection),
-						icon: subIcon
+						icon: sub.icons[subSection],
+						disabled: true,
+						tooltip: viewer.loggedIn ? `Only ${user} can view traffic` : 'Sign in to view traffic'
 					};
-				})
-			};
-		}
-		if (section === 'code') {
-			return {
-				label,
-				href,
-				icon,
-				children: CODE_NAV.map(({ label: subLabel, section: subSection }) => ({
+				}
+				return {
 					label: subLabel,
-					href: paths.repoCodeSection(user, repo, subSection),
-					icon: CODE_SECTION_ICONS[subSection]
-				}))
-			};
-		}
-		if (section === 'ops') {
-			return {
-				label,
-				href,
-				icon,
-				children: OPS_NAV.map(({ label: subLabel, section: subSection }) => ({
-					label: subLabel,
-					href: paths.repoOpsSection(user, repo, subSection),
-					icon: OPS_SECTION_ICONS[subSection]
-				}))
-			};
-		}
-		return { label, href, icon };
+					href: sub.path(user, repo, subSection),
+					icon: sub.icons[subSection]
+				};
+			})
+		};
 	});
 }
 

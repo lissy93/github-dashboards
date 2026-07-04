@@ -8,6 +8,7 @@
 		icon?: Component<{ size?: number | string; class?: string }>;
 		href?: string;
 		emptyText?: string;
+		emptyHint?: string;
 		result: Promise<LoadResult<T>> | LoadResult<T>;
 		count?: (data: T) => number | undefined;
 		capped?: (data: T) => boolean;
@@ -20,6 +21,7 @@
 		icon,
 		href,
 		emptyText,
+		emptyHint,
 		result,
 		count,
 		capped,
@@ -37,6 +39,7 @@
 		{icon}
 		{href}
 		{emptyText}
+		{emptyHint}
 		class={className}
 		count={res.ok ? count?.(res.data) : undefined}
 		capped={res.ok ? (capped?.(res.data) ?? false) : false}

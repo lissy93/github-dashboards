@@ -2,6 +2,7 @@
 	import {
 		CircleDot,
 		GitPullRequest,
+		ListTodo,
 		Activity,
 		ShieldCheck,
 		Star,
@@ -11,7 +12,11 @@
 		Tag,
 		ChartArea,
 		Info,
-		Lock
+		Lock,
+		Code,
+		GitGraph,
+		FolderTree,
+		Package
 	} from '@lucide/svelte';
 	import SectionHeading from '$lib/components/common/SectionHeading.svelte';
 	import AsyncPanel from '$lib/components/repo/AsyncPanel.svelte';
@@ -19,11 +24,14 @@
 	import EmptyState from '$lib/components/common/EmptyState.svelte';
 	import ItemRow from '$lib/components/tasks/ItemRow.svelte';
 	import RepoActivityFeed from '$lib/components/repo/RepoActivityFeed.svelte';
+	import CommitGraph from '$lib/components/repo/CommitGraph.svelte';
 	import MetricTimeChart from '$lib/components/analytics/MetricTimeChart.svelte';
 	import StackedBarChart from '$lib/components/charts/StackedBarChart.svelte';
 	import BarChart from '$lib/components/charts/BarChart.svelte';
 	import Sparkline from '$lib/components/charts/Sparkline.svelte';
 	import RadialGauge from '$lib/components/charts/RadialGauge.svelte';
+	import Treemap from '$lib/components/charts/Treemap.svelte';
+	import HBarList from '$lib/components/charts/HBarList.svelte';
 	import SecurityChecks from '$lib/components/repo/SecurityChecks.svelte';
 	import AnalyticsDashboard from '$lib/components/analytics/AnalyticsDashboard.svelte';
 	import {
@@ -38,12 +46,16 @@
 		deploymentSummary,
 		pagesSummary,
 		releasesSummary,
+		supplyChainSummary,
+		filesSummary,
 		workflowGauge,
 		pageBuildSpark
 	} from '$lib/views/repo-status';
+	import { treeSizeSlices } from '$lib/views/repo-tree';
 	import { deploymentMiniChart } from '$lib/views/repo-deployments';
 	import { releaseDownloadBars, hasReleaseDownloads } from '$lib/views/repo-stats';
 	import { paths, APP_NAME } from '$lib/config';
+	import { formatBytes } from '$lib/format';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -93,7 +105,7 @@
 {/snippet}
 
 <div class="space-y-6">
-	<SectionHeading title="Issues & PRs" icon={GitPullRequest}>
+	<SectionHeading title="Tasks" icon={ListTodo}>
 		<div class="grid items-start gap-5 lg:grid-cols-2">
 			<div class="lg:space-y-5">
 				{@render totalMini('issue', 'issues', 'Total issues', CircleDot)}
@@ -141,7 +153,7 @@
 		</div>
 	</SectionHeading>
 
-	<SectionHeading title="Activity & status" icon={Activity}>
+	<SectionHeading title="Code" icon={Code}>
 		<div class="grid items-start gap-5 lg:grid-cols-2">
 			<Panel title="Activity" icon={Activity} href={code('activity')}>
 				<RepoActivityFeed
@@ -155,92 +167,155 @@
 				/>
 			</Panel>
 
-			<div class="space-y-5">
-				<AsyncPanel
-					title="Workflows"
-					icon={Workflow}
-					href={ops('workflows')}
-					result={data.workflows}
-				>
-					{#snippet children(wf)}
-						{@const gauge = workflowGauge(wf)}
-						<div class="space-y-3">
-							<p class="text-muted-foreground text-sm">{workflowSummary(wf)}</p>
-							{#if gauge}
-								<RadialGauge
-									data={gauge.data}
-									centerValue={gauge.centerValue}
-									centerLabel="Pass rate"
-									valueLabel="Runs"
-									compact
+			<AsyncPanel
+				title="History"
+				icon={GitGraph}
+				href={code('git-tree')}
+				result={data.graph}
+				empty={(graph) => graph.commits.length === 0}
+				emptyText="No commit history yet"
+			>
+				{#snippet children(graph)}
+					<CommitGraph
+						{graph}
+						repoUrl={data.repo.url}
+						owner={data.repo.owner}
+						repo={data.repo.name}
+						limit={data.historyPreview}
+					/>
+				{/snippet}
+			</AsyncPanel>
+
+			<AsyncPanel
+				title="Files"
+				icon={FolderTree}
+				href={code('files')}
+				result={data.tree}
+				empty={(tree) => tree.totalFiles === 0}
+				emptyText="No files in this repo"
+			>
+				{#snippet children(tree)}
+					<div class="space-y-3">
+						<p class="text-muted-foreground text-sm">{filesSummary(tree)}</p>
+						<Treemap data={treeSizeSlices(tree.root)} height={9} format={formatBytes} />
+					</div>
+				{/snippet}
+			</AsyncPanel>
+
+			<AsyncPanel
+				title="Supply chain"
+				icon={Package}
+				href={code('supply-chain')}
+				result={data.supplyChain}
+				empty={(sc) => sc.summary.total === 0}
+				emptyText="No dependency data"
+				emptyHint="GitHub builds the dependency graph from manifest files like package.json"
+			>
+				{#snippet children(sc)}
+					<div class="space-y-3">
+						<p class="text-muted-foreground text-sm">{supplyChainSummary(sc)}</p>
+						{#if sc.severities.length}
+							<ul class="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+								{#each sc.severities as chip (chip.label)}
+									<li class="flex items-center gap-1.5">
+										<span
+											class="size-2 rounded-full"
+											style="background-color: {chip.color}"
+											aria-hidden="true"
+										></span>
+										<span class="tabular-nums">{chip.value} {chip.label}</span>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+						<HBarList data={sc.risk} colored valueLabel="Packages" />
+					</div>
+				{/snippet}
+			</AsyncPanel>
+		</div>
+	</SectionHeading>
+
+	<SectionHeading title="CI/CD" icon={Workflow}>
+		<div class="grid items-start gap-5 sm:grid-cols-2">
+			<AsyncPanel title="Workflows" icon={Workflow} href={ops('workflows')} result={data.workflows}>
+				{#snippet children(wf)}
+					{@const gauge = workflowGauge(wf)}
+					<div class="space-y-3">
+						<p class="text-muted-foreground text-sm">{workflowSummary(wf)}</p>
+						{#if gauge}
+							<RadialGauge
+								data={gauge.data}
+								centerValue={gauge.centerValue}
+								centerLabel="Pass rate"
+								valueLabel="Runs"
+								compact
+							/>
+						{/if}
+					</div>
+				{/snippet}
+			</AsyncPanel>
+			<AsyncPanel
+				title="Deployments"
+				icon={Rocket}
+				href={ops('deployments')}
+				result={data.deployments}
+			>
+				{#snippet children(d)}
+					{@const freq = deploymentMiniChart(d)}
+					<div class="space-y-3">
+						<p class="text-muted-foreground text-sm">{deploymentSummary(d)}</p>
+						{#if freq.bars.length >= 2}
+							<StackedBarChart
+								bars={freq.bars}
+								series={freq.series}
+								ticks={freq.ticks}
+								height={3.5}
+								barGap={0.125}
+								totalUnit="deploys"
+								miniView
+							/>
+						{/if}
+					</div>
+				{/snippet}
+			</AsyncPanel>
+			<AsyncPanel title="Pages" icon={Globe} href={ops('pages')} result={data.pages}>
+				{#snippet children(p)}
+					{@const spark = pageBuildSpark(p)}
+					<div class="space-y-2">
+						<p class="text-muted-foreground text-sm">{pagesSummary(p)}</p>
+						{#if spark.values.length >= 3}
+							<div class="space-y-1">
+								<Sparkline
+									values={spark.values}
+									labels={spark.labels}
+									valueLabel="Build time"
+									format={formatDuration}
+									color="var(--chart-2)"
+									class="h-9"
 								/>
-							{/if}
-						</div>
-					{/snippet}
-				</AsyncPanel>
-				<AsyncPanel
-					title="Deployments"
-					icon={Rocket}
-					href={ops('deployments')}
-					result={data.deployments}
-				>
-					{#snippet children(d)}
-						{@const freq = deploymentMiniChart(d)}
-						<div class="space-y-3">
-							<p class="text-muted-foreground text-sm">{deploymentSummary(d)}</p>
-							{#if freq.bars.length >= 2}
-								<StackedBarChart
-									bars={freq.bars}
-									series={freq.series}
-									ticks={freq.ticks}
-									height={3.5}
-									barGap={0.125}
-									totalUnit="deploys"
-									miniView
-								/>
-							{/if}
-						</div>
-					{/snippet}
-				</AsyncPanel>
-				<AsyncPanel title="Pages" icon={Globe} href={ops('pages')} result={data.pages}>
-					{#snippet children(p)}
-						{@const spark = pageBuildSpark(p)}
-						<div class="space-y-2">
-							<p class="text-muted-foreground text-sm">{pagesSummary(p)}</p>
-							{#if spark.values.length >= 3}
-								<div class="space-y-1">
-									<Sparkline
-										values={spark.values}
-										labels={spark.labels}
-										valueLabel="Build time"
-										format={formatDuration}
-										color="var(--chart-2)"
-										class="h-9"
-									/>
-									<p class="text-muted-foreground text-[0.65rem]">Recent build times</p>
-								</div>
-							{/if}
-						</div>
-					{/snippet}
-				</AsyncPanel>
-				<AsyncPanel title="Releases" icon={Tag} href={ops('releases')} result={data.releases}>
-					{#snippet children(r)}
-						<div class="space-y-3">
-							<p class="text-muted-foreground text-sm">{releasesSummary(r)}</p>
-							{#if r.releases.length >= 2 && hasReleaseDownloads(r.releases)}
-								<BarChart
-									data={releaseDownloadBars(r.releases)}
-									color="var(--chart-4)"
-									valueLabel="Downloads"
-									height={3.5}
-									barGap={0.125}
-									maxLabels={8}
-								/>
-							{/if}
-						</div>
-					{/snippet}
-				</AsyncPanel>
-			</div>
+								<p class="text-muted-foreground text-[0.65rem]">Recent build times</p>
+							</div>
+						{/if}
+					</div>
+				{/snippet}
+			</AsyncPanel>
+			<AsyncPanel title="Releases" icon={Tag} href={ops('releases')} result={data.releases}>
+				{#snippet children(r)}
+					<div class="space-y-3">
+						<p class="text-muted-foreground text-sm">{releasesSummary(r)}</p>
+						{#if r.releases.length >= 2 && hasReleaseDownloads(r.releases)}
+							<BarChart
+								data={releaseDownloadBars(r.releases)}
+								color="var(--chart-4)"
+								valueLabel="Downloads"
+								height={3.5}
+								barGap={0.125}
+								maxLabels={8}
+							/>
+						{/if}
+					</div>
+				{/snippet}
+			</AsyncPanel>
 		</div>
 	</SectionHeading>
 

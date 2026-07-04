@@ -99,8 +99,17 @@ export function logError(scope: string, error: unknown): AppError {
 // A user-safe error, the shape every panel and page renders
 export type DisplayError = { title: string; message: string; pending?: boolean };
 
-// Shape a thrown error into something a panel or page can render
+// A parsed apiError response body is already display-shaped
+function isDisplayError(value: unknown): value is DisplayError {
+	if (typeof value !== 'object' || value === null) return false;
+	const { title, message } = value as DisplayError;
+	return typeof title === 'string' && typeof message === 'string';
+}
+
+// Shape a thrown error into something a panel or page can render. Error bodies
+// thrown by fetchApi pass straight through, keeping the server's message
 export function toDisplayError(error: unknown): DisplayError {
+	if (isDisplayError(error)) return error;
 	const appError = toAppError(error);
 	return {
 		title: appError.code.replace(/_/g, ' '),

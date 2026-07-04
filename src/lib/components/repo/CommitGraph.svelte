@@ -1,60 +1,88 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { Tag, Search, GitBranch, Loader2 } from '@lucide/svelte';
+	import { browser } from '$app/environment';
+	import { page } from '$app/state';
+	import { replaceState } from '$app/navigation';
+	import { Tag, Search, GitBranch, GitFork, Loader2 } from '@lucide/svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import { Input } from '$lib/components/ui/input';
+	import * as Avatar from '$lib/components/ui/avatar';
 	import * as Select from '$lib/components/ui/select';
 	import { computeGraph, laneColor, mergeCommits, type Connector } from '$lib/views/commit-graph';
 	import { relativeTime } from '$lib/format';
+	import { fetchApi } from '$lib/api';
 	import { GITHUB_WEB } from '$lib/config';
 	import { toDisplayError } from '$lib/errors';
 	import { cn } from '$lib/utils';
 	import type { GraphRow } from '$lib/views/commit-graph';
 	import type { CommitPage, RepoCommitGraph } from '$lib/types';
 
+	// A limit renders a fixed preview: first commits only, no toolbar or paging
 	let {
 		graph,
 		repoUrl,
 		owner,
-		repo
-	}: { graph: RepoCommitGraph; repoUrl: string; owner: string; repo: string } = $props();
+		repo,
+		limit
+	}: { graph: RepoCommitGraph; repoUrl: string; owner: string; repo: string; limit?: number } =
+		$props();
 
 	const COL = 18;
 	const ROW = 34;
 	const DOT = 4;
 	const MORE_BTN =
 		'text-muted-foreground hover:text-foreground hover:bg-muted rounded-md px-3 py-1.5 text-xs transition-colors';
+	const PR_COLOR = {
+		open: 'var(--lifecycle-open)',
+		merged: 'var(--lifecycle-resolved)',
+		closed: 'var(--lifecycle-discarded)'
+	};
+	// Only offer the branch filter once the list is long enough to need it
+	const FILTER_MIN = 10;
 
 	let commits = $state(untrack(() => graph.commits));
 	let cursor = $state(untrack(() => graph.nextCursor));
 	let branch = $state(untrack(() => graph.defaultBranch));
 	let search = $state('');
+	let branchFilter = $state('');
 	let loading = $state(false);
 	let error = $state<unknown>(null);
 	let sentinel = $state<HTMLElement>();
 
-	const layout = $derived(computeGraph(commits));
+	const layout = $derived(computeGraph(limit ? commits.slice(0, limit) : commits));
 	const railWidth = $derived(Math.max(layout.laneCount, 1) * COL);
 	const needle = $derived(search.trim().toLowerCase());
+	const shownBranches = $derived(
+		graph.branches.filter((name) =>
+			name.toLowerCase().includes(branchFilter.trim().toLowerCase())
+		)
+	);
 	const cx = (lane: number) => lane * COL + COL / 2;
 
 	// A search dims non-matching rows rather than removing them, so the rails stay intact
 	function matches(row: GraphRow): boolean {
 		if (!needle) return true;
-		const { message, author, short } = row.commit;
+		const { message, author, short, pr } = row.commit;
 		return (
 			message.toLowerCase().includes(needle) ||
 			short.includes(needle) ||
-			!!author?.toLowerCase().includes(needle)
+			!!author?.toLowerCase().includes(needle) ||
+			(!!pr && `#${pr.number}`.includes(needle))
 		);
 	}
 
-	async function fetchPage(ref: string, from: string | null): Promise<CommitPage> {
+	function fetchPage(ref: string, from: string | null): Promise<CommitPage> {
 		const query = [`branch=${encodeURIComponent(ref)}`];
 		if (from) query.push(`cursor=${encodeURIComponent(from)}`);
-		const res = await fetch(`/api/${owner}/${repo}/commits?${query.join('&')}`);
-		if (!res.ok) throw new Error('Could not load commits');
-		return res.json();
+		return fetchApi(`/api/${owner}/${repo}/commits?${query.join('&')}`);
+	}
+
+	// Mirror the branch into the url so the view survives refresh and sharing
+	function syncUrl(value: string): void {
+		const url = new URL(page.url);
+		if (value === graph.defaultBranch) url.searchParams.delete('branch');
+		else url.searchParams.set('branch', value);
+		replaceState(url, page.state);
 	}
 
 	// Switch the graph to another branch, replacing the loaded history
@@ -64,14 +92,21 @@
 		loading = true;
 		error = null;
 		try {
-			const page = await fetchPage(value, null);
-			commits = page.commits;
-			cursor = page.nextCursor;
+			const loaded = await fetchPage(value, null);
+			commits = loaded.commits;
+			cursor = loaded.nextCursor;
+			syncUrl(value);
 		} catch (caught) {
 			error = caught;
 		}
 		loading = false;
 	}
+
+	// A ?branch= param deep-links straight to that branch's history
+	const urlBranch = untrack(() =>
+		browser && !limit ? page.url.searchParams.get('branch') : null
+	);
+	if (urlBranch) selectBranch(urlBranch);
 
 	// Append the next older page, ignoring overlapping triggers and the end
 	async function loadMore(): Promise<void> {
@@ -79,9 +114,9 @@
 		loading = true;
 		error = null;
 		try {
-			const page = await fetchPage(branch, cursor);
-			commits = mergeCommits(commits, page.commits);
-			cursor = page.nextCursor;
+			const loaded = await fetchPage(branch, cursor);
+			commits = mergeCommits(commits, loaded.commits);
+			cursor = loaded.nextCursor;
 		} catch (caught) {
 			error = caught;
 		}
@@ -110,41 +145,61 @@
 </script>
 
 <div class="space-y-3">
-	<div class="flex flex-wrap items-center justify-between gap-2">
-		<p class="text-muted-foreground flex items-center gap-2 text-xs">
-			<span class="tabular-nums">{graph.branchCount} branches</span>
-			<span aria-hidden="true">·</span>
-			<span class="tabular-nums">{graph.tagCount} tags</span>
-		</p>
+	{#if !limit}
+		<div class="flex flex-wrap items-center justify-between gap-2">
+			<p class="text-muted-foreground flex items-center gap-2 text-xs">
+				<span class="tabular-nums">{graph.branchCount} branches</span>
+				<span aria-hidden="true">·</span>
+				<span class="tabular-nums">{graph.tagCount} tags</span>
+			</p>
 
-		<div class="flex items-center gap-2">
-			<div class="relative min-w-36">
-				<Icon
-					icon={Search}
-					size={14}
-					class="text-muted-foreground absolute top-1/2 left-2.5 -translate-y-1/2"
-				/>
-				<Input
-					bind:value={search}
-					placeholder="Search commits"
-					aria-label="Search commits"
-					class="h-8 pl-8 text-xs"
-				/>
+			<div class="flex items-center gap-2">
+				<div class="relative min-w-36">
+					<Icon
+						icon={Search}
+						size={14}
+						class="text-muted-foreground absolute top-1/2 left-2.5 -translate-y-1/2"
+					/>
+					<Input
+						bind:value={search}
+						placeholder="Search commits"
+						aria-label="Search commits"
+						class="h-8 pl-8 text-xs"
+					/>
+				</div>
+				<Select.Root
+					type="single"
+					value={branch}
+					onValueChange={selectBranch}
+					onOpenChange={() => (branchFilter = '')}
+				>
+					<Select.Trigger class="h-8 w-40 text-xs">
+						<span class="flex items-center gap-1.5 truncate">
+							<Icon icon={GitBranch} size={13} />{branch}
+						</span>
+					</Select.Trigger>
+					<Select.Content>
+						{#if graph.branches.length >= FILTER_MIN}
+							<div class="p-1">
+								<Input
+									bind:value={branchFilter}
+									placeholder="Filter branches"
+									aria-label="Filter branches"
+									class="h-7 text-xs"
+									onkeydown={(event) => event.key !== 'Escape' && event.stopPropagation()}
+								/>
+							</div>
+						{/if}
+						{#each shownBranches as name (name)}
+							<Select.Item value={name}>{name}</Select.Item>
+						{:else}
+							<p class="text-muted-foreground px-2 py-1.5 text-xs">No matching branches</p>
+						{/each}
+					</Select.Content>
+				</Select.Root>
 			</div>
-			<Select.Root type="single" value={branch} onValueChange={selectBranch}>
-				<Select.Trigger class="h-8 w-40 text-xs">
-					<span class="flex items-center gap-1.5 truncate">
-						<Icon icon={GitBranch} size={13} />{branch}
-					</span>
-				</Select.Trigger>
-				<Select.Content>
-					{#each graph.branches as name (name)}
-						<Select.Item value={name}>{name}</Select.Item>
-					{/each}
-				</Select.Content>
-			</Select.Root>
 		</div>
-	</div>
+	{/if}
 
 	<div class="-mx-1">
 		{#each layout.rows as row (row.commit.oid)}
@@ -177,8 +232,33 @@
 					{#each row.bottom as edge, index (index)}
 						<path d={path(edge, 'bottom')} fill="none" stroke={edge.color} stroke-width="2" />
 					{/each}
+					{#if row.hasStub}
+						<line
+							x1={cx(row.col)}
+							y1={ROW / 2}
+							x2={cx(row.col)}
+							y2={ROW}
+							stroke={row.color}
+							stroke-width="2"
+							stroke-dasharray="2 3"
+							opacity="0.4"
+						/>
+					{/if}
 					<circle cx={cx(row.col)} cy={ROW / 2} r={DOT + 1.5} class="fill-card" />
-					<circle cx={cx(row.col)} cy={ROW / 2} r={DOT} fill={row.color} />
+					{#if row.commit.parents.length > 1}
+						<circle
+							cx={cx(row.col)}
+							cy={ROW / 2}
+							r={DOT - 0.5}
+							fill="none"
+							stroke={row.color}
+							stroke-width="2"
+						>
+							<title>Merge commit</title>
+						</circle>
+					{:else}
+						<circle cx={cx(row.col)} cy={ROW / 2} r={DOT} fill={row.color} />
+					{/if}
 				</svg>
 
 				<div class="flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-2 text-sm">
@@ -196,6 +276,21 @@
 							{#if ref.type === 'tag'}<Icon icon={Tag} size={11} />{/if}{ref.name}
 						</span>
 					{/each}
+					{#if row.commit.pr}
+						{@const pr = row.commit.pr}
+						<a
+							href="{repoUrl}/pull/{pr.number}"
+							target="_blank"
+							rel="noreferrer"
+							title="{pr.state} pull request{pr.external ? ' from a fork' : ''}"
+							class="hover:bg-muted inline-flex shrink-0 items-center gap-1 rounded-full
+								border px-2 py-0.5 text-xs transition-colors"
+							style="color: {PR_COLOR[pr.state]};
+								border-color: color-mix(in oklab, {PR_COLOR[pr.state]} 40%, transparent)"
+						>
+							{#if pr.external}<Icon icon={GitFork} size={11} />{/if}#{pr.number}
+						</a>
+					{/if}
 					<span class="truncate">{row.commit.message}</span>
 					<span
 						class="text-muted-foreground ml-auto flex shrink-0 items-center gap-2 text-xs tabular-nums"
@@ -206,8 +301,16 @@
 									href="{GITHUB_WEB}/{row.commit.login}"
 									target="_blank"
 									rel="noreferrer"
-									class="hover:text-foreground hidden sm:inline">{row.commit.author}</a
+									class="hover:text-foreground hidden items-center gap-1.5 sm:flex"
 								>
+									<Avatar.Root size="sm" class="size-5">
+										<Avatar.Image src="{GITHUB_WEB}/{row.commit.login}.png?size=40" alt="" />
+										<Avatar.Fallback class="text-[0.5rem]">
+											{row.commit.login.slice(0, 2).toUpperCase()}
+										</Avatar.Fallback>
+									</Avatar.Root>
+									{row.commit.author}
+								</a>
 							{:else}
 								<span class="hidden sm:inline">{row.commit.author}</span>
 							{/if}
@@ -225,7 +328,7 @@
 		{/each}
 	</div>
 
-	{#if cursor !== null}
+	{#if limit === undefined && cursor !== null}
 		<div bind:this={sentinel} class="flex flex-col items-center gap-2 py-3">
 			{#if error}
 				<p class="text-danger text-center text-sm">{toDisplayError(error).message}</p>
@@ -236,7 +339,7 @@
 				<button type="button" onclick={loadMore} class={MORE_BTN}>Load more</button>
 			{/if}
 		</div>
-	{:else if commits.length}
+	{:else if limit === undefined && commits.length}
 		<p class="text-muted-foreground py-3 text-center text-xs">End of history</p>
 	{/if}
 </div>

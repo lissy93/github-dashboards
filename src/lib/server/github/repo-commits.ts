@@ -1,6 +1,6 @@
 import { graphql } from '$lib/server/github/client';
-import { cached } from '$lib/server/cache';
-import type { CommitPage, CommitRef, GraphCommit, RepoCommitGraph } from '$lib/types';
+import { cached, isCached } from '$lib/server/cache';
+import type { CommitPage, CommitPr, CommitRef, GraphCommit, RepoCommitGraph } from '$lib/types';
 
 const TTL = 900;
 const PAGE = 100;
@@ -13,6 +13,9 @@ const COMMIT_FIELDS = `
 		committedDate
 		author { name user { login } }
 		parents(first: 8) { nodes { oid } }
+		associatedPullRequests(first: 2) {
+			nodes { number state repository { nameWithOwner } headRepositoryOwner { login } }
+		}
 	}
 `;
 
@@ -50,6 +53,12 @@ const REFS_QUERY = `
 	}
 `;
 
+type RawPr = {
+	number: number;
+	state: 'OPEN' | 'CLOSED' | 'MERGED';
+	repository: { nameWithOwner: string };
+	headRepositoryOwner: { login: string } | null;
+};
 type RawCommit = {
 	oid: string;
 	abbreviatedOid: string;
@@ -57,6 +66,7 @@ type RawCommit = {
 	committedDate: string;
 	author: { name: string | null; user: { login: string } | null } | null;
 	parents: { nodes: { oid: string }[] };
+	associatedPullRequests: { nodes: RawPr[] };
 };
 type PageRaw = {
 	repository: {
@@ -85,12 +95,26 @@ type RepoRefs = {
 };
 
 const graphKey = (owner: string, name: string) =>
-	`repo:commit-graph:v2:${owner}/${name}`.toLowerCase();
+	`repo:commit-graph:v4:${owner}/${name}`.toLowerCase();
 const refsKey = (owner: string, name: string) =>
 	`repo:commit-refs:v1:${owner}/${name}`.toLowerCase();
 
+// The PR that introduced a commit, skipping PRs raised against some other repo (the
+// first association can belong to upstream when viewing a fork, hence first: 2). A
+// missing head owner means the fork was deleted, so that still counts as external
+function toPr(nodes: RawPr[], owner: string, name: string): CommitPr | null {
+	const repoPath = `${owner}/${name}`.toLowerCase();
+	const pr = nodes.find((node) => node.repository.nameWithOwner.toLowerCase() === repoPath);
+	if (!pr) return null;
+	return {
+		number: pr.number,
+		state: pr.state.toLowerCase() as CommitPr['state'],
+		external: pr.headRepositoryOwner?.login.toLowerCase() !== owner.toLowerCase()
+	};
+}
+
 // Shape one raw commit, dropping parents back to bare oids for the DAG
-function toCommit(raw: RawCommit): GraphCommit {
+function toCommit(raw: RawCommit, owner: string, name: string): GraphCommit {
 	return {
 		oid: raw.oid,
 		short: raw.abbreviatedOid,
@@ -99,7 +123,8 @@ function toCommit(raw: RawCommit): GraphCommit {
 		author: raw.author?.name ?? null,
 		login: raw.author?.user?.login ?? null,
 		parents: raw.parents.nodes.map((parent) => parent.oid),
-		refs: []
+		refs: [],
+		pr: toPr(raw.associatedPullRequests.nodes, owner, name)
 	};
 }
 
@@ -166,7 +191,7 @@ async function fetchHistoryPage(
 	const history = data.repository?.ref?.target?.history;
 	if (!history) return { commits: [], nextCursor: null };
 	return {
-		commits: history.nodes.map(toCommit),
+		commits: history.nodes.map((node) => toCommit(node, owner, name)),
 		nextCursor: history.pageInfo.hasNextPage ? history.pageInfo.endCursor : null
 	};
 }
@@ -183,6 +208,9 @@ export async function getRepoCommitPage(
 	for (const commit of page.commits) commit.refs = refs.byOid[commit.oid] ?? [];
 	return page;
 }
+
+export const isRepoCommitGraphCached = (owner: string, name: string) =>
+	isCached(graphKey(owner, name));
 
 // Initial history graph for the default branch: the first page plus the branch and tag
 // context the picker and labels need. Further pages stream in via getRepoCommitPage
