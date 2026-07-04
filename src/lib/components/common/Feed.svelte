@@ -2,7 +2,7 @@
 	import { untrack, type Snippet } from 'svelte';
 	import { Loader2 } from '@lucide/svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
-	import { toDisplayError } from '$lib/errors';
+	import { toDisplayError } from '$lib/utils/errors';
 
 	type Page = { items: T[]; nextCursor: string | null };
 	type Props = {

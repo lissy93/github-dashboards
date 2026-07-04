@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
-	import { compactNumber, formatDate, formatNumber } from '$lib/format';
+	import { compactNumber, formatDate, formatNumber } from '$lib/utils/format';
 	import type { LifecycleData, LifecycleRow } from '$lib/views/stats';
 
 	let { data, limit }: { data: LifecycleData; limit?: number } = $props();

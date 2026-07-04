@@ -1,6 +1,7 @@
-import { graphql } from '$lib/server/github/client';
+import type { DeployRecord, EnvironmentSummary, RepoDeployments } from '$lib/types';
+import { paginate } from '$lib/server/github/client';
 import { cached, isCached } from '$lib/server/cache';
-import { bucketOutcomes, type OutcomeBucket } from '$lib/views/outcomes';
+import { bucketOutcomes } from '$lib/utils/outcomes';
 import { deployBand } from '$lib/views/repo-deployments';
 
 // Deployments move on push, refresh on visit like the rest of the board
@@ -10,34 +11,6 @@ const MAX_PAGES = 5;
 const PAGE = 100;
 // Rows kept for the recent-deployments table
 const RECENT_LIMIT = 50;
-
-export type DeployRecord = {
-	environment: string;
-	state: string | null;
-	ref: string | null;
-	commitOid: string;
-	creator: string | null;
-	createdAt: string;
-	url: string | null;
-	logUrl: string | null;
-	description: string | null;
-};
-export type EnvironmentSummary = {
-	name: string;
-	count: number;
-	last: DeployRecord | null;
-	live: DeployRecord | null;
-	protected: boolean;
-};
-export type RepoDeployments = {
-	totalDeployments: number;
-	sampled: boolean;
-	successRate: number | null;
-	lastDeployAt: string | null;
-	environments: EnvironmentSummary[];
-	recent: DeployRecord[];
-	frequency: OutcomeBucket[];
-};
 
 const EMPTY: RepoDeployments = {
 	totalDeployments: 0,
@@ -146,21 +119,25 @@ function summariseEnvironments(nodes: EnvNode[], records: DeployRecord[]): Envir
 }
 
 async function fetchDeployments(owner: string, name: string): Promise<RepoDeployments> {
-	const records: DeployRecord[] = [];
 	let envNodes: EnvNode[] = [];
 	let total = 0;
-	let cursor: string | null = null;
-
-	for (let page = 0; page < MAX_PAGES; page++) {
-		const { repository }: RawPage = await graphql<RawPage>(QUERY, { owner, name, cursor });
-		if (!repository) return EMPTY;
-		if (!page) envNodes = repository.environments.nodes;
-		total = repository.deployments.totalCount;
-		records.push(...repository.deployments.nodes.map(toRecord));
-		if (!repository.deployments.pageInfo.hasNextPage) break;
-		cursor = repository.deployments.pageInfo.endCursor;
-	}
-	if (!total) return EMPTY;
+	let missing = false;
+	const { nodes } = await paginate<RawDeployment, RawPage>(
+		QUERY,
+		{ owner, name },
+		({ repository }) => {
+			if (!repository) {
+				missing = true;
+				return null;
+			}
+			if (!envNodes.length) envNodes = repository.environments.nodes;
+			total = repository.deployments.totalCount;
+			return repository.deployments;
+		},
+		{ maxPages: MAX_PAGES }
+	);
+	if (missing || !total) return EMPTY;
+	const records = nodes.map(toRecord);
 
 	const decisive = records.filter((record) => deployBand(record.state) !== 'other');
 	const passed = decisive.filter((record) => deployBand(record.state) === 'success').length;

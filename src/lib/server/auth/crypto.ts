@@ -20,7 +20,8 @@ export function encrypt(plain: string): string {
 // Decrypt a token, null if it is tampered with, malformed or from an old secret
 export function decrypt(token: string): string | null {
 	const [iv, tag, data] = token.split('.').map((part) => Buffer.from(part, 'base64url'));
-	if (!iv?.length || !tag?.length || !data?.length) return null;
+	// Node accepts truncated auth tags, so insist on the full 16 bytes
+	if (iv?.length !== 12 || tag?.length !== 16 || !data?.length) return null;
 	try {
 		const decipher = createDecipheriv(ALGO, key(), iv);
 		decipher.setAuthTag(tag);

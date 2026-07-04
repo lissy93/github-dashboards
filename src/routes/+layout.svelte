@@ -11,24 +11,26 @@
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 
 <TopBar user={data.user} loginEnabled={data.loginEnabled} />
-{#if data.storageDegraded}
+{#snippet warning(children: import('svelte').Snippet)}
 	<div
 		role="status"
 		class="bg-warning/10 text-warning flex items-center justify-center gap-2 border-b px-4 py-1.5 text-xs"
 	>
 		<Icon icon={TriangleAlert} size={14} />
-		Storage unavailable, showing live data without cache
+		{@render children()}
 	</div>
+{/snippet}
+
+{#if data.storageDegraded}
+	{#snippet storageText()}Storage unavailable, showing live data without cache{/snippet}
+	{@render warning(storageText)}
 {/if}
 {#if data.tokenMissing && !data.user}
-	<div
-		role="status"
-		class="bg-warning/10 text-warning flex items-center justify-center gap-2 border-b px-4 py-1.5 text-xs"
-	>
-		<Icon icon={TriangleAlert} size={14} />
+	{#snippet tokenText()}
 		No GitHub token set, data is limited.{#if data.loginEnabled}
 			<a href="/auth/github" class="underline underline-offset-2">Sign in with GitHub</a> for full access{/if}
-	</div>
+	{/snippet}
+	{@render warning(tokenText)}
 {/if}
 <main class="mx-auto max-w-7xl px-4 py-6">
 	{@render children()}

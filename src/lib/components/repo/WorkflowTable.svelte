@@ -1,36 +1,24 @@
 <script lang="ts">
-	import {
-		CircleCheck,
-		CircleX,
-		CircleDashed,
-		ExternalLink,
-		ChevronUp,
-		ChevronDown,
-		Activity
-	} from '@lucide/svelte';
+	import { ChevronUp, ChevronDown, Activity } from '@lucide/svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import Hint from '$lib/components/common/Hint.svelte';
-	import { Button } from '$lib/components/ui/button';
-	import { runState, formatDuration } from '$lib/views/repo';
-	import { relativeTime, formatDateTime } from '$lib/format';
+	import ExtLink from '$lib/components/common/ExtLink.svelte';
+	import TimeAgo from '$lib/components/common/TimeAgo.svelte';
+	import LoadMore from '$lib/components/common/LoadMore.svelte';
+	import { STATUS_GLYPH } from '$lib/components/repo/status-glyph';
+	import { runState } from '$lib/views/repo';
+	import { formatDuration, formatPercent } from '$lib/utils/format';
 	import { cn } from '$lib/utils';
-	import type { WorkflowSummary } from '$lib/server/github/workflows';
+	import type { WorkflowSummary } from '$lib/types';
 
-	const INITIAL = 20;
 	const STEP = 20;
 
 	// Compact mode progressively hides detail as its container narrows
 	let { workflows, compact = false }: { workflows: WorkflowSummary[]; compact?: boolean } =
 		$props();
 
-	let shown = $state(INITIAL);
+	let shown = $state(STEP);
 
-	const STATE_ICON = {
-		success: { icon: CircleCheck, color: 'text-success' },
-		danger: { icon: CircleX, color: 'text-danger' },
-		warning: { icon: CircleDashed, color: 'text-warning' },
-		muted: { icon: CircleDashed, color: 'text-muted-foreground' }
-	};
 	// Failing first when sorting by status, so the rows needing attention surface
 	const STATE_RANK = { danger: 0, warning: 1, success: 2, muted: 3 };
 
@@ -71,8 +59,6 @@
 		}
 	];
 
-	const pct = (rate: number | null) => (rate == null ? '-' : `${Math.round(rate * 100)}%`);
-
 	// Short labels for common workflow trigger events
 	const EVENT_LABELS: Record<string, string> = {
 		push: 'push',
@@ -83,8 +69,7 @@
 		repository_dispatch: 'dispatch',
 		workflow_call: 'reusable'
 	};
-	const eventLabel = (event: string) =>
-		EVENT_LABELS[event] ?? event.replace(/_/g, ' ');
+	const eventLabel = (event: string) => EVENT_LABELS[event] ?? event.replace(/_/g, ' ');
 
 	let sortKey = $state<SortKey>('name');
 	let sortDir = $state<'asc' | 'desc'>('asc');
@@ -130,7 +115,7 @@
 	type Row = {
 		workflow: WorkflowSummary;
 		state: ReturnType<typeof runState>;
-		glyph: (typeof STATE_ICON)[keyof typeof STATE_ICON];
+		glyph: (typeof STATUS_GLYPH)[keyof typeof STATUS_GLYPH];
 	};
 
 	const sorted = $derived(
@@ -140,12 +125,11 @@
 					workflow.latest?.status ?? null,
 					workflow.latest?.conclusion ?? null
 				);
-				return { workflow, state, glyph: STATE_ICON[state.token] };
+				return { workflow, state, glyph: STATUS_GLYPH[state.token] };
 			})
 			.sort(compare)
 	);
 	const rows = $derived(compact ? sorted : sorted.slice(0, shown));
-	const remaining = $derived(compact ? 0 : sorted.length - shown);
 
 	const headerColumns = $derived(COLUMNS.filter((col) => !(compact && col.bigOnly)));
 	const cellClass = (col: (typeof COLUMNS)[number]) =>
@@ -204,18 +188,7 @@
 					>
 						<div class="truncate">
 							{#if workflow.latest?.runUrl}
-								<a
-									href={workflow.latest.runUrl}
-									target="_blank"
-									rel="noopener noreferrer"
-									class="inline-flex items-center gap-1 hover:underline"
-								>
-									{workflow.name}<Icon
-										icon={ExternalLink}
-										size={12}
-										class="text-muted-foreground"
-									/>
-								</a>
+								<ExtLink href={workflow.latest.runUrl}>{workflow.name}</ExtLink>
 							{:else}{workflow.name}{/if}
 							{#if workflow.state.startsWith('disabled')}
 								<Hint text="Workflow disabled" class="text-muted-foreground ml-1.5 align-middle">
@@ -246,7 +219,7 @@
 							cellClass(COLUMNS[2])
 						)}
 					>
-						{pct(workflow.passRate)}
+						{formatPercent(workflow.passRate)}
 					</td>
 					{#if !compact}
 						<td
@@ -275,9 +248,7 @@
 						)}
 					>
 						{#if workflow.latest?.createdAt}
-							<Hint text={formatDateTime(workflow.latest.createdAt)}>
-								{relativeTime(workflow.latest.createdAt)}
-							</Hint>
+							<TimeAgo date={workflow.latest.createdAt} />
 						{:else}-{/if}
 					</td>
 					{#if compact}<td class="w-full"></td>{/if}
@@ -287,10 +258,6 @@
 	</table>
 </div>
 
-{#if remaining > 0}
-	<div class="mt-3 flex justify-center">
-		<Button variant="outline" size="sm" onclick={() => (shown += STEP)}>
-			<Icon icon={ChevronDown} size={14} />Load more ({remaining})
-		</Button>
-	</div>
+{#if !compact}
+	<LoadMore total={sorted.length} step={STEP} bind:shown resetKey={workflows} />
 {/if}

@@ -1,9 +1,9 @@
-import { graphql } from '$lib/server/github/client';
+import { batchedGraphql, graphql } from '$lib/server/github/client';
 import { getUserOverview } from '$lib/server/github/user';
 import { cached, isCached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
-import { createLogger } from '$lib/logger';
-import { AppError } from '$lib/errors';
+import { createLogger } from '$lib/utils/logger';
+import { AppError } from '$lib/utils/errors';
 import type { LanguageUsage, RepoLang, Repo } from '$lib/types';
 
 const log = createLogger('languages');
@@ -14,30 +14,18 @@ const CHUNK_CONCURRENCY = 3;
 type Edge = { size: number; node: { name: string; color: string | null } };
 type RepoLanguages = { languages: { edges: Edge[] } } | null;
 
-// One aliased repository field per repo, so a chunk loads in a single request
-function chunkQuery(size: number): string {
-	const params = Array.from(
-		{ length: size },
-		(_, index) => `$o${index}: String!, $n${index}: String!`
-	);
-	const fields = Array.from(
-		{ length: size },
-		(_, index) =>
-			`r${index}: repository(owner: $o${index}, name: $n${index}) {
-				languages(first: 100, orderBy: { field: SIZE, direction: DESC }) { edges { size node { name color } } }
-			}`
-	);
-	return `query RepoLanguages(${params.join(', ')}) { ${fields.join('\n')} }`;
-}
-
 // One chunk's repos resolved to their language byte breakdowns, keyed by repo
 async function fetchChunk(repos: Repo[]): Promise<Record<string, RepoLang[]>> {
-	const variables: Record<string, string> = {};
-	repos.forEach((repo, index) => {
-		variables[`o${index}`] = repo.owner;
-		variables[`n${index}`] = repo.name;
-	});
-	const data = await graphql<Record<string, RepoLanguages>>(chunkQuery(repos.length), variables);
+	const data = await batchedGraphql<Repo, RepoLanguages>(
+		'RepoLanguages',
+		repos,
+		(index) => `$o${index}: String!, $n${index}: String!`,
+		(index) =>
+			`r${index}: repository(owner: $o${index}, name: $n${index}) {
+				languages(first: 100, orderBy: { field: SIZE, direction: DESC }) { edges { size node { name color } } }
+			}`,
+		(repo, index) => ({ [`o${index}`]: repo.owner, [`n${index}`]: repo.name })
+	);
 	const out: Record<string, RepoLang[]> = {};
 	repos.forEach((repo, index) => {
 		const node = data[`r${index}`];

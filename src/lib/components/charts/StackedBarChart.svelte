@@ -4,8 +4,8 @@
 	import ChartTooltip from './ChartTooltip.svelte';
 	import ChartLegend from './ChartLegend.svelte';
 	import { legendState } from './legend.svelte';
-	import { compactNumber, formatNumber } from '$lib/format';
-	import type { StackBar, StackSeries } from '$lib/views/stats';
+	import { compactNumber, formatNumber } from '$lib/utils/format';
+	import type { StackBar, StackSeries } from '$lib/types/charts';
 
 	let {
 		bars,

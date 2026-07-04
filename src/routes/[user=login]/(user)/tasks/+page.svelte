@@ -3,10 +3,12 @@
 	import ItemRow from '$lib/components/tasks/ItemRow.svelte';
 	import ErrorState from '$lib/components/common/ErrorState.svelte';
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import { TASK_BUCKETS, TASK_COLUMNS } from '$lib/components/tasks/tasks-config';
+	import { TASK_BUCKETS } from '$lib/components/tasks/tasks-config';
+	import { TASK_COLUMNS } from '$lib/config/tasks';
 	import { paths, APP_NAME } from '$lib/config';
 	import type { TaskBucket } from '$lib/types';
 	import type { PageData } from './$types';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -16,10 +18,10 @@
 	}
 </script>
 
-<svelte:head>
-	<title>{data.user} tasks · {APP_NAME}</title>
-	<meta name="description" content="Open issues and PRs for {data.user} on {APP_NAME}" />
-</svelte:head>
+<PageMeta
+	title={`${data.user} tasks`}
+	description={`Open issues and PRs for ${data.user} on ${APP_NAME}`}
+/>
 
 {#await data.result}
 	<div class="grid gap-5 lg:grid-cols-2">

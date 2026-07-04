@@ -20,7 +20,13 @@
 	import Icon from '$lib/components/common/Icon.svelte';
 	import StatTile from '$lib/components/common/StatTile.svelte';
 	import Hint from '$lib/components/common/Hint.svelte';
-	import { compactNumber, formatNumber, formatSize, formatDate, formatDateTime } from '$lib/format';
+	import {
+		compactNumber,
+		formatNumber,
+		formatSize,
+		formatDate,
+		formatDateTime
+	} from '$lib/utils/format';
 	import type { Repo, RepoStats } from '$lib/types';
 
 	let { repo, stats }: { repo: Repo; stats?: RepoStats } = $props();

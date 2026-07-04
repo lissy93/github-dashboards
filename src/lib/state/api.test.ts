@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { loadJson, loadOwnedMap } from '$lib/owned-maps';
+import { loadJson, loadOwnedMap } from '$lib/state/api';
 
 afterEach(() => vi.unstubAllGlobals());
 

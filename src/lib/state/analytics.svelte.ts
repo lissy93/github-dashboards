@@ -1,5 +1,5 @@
-import { createLogger } from '$lib/logger';
-import type { DisplayError } from '$lib/errors';
+import { createLogger } from '$lib/utils/logger';
+import type { DisplayError } from '$lib/utils/errors';
 import type { UserAnalytics } from '$lib/types';
 
 const log = createLogger('analytics');

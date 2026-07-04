@@ -1,14 +1,15 @@
 <script lang="ts">
 	import RepoActivityFeed from '$lib/components/repo/RepoActivityFeed.svelte';
-	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
 </script>
 
-<svelte:head>
-	<title>Activity · {data.repo.nameWithOwner} · {APP_NAME}</title>
-</svelte:head>
+<PageMeta
+	title={`Activity · ${data.repo.nameWithOwner}`}
+	description={`Commit, release and community activity for ${data.repo.nameWithOwner}`}
+/>
 
 <RepoActivityFeed
 	user={data.user}

@@ -1,7 +1,7 @@
 import { graphql } from '$lib/server/github/client';
 import { REPO_FIELDS, mapRepo, type RawRepo } from '$lib/server/github/user';
-import { cached, isCached } from '$lib/server/cache';
-import { AppError } from '$lib/errors';
+import { cached } from '$lib/server/cache';
+import { AppError } from '$lib/utils/errors';
 import type { Repo } from '$lib/types';
 
 // Header data is cheap and slow moving, but counts should not go too stale
@@ -15,9 +15,6 @@ const QUERY = `
 `;
 
 const repoKey = (owner: string, name: string) => `repo:meta:1:${owner}/${name}`.toLowerCase();
-
-// Whether this repo is already cached, so the page can render it inline
-export const isRepoCached = (owner: string, name: string) => isCached(repoKey(owner, name));
 
 // Private repos are visible only on their owner's signed-in board
 export function canViewRepo(repo: Repo, viewerLogin: string | null | undefined): boolean {

@@ -3,7 +3,7 @@
 	import Icon from '$lib/components/common/Icon.svelte';
 	import Metric from '$lib/components/common/Metric.svelte';
 	import Hint from '$lib/components/common/Hint.svelte';
-	import { relativeTime, formatDateTime, formatNumber } from '$lib/format';
+	import { relativeTime, formatDateTime, formatNumber, plural } from '$lib/utils/format';
 	import { GITHUB_WEB } from '$lib/config';
 	import { itemIcon, itemColor, CHECK_META, REVIEW_META } from '$lib/components/tasks/tasks-config';
 	import type { TaskItem } from '$lib/types';
@@ -72,7 +72,7 @@
 			<Metric
 				icon={MessageSquare}
 				value={item.comments}
-				label="{item.comments} comment{item.comments === 1 ? '' : 's'}"
+				label="{item.comments} {plural(item.comments, 'comment')}"
 			/>
 		{/if}
 		{#if item.assignees.length}

@@ -1,12 +1,13 @@
 <script lang="ts">
-	import { splinePath } from './chart';
+	import { splinePath, nearestIndex, CHART_PAD } from './chart';
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
+	import Gridlines from './Gridlines.svelte';
 	import type { ContributionCurve } from '$lib/views/repo-stats';
 
 	let { curve, height = 16 }: { curve: ContributionCurve; height?: number } = $props();
 
-	const PAD = { top: 12, right: 14, bottom: 22, left: 40 };
+	const PAD = { ...CHART_PAD, left: 40 };
 	const GRID = [0, 0.25, 0.5, 0.75, 1];
 	const H = $derived(height * 16);
 
@@ -25,7 +26,8 @@
 		const area = `${line} L${pts.at(-1)!.x} ${baseline} L${pts[0].x} ${baseline} Z`;
 		// The point on the curve where the core team clears its share threshold
 		const coreMark = pts[curve.coreFactor];
-		return { plotW, plotH, baseline, xOf, yOf, pts, line, area, coreMark };
+		const yTicks = GRID.map((level) => ({ label: `${level * 100}%`, y: yOf(level) }));
+		return { plotW, plotH, baseline, xOf, yOf, pts, line, area, coreMark, yTicks };
 	});
 
 	const tip = chartTip();
@@ -33,10 +35,9 @@
 	function move(event: PointerEvent) {
 		if (!svg || !geom.pts.length) return;
 		const x = event.clientX - svg.getBoundingClientRect().left;
-		const nearest = geom.pts.reduce(
-			(best, point, index) =>
-				Math.abs(point.x - x) < Math.abs(geom.pts[best].x - x) ? index : best,
-			0
+		const nearest = nearestIndex(
+			geom.pts.map((point) => point.x),
+			x
 		);
 		hover = nearest;
 		const point = curve.points[nearest];
@@ -65,19 +66,7 @@
 			onpointermove={move}
 			onpointerleave={leave}
 		>
-			{#each GRID as level (level)}
-				{@const y = geom.yOf(level)}
-				<line class="stroke-chart-grid" x1={PAD.left} x2={width - PAD.right} y1={y} y2={y} />
-				<text
-					class="fill-muted-foreground text-[0.65rem] tabular-nums"
-					x={PAD.left - 6}
-					{y}
-					dy="0.32em"
-					text-anchor="end"
-				>
-					{level * 100}%
-				</text>
-			{/each}
+			<Gridlines ticks={geom.yTicks} left={PAD.left} right={width - PAD.right} />
 
 			<line
 				class="stroke-muted-foreground"

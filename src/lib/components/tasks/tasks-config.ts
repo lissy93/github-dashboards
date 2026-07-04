@@ -15,62 +15,27 @@ import {
 	X,
 	Clock
 } from '@lucide/svelte';
+import { TASK_BUCKET_INFO, type BucketInfo } from '$lib/config/tasks';
 import type { CheckState, ReviewDecision, TaskBucket, TaskItem } from '$lib/types';
 
 type IconComponent = Component<{ size?: number | string; class?: string }>;
 
-export type BucketMeta = {
-	title: string;
-	kind: 'pr' | 'issue';
-	section: string;
-	icon: IconComponent;
-	empty: string;
+export type BucketMeta = BucketInfo & { icon: IconComponent };
+
+const BUCKET_ICONS: Record<TaskBucket, IconComponent> = {
+	reviewPrs: GitPullRequest,
+	myPrs: GitPullRequestArrow,
+	reviewIssues: CircleDot,
+	myIssues: CircleDotDashed
 };
 
-// Define each bucket's title, route and icon once, reused on every task surface
-export const TASK_BUCKETS: Record<TaskBucket, BucketMeta> = {
-	reviewPrs: {
-		title: 'PRs to review',
-		kind: 'pr',
-		section: 'prs-review',
-		icon: GitPullRequest,
-		empty: 'No open PRs to review'
-	},
-	myPrs: {
-		title: 'Your PRs',
-		kind: 'pr',
-		section: 'my-prs',
-		icon: GitPullRequestArrow,
-		empty: 'No open PRs opened by you'
-	},
-	reviewIssues: {
-		title: 'Issues to review',
-		kind: 'issue',
-		section: 'issues-review',
-		icon: CircleDot,
-		empty: 'No open issues to review'
-	},
-	myIssues: {
-		title: 'Your issues',
-		kind: 'issue',
-		section: 'my-issues',
-		icon: CircleDotDashed,
-		empty: 'No open issues opened by you'
-	}
-};
-
-// Overview layout: PR buckets in the left column, issue buckets in the right
-export const TASK_COLUMNS: TaskBucket[][] = [
-	['reviewPrs', 'myPrs'],
-	['reviewIssues', 'myIssues']
-];
-
-export const BUCKET_BY_SECTION: Record<string, TaskBucket> = Object.fromEntries(
-	(Object.keys(TASK_BUCKETS) as TaskBucket[]).map((bucket) => [
-		TASK_BUCKETS[bucket].section,
-		bucket
+// Each bucket's shared info plus its icon, reused on every task surface
+export const TASK_BUCKETS = Object.fromEntries(
+	(Object.keys(TASK_BUCKET_INFO) as TaskBucket[]).map((bucket) => [
+		bucket,
+		{ ...TASK_BUCKET_INFO[bucket], icon: BUCKET_ICONS[bucket] }
 	])
-);
+) as Record<TaskBucket, BucketMeta>;
 
 // State glyph for a row, reflecting merged, closed, draft and open work
 export function itemIcon(item: TaskItem): IconComponent {

@@ -2,8 +2,8 @@
 	import { seriesColor } from './chart';
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
-	import { formatNumber } from '$lib/format';
-	import type { Slice } from '$lib/views/stats';
+	import { formatNumber } from '$lib/utils/format';
+	import type { Slice } from '$lib/types/charts';
 
 	// min and max are font sizes in rem, words scale linearly between them by value
 	let {

@@ -2,9 +2,9 @@
 	import { Star } from '@lucide/svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
 	import StackedAreaChart from '$lib/components/charts/StackedAreaChart.svelte';
-	import { loadJson } from '$lib/owned-maps';
+	import { loadJson } from '$lib/state/api';
 	import { starHistory, type StarBreakdown } from '$lib/views/stats';
-	import type { DisplayError } from '$lib/errors';
+	import type { DisplayError } from '$lib/utils/errors';
 
 	let { user }: { user: string } = $props();
 

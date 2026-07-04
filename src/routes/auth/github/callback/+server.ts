@@ -1,7 +1,7 @@
 import { redirect, error } from '@sveltejs/kit';
 import { completeLogin } from '$lib/server/auth/oauth';
 import { setSession, readState, clearState } from '$lib/server/auth/session';
-import { logError } from '$lib/errors';
+import { logError } from '$lib/utils/errors';
 import { paths } from '$lib/config';
 import type { RequestHandler } from './$types';
 

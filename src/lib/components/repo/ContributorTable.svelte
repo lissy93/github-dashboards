@@ -1,21 +1,16 @@
 <script lang="ts">
-	import { ChevronDown } from '@lucide/svelte';
-	import * as Avatar from '$lib/components/ui/avatar';
-	import Icon from '$lib/components/common/Icon.svelte';
-	import { Button } from '$lib/components/ui/button';
+	import UserAvatar from '$lib/components/common/UserAvatar.svelte';
+	import LoadMore from '$lib/components/common/LoadMore.svelte';
 	import Sparkline from '$lib/components/charts/Sparkline.svelte';
-	import { formatNumber, compactNumber, formatDate, relativeTime } from '$lib/format';
-	import type { ContributorRow } from '$lib/server/github/contributors';
+	import { formatNumber, compactNumber, formatDate, relativeTime } from '$lib/utils/format';
+	import type { ContributorRow } from '$lib/types';
 
-	// Rows shown before the first Load more, and the count each click reveals
-	const INITIAL = 25;
 	const STEP = 25;
 
 	let { contributors }: { contributors: ContributorRow[] } = $props();
 
-	let shown = $state(INITIAL);
+	let shown = $state(STEP);
 	const rows = $derived(contributors.slice(0, shown));
-	const remaining = $derived(contributors.length - shown);
 </script>
 
 <ul class="divide-y">
@@ -24,12 +19,12 @@
 			<span class="text-muted-foreground w-5 shrink-0 text-right text-xs tabular-nums">
 				{index + 1}
 			</span>
-			<Avatar.Root class="size-7 shrink-0 rounded-md border">
-				<Avatar.Image src={person.avatarUrl} alt={person.login} />
-				<Avatar.Fallback class="rounded-md text-xs">
-					{person.login.slice(0, 2).toUpperCase()}
-				</Avatar.Fallback>
-			</Avatar.Root>
+			<UserAvatar
+				login={person.login}
+				src={person.avatarUrl}
+				class="size-7 shrink-0 rounded-md border"
+				fallbackClass="rounded-md text-xs"
+			/>
 			<div class="min-w-0 grow">
 				<a
 					href={person.htmlUrl}
@@ -65,10 +60,4 @@
 	{/each}
 </ul>
 
-{#if remaining > 0}
-	<div class="mt-3 flex justify-center">
-		<Button variant="outline" size="sm" onclick={() => (shown += STEP)}>
-			<Icon icon={ChevronDown} size={14} />Load more ({remaining})
-		</Button>
-	</div>
-{/if}
+<LoadMore total={contributors.length} step={STEP} bind:shown resetKey={contributors} />

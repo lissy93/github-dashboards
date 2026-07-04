@@ -16,15 +16,8 @@
 	import { funFacts } from '$lib/views/stats';
 	import type { ContributionsResult, LanguagesResult, RhythmResult } from '$lib/views/overview';
 
-	let {
-		contributions,
-		rhythm,
-		languages
-	}: {
-		contributions: ContributionsResult;
-		rhythm: RhythmResult;
-		languages: LanguagesResult;
-	} = $props();
+	type Sources = [ContributionsResult, RhythmResult, LanguagesResult];
+	let { result }: { result: Promise<Sources> | Sources } = $props();
 
 	// Icon per fact, keyed by its label so the pure helper stays UI-free
 	const ICONS: Record<string, Component> = {
@@ -38,21 +31,30 @@
 		'Biggest day': Zap
 	};
 
-	const facts = $derived(
+	// A missing side dataset trims facts rather than hiding the panel
+	const facts = (
+		contributions: ContributionsResult,
+		rhythm: RhythmResult,
+		languages: LanguagesResult
+	) =>
 		contributions.ok && contributions.data.total > 0
 			? funFacts(
 					contributions.data,
 					rhythm.ok ? rhythm.data : null,
 					languages.ok ? languages.data : []
 				)
-			: []
-	);
+			: [];
 </script>
 
-<Panel title="Fun facts" icon={Sparkles} empty={!facts.length} emptyText="No fun facts yet">
-	<div class="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8">
-		{#each facts as fact (fact.label)}
-			<StatTile label={fact.label} value={fact.value} hint={fact.hint} icon={ICONS[fact.label]} />
-		{/each}
-	</div>
-</Panel>
+{#await result}
+	<Panel title="Fun facts" icon={Sparkles} loading />
+{:then [contributions, rhythm, languages]}
+	{@const rows = facts(contributions, rhythm, languages)}
+	<Panel title="Fun facts" icon={Sparkles} empty={!rows.length} emptyText="No fun facts yet">
+		<div class="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8">
+			{#each rows as fact (fact.label)}
+				<StatTile label={fact.label} value={fact.value} hint={fact.hint} icon={ICONS[fact.label]} />
+			{/each}
+		</div>
+	</Panel>
+{/await}

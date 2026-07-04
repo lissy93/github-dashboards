@@ -4,8 +4,8 @@ import {
 	withinDays,
 	type OutcomeChart,
 	type OutcomeKind
-} from '$lib/views/outcomes';
-import type { DeployRecord, RepoDeployments } from '$lib/server/github/deployments';
+} from '$lib/utils/outcomes';
+import type { DeployRecord, RepoDeployments } from '$lib/types';
 
 // Trailing windows for the deployment frequency chart, all-time spans the whole sample
 export const DEPLOY_WINDOWS = [

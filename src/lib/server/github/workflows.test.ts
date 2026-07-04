@@ -87,10 +87,7 @@ describe('summarise', () => {
 	});
 
 	it('captures event from the latest run', () => {
-		const result = summarise(workflow, [
-			run({ event: 'schedule' }),
-			run({ event: 'push' })
-		]);
+		const result = summarise(workflow, [run({ event: 'schedule' }), run({ event: 'push' })]);
 		expect(result.latest?.event).toBe('schedule');
 	});
 });

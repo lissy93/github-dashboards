@@ -1,6 +1,6 @@
 import { graphql, rest } from '$lib/server/github/client';
 import { cached, isCached } from '$lib/server/cache';
-import { createLogger } from '$lib/logger';
+import { createLogger } from '$lib/utils/logger';
 import type { RepoTree, TreeNode } from '$lib/types';
 
 const log = createLogger('repo-tree');

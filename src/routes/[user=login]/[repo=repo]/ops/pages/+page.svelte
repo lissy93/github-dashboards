@@ -7,28 +7,25 @@
 		GitBranch,
 		GitCommitHorizontal,
 		Clock,
-		Hammer,
-		ChevronDown
+		Hammer
 	} from '@lucide/svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
 	import StatTileGrid from '$lib/components/common/StatTileGrid.svelte';
 	import type { Tile } from '$lib/components/common/StatTileGrid.svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import Hint from '$lib/components/common/Hint.svelte';
-	import { Button } from '$lib/components/ui/button';
+	import TimeAgo from '$lib/components/common/TimeAgo.svelte';
+	import LoadMore from '$lib/components/common/LoadMore.svelte';
 	import { STATUS_GLYPH } from '$lib/components/repo/status-glyph';
-	import type { RepoPages } from '$lib/server/github/pages';
-	import { relativeTime, formatDateTime } from '$lib/format';
-	import { formatDuration } from '$lib/views/repo';
+	import type { RepoPages } from '$lib/types';
+	import { formatDateTime, formatDuration } from '$lib/utils/format';
 	import { APP_NAME } from '$lib/config';
-	import type { LoadResult } from '$lib/views/overview';
 	import type { PageData } from './$types';
 
-	const INITIAL = 10;
 	const STEP = 10;
 
 	let { data }: { data: PageData } = $props();
-	let shown = $state(INITIAL);
+	let shown = $state(STEP);
 
 	function tiles(p: RepoPages): Tile[] {
 		return [
@@ -55,9 +52,7 @@
 				label: 'Builds',
 				value: String(p.builds.length),
 				icon: Clock,
-				hint: p.builds[0]
-					? `Last build ${formatDateTime(p.builds[0].createdAt)}`
-					: undefined
+				hint: p.builds[0] ? `Last build ${formatDateTime(p.builds[0].createdAt)}` : undefined
 			}
 		];
 	}
@@ -76,8 +71,7 @@
 <div class="space-y-5">
 	{#await data.pages}
 		<Panel title="GitHub Pages" icon={Globe} loading />
-	{:then result}
-		{@const res = result as LoadResult<RepoPages>}
+	{:then res}
 		{#if !res.ok}
 			<Panel title="GitHub Pages" icon={Globe} error={res.error} />
 		{:else if !res.data.enabled}
@@ -153,26 +147,22 @@
 											<span class="text-muted-foreground">-</span>
 										{/if}
 									</td>
-									<td class="text-muted-foreground px-2 py-2 text-right whitespace-nowrap max-sm:hidden">
+									<td
+										class="text-muted-foreground px-2 py-2 text-right whitespace-nowrap max-sm:hidden"
+									>
 										{build.duration ? formatDuration(build.duration) : '-'}
 									</td>
-									<td class="text-muted-foreground px-2 py-2 text-right whitespace-nowrap last:pr-0">
-										<Hint text={formatDateTime(build.createdAt)}>
-											{relativeTime(build.createdAt)}
-										</Hint>
+									<td
+										class="text-muted-foreground px-2 py-2 text-right whitespace-nowrap last:pr-0"
+									>
+										<TimeAgo date={build.createdAt} />
 									</td>
 								</tr>
 							{/each}
 						</tbody>
 					</table>
 				</div>
-				{#if p.builds.length > shown}
-					<div class="mt-3 flex justify-center">
-						<Button variant="outline" size="sm" onclick={() => (shown += STEP)}>
-							<Icon icon={ChevronDown} size={14} />Load more ({p.builds.length - shown})
-						</Button>
-					</div>
-				{/if}
+				<LoadMore total={p.builds.length} step={STEP} bind:shown resetKey={p.builds} />
 			</Panel>
 		{/if}
 	{/await}

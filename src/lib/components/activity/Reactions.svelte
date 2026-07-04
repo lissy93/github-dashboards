@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as Tooltip from '$lib/components/ui/tooltip';
-	import { REACTIONS } from '$lib/reactions';
+	import { REACTIONS } from '$lib/config/reactions';
 	import type { ActivityEvent } from '$lib/types';
 
 	let { event }: { event: ActivityEvent } = $props();

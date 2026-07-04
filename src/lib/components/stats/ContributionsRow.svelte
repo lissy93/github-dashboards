@@ -1,28 +1,43 @@
 <script lang="ts">
 	import { History, ChartPie } from '@lucide/svelte';
-	import Panel from '$lib/components/common/Panel.svelte';
+	import AsyncPanel from '$lib/components/common/AsyncPanel.svelte';
 	import StackedBarChart from '$lib/components/charts/StackedBarChart.svelte';
 	import Donut from '$lib/components/charts/Donut.svelte';
 	import { contributionsPerYear, contributionTypes, CONTRIBUTION_SERIES } from '$lib/views/stats';
-	import { compactNumber } from '$lib/format';
-	import type { UserContributions } from '$lib/types';
+	import { compactNumber } from '$lib/utils/format';
+	import type { ContributionsResult } from '$lib/views/overview';
 
-	let { data }: { data: UserContributions } = $props();
-
-	const perYear = $derived(contributionsPerYear(data.years));
-	const types = $derived(contributionTypes(data.totals));
+	let { result }: { result: Promise<ContributionsResult> | ContributionsResult } = $props();
 </script>
 
 <div class="grid gap-5 lg:grid-cols-3">
-	<Panel
+	<AsyncPanel
 		class="lg:col-span-2"
 		title="Contributions per year"
 		icon={History}
-		empty={perYear.length < 2}
+		{result}
+		empty={(data) => contributionsPerYear(data.years).length < 2}
 	>
-		<StackedBarChart bars={perYear} series={CONTRIBUTION_SERIES} totalUnit="contributions" />
-	</Panel>
-	<Panel title="By type" icon={ChartPie} empty={!types.length}>
-		<Donut data={types} centerLabel={compactNumber(data.total)} valueLabel="Contributions" />
-	</Panel>
+		{#snippet children(data)}
+			<StackedBarChart
+				bars={contributionsPerYear(data.years)}
+				series={CONTRIBUTION_SERIES}
+				totalUnit="contributions"
+			/>
+		{/snippet}
+	</AsyncPanel>
+	<AsyncPanel
+		title="By type"
+		icon={ChartPie}
+		{result}
+		empty={(data) => !contributionTypes(data.totals).length}
+	>
+		{#snippet children(data)}
+			<Donut
+				data={contributionTypes(data.totals)}
+				centerLabel={compactNumber(data.total)}
+				valueLabel="Contributions"
+			/>
+		{/snippet}
+	</AsyncPanel>
 </div>

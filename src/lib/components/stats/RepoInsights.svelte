@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Code, Scale, Activity, Tags, FolderGit2 } from '@lucide/svelte';
-	import Panel from '$lib/components/common/Panel.svelte';
+	import AsyncPanel from '$lib/components/common/AsyncPanel.svelte';
 	import Donut from '$lib/components/charts/Donut.svelte';
 	import HBarList from '$lib/components/charts/HBarList.svelte';
 	import TagCloud from '$lib/components/charts/TagCloud.svelte';
@@ -13,71 +13,83 @@
 		topicCloud,
 		topicCount
 	} from '$lib/views/stats';
-	import { formatDecimal } from '$lib/format';
-	import type { LanguagesResult, RepoLanguagesResult } from '$lib/views/overview';
-	import type { Repo } from '$lib/types';
+	import { combineResults } from '$lib/state/api';
+	import { formatDecimal } from '$lib/utils/format';
+	import type { OverviewResult, LanguagesResult, RepoLanguagesResult } from '$lib/views/overview';
 
 	let {
-		repos,
+		result,
 		languages,
 		repoLanguages
 	}: {
-		repos: Repo[];
+		result: Promise<OverviewResult> | OverviewResult;
 		languages: Promise<LanguagesResult> | LanguagesResult;
 		repoLanguages: Promise<RepoLanguagesResult> | RepoLanguagesResult;
 	} = $props();
 
-	const license = $derived(licenseBreakdown(repos));
-	const recency = $derived(repoRecency(repos));
-	const topics = $derived(topicCloud(repos));
-	const moreTopics = $derived(topicCount(repos) - topics.length);
+	// The per-year split needs both the repo list and per-repo language bytes
+	const perYear = $derived(combineResults(result, repoLanguages));
 </script>
 
-<!-- Repos by creation year, each one repo tall and split across its languages -->
-{#await repoLanguages}
-	<Panel title="Repos created per year" icon={FolderGit2} loading />
-{:then result}
-	{#if result.ok}
-		{@const created = reposPerYear(repos, result.data)}
-		<Panel title="Repos created per year" icon={FolderGit2} empty={!created.bars.length}>
-			<StackedBarChart
-				bars={created.bars}
-				series={created.series}
-				legendLimit={8}
-				format={formatDecimal}
-				totalUnit="repos"
-			/>
-		</Panel>
-	{:else}
-		<Panel title="Repos created per year" icon={FolderGit2} error={result.error} />
-	{/if}
-{/await}
+<AsyncPanel
+	title="Repos created per year"
+	icon={FolderGit2}
+	result={perYear}
+	empty={([overview, langs]) => !reposPerYear(overview.ownedRepos, langs).bars.length}
+>
+	{#snippet children([overview, langs])}
+		{@const created = reposPerYear(overview.ownedRepos, langs)}
+		<StackedBarChart
+			bars={created.bars}
+			series={created.series}
+			legendLimit={8}
+			format={formatDecimal}
+			totalUnit="repos"
+		/>
+	{/snippet}
+</AsyncPanel>
 
-<Panel title="Licenses" icon={Scale} empty={!license.length}>
-	<Donut data={license} valueLabel="Repos" />
-</Panel>
+<AsyncPanel
+	title="Licenses"
+	icon={Scale}
+	{result}
+	empty={(data) => !licenseBreakdown(data.ownedRepos).length}
+>
+	{#snippet children(data)}
+		<Donut data={licenseBreakdown(data.ownedRepos)} valueLabel="Repos" />
+	{/snippet}
+</AsyncPanel>
 
-<Panel title="Repo activity" icon={Activity} empty={!recency.length}>
-	<HBarList data={recency} colored valueLabel="Repos" />
-</Panel>
+<AsyncPanel
+	title="Repo activity"
+	icon={Activity}
+	{result}
+	empty={(data) => !repoRecency(data.ownedRepos).length}
+>
+	{#snippet children(data)}
+		<HBarList data={repoRecency(data.ownedRepos)} colored valueLabel="Repos" />
+	{/snippet}
+</AsyncPanel>
 
-<Panel title="Topics" icon={Tags} empty={!topics.length}>
-	<TagCloud data={topics} more={moreTopics} />
-</Panel>
+<AsyncPanel
+	title="Topics"
+	icon={Tags}
+	{result}
+	empty={(data) => !topicCloud(data.ownedRepos).length}
+>
+	{#snippet children(data)}
+		{@const topics = topicCloud(data.ownedRepos)}
+		<TagCloud data={topics} more={topicCount(data.ownedRepos) - topics.length} />
+	{/snippet}
+</AsyncPanel>
 
 <!-- Languages last, its byte fetch streams in after the repo-derived panels -->
-{#await languages}
-	<Panel title="Top languages" icon={Code} loading />
-{:then result}
-	{#if result.ok}
-		<Panel title="Top languages" icon={Code} empty={!result.data.length}>
-			<Donut
-				data={languageBreakdown(result.data, result.data.length)}
-				legend={languageBreakdown(result.data)}
-				valueLabel="Bytes"
-			/>
-		</Panel>
-	{:else}
-		<Panel title="Top languages" icon={Code} error={result.error} />
-	{/if}
-{/await}
+<AsyncPanel title="Top languages" icon={Code} result={languages} empty={(data) => !data.length}>
+	{#snippet children(data)}
+		<Donut
+			data={languageBreakdown(data, data.length)}
+			legend={languageBreakdown(data)}
+			valueLabel="Bytes"
+		/>
+	{/snippet}
+</AsyncPanel>

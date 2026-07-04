@@ -10,8 +10,8 @@
 	} from '@lucide/svelte';
 	import StatTileGrid from '$lib/components/common/StatTileGrid.svelte';
 	import type { Tile } from '$lib/components/common/StatTileGrid.svelte';
-	import { compactNumber } from '$lib/format';
-	import type { SupplyChainSummary } from '$lib/server/github/supply-chain';
+	import { compactNumber } from '$lib/utils/format';
+	import type { SupplyChainSummary } from '$lib/types';
 
 	let { summary }: { summary: SupplyChainSummary } = $props();
 

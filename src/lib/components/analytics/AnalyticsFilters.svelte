@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { AreaChart, LineChart } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button';
-	import * as Select from '$lib/components/ui/select';
+	import SelectFilter from '$lib/components/filter/SelectFilter.svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import { cn } from '$lib/utils';
 	import {
@@ -17,14 +17,6 @@
 		repos
 	}: { view: AnalyticsView; repos: { value: string; label: string }[] } = $props();
 
-	const windowLabel = $derived(
-		ANALYTICS_WINDOWS.find((window) => window.key === view.windowKey)?.label ?? ''
-	);
-	const grainLabel = $derived(
-		ANALYTICS_GRANULARITY.find((grain) => grain.key === view.granularity)?.label ?? ''
-	);
-	const repoLabel = $derived(repos.find((repo) => repo.value === view.repo)?.label ?? 'All repos');
-
 	// Toggle a metric on the chart, never letting the last one be removed
 	function toggleMetric(key: MetricKey) {
 		const on = view.metrics.includes(key);
@@ -35,34 +27,20 @@
 
 <div class="space-y-3">
 	<div class="flex flex-wrap items-center gap-2">
-		<Select.Root type="single" bind:value={view.windowKey}>
-			<Select.Trigger class="h-9 w-36">{windowLabel}</Select.Trigger>
-			<Select.Content>
-				{#each ANALYTICS_WINDOWS as window (window.key)}
-					<Select.Item value={window.key}>{window.label}</Select.Item>
-				{/each}
-			</Select.Content>
-		</Select.Root>
+		<SelectFilter
+			class="h-9 w-36"
+			options={ANALYTICS_WINDOWS.map(({ key, label }) => ({ value: key, label }))}
+			bind:value={view.windowKey}
+		/>
 
-		<Select.Root type="single" bind:value={view.granularity}>
-			<Select.Trigger class="h-9 w-28">{grainLabel}</Select.Trigger>
-			<Select.Content>
-				{#each ANALYTICS_GRANULARITY as grain (grain.key)}
-					<Select.Item value={grain.key}>{grain.label}</Select.Item>
-				{/each}
-			</Select.Content>
-		</Select.Root>
+		<SelectFilter
+			class="h-9 w-28"
+			options={ANALYTICS_GRANULARITY.map(({ key, label }) => ({ value: key, label }))}
+			bind:value={view.granularity}
+		/>
 
 		{#if repos.length > 1}
-			<Select.Root type="single" bind:value={view.repo}>
-				<Select.Trigger class="h-9 w-44">{repoLabel}</Select.Trigger>
-				<Select.Content>
-					<Select.Item value="">All repos</Select.Item>
-					{#each repos as repo (repo.value)}
-						<Select.Item value={repo.value}>{repo.label}</Select.Item>
-					{/each}
-				</Select.Content>
-			</Select.Root>
+			<SelectFilter class="h-9 w-44" options={repos} allLabel="All repos" bind:value={view.repo} />
 		{/if}
 
 		<Button

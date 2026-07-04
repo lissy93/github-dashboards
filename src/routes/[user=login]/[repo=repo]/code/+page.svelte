@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { Activity, FolderTree, GitGraph, Package } from '@lucide/svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
+	import SummaryPanel from '$lib/components/common/SummaryPanel.svelte';
 	import { supplyChainSummary } from '$lib/views/repo-status';
-	import { paths, APP_NAME } from '$lib/config';
-	import type { LoadResult } from '$lib/views/overview';
+	import { paths } from '$lib/config';
 	import type { PageData } from './$types';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -28,15 +29,12 @@
 			text: 'Interactive commit and branch history graph'
 		}
 	];
-
-	const supplyChainFallback = 'Dependencies, licences and supply-chain risk';
-	const ok = <T,>(result: LoadResult<T>): T | null => (result.ok ? result.data : null);
 </script>
 
-<svelte:head>
-	<title>Code · {data.repo.nameWithOwner} · {APP_NAME}</title>
-	<meta name="description" content="Activity, files and history for {data.repo.nameWithOwner}" />
-</svelte:head>
+<PageMeta
+	title={`Code · ${data.repo.nameWithOwner}`}
+	description={`Activity, files and history for ${data.repo.nameWithOwner}`}
+/>
 
 <div class="grid gap-4 sm:grid-cols-2">
 	{#each cards as card (card.section)}
@@ -49,16 +47,12 @@
 		</Panel>
 	{/each}
 
-	<Panel
+	<SummaryPanel
 		title="Supply chain"
 		icon={Package}
 		href={paths.repoCodeSection(data.user, data.repo.name, 'supply-chain')}
-	>
-		{#await data.supplyChain}
-			<p class="text-muted-foreground text-sm">{supplyChainFallback}</p>
-		{:then res}
-			{@const sc = ok(res)}
-			<p class="text-muted-foreground text-sm">{sc ? supplyChainSummary(sc) : supplyChainFallback}</p>
-		{/await}
-	</Panel>
+		result={data.supplyChain}
+		summary={supplyChainSummary}
+		fallback="Dependencies, licences and supply-chain risk"
+	/>
 </div>

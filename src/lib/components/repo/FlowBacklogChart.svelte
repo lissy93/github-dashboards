@@ -3,8 +3,9 @@
 	import { chartTip } from '$lib/components/charts/chart-tip.svelte';
 	import ChartTooltip from '$lib/components/charts/ChartTooltip.svelte';
 	import ChartLegend from '$lib/components/charts/ChartLegend.svelte';
+	import Gridlines from '$lib/components/charts/Gridlines.svelte';
 	import { legendState } from '$lib/components/charts/legend.svelte';
-	import { compactNumber, formatNumber } from '$lib/format';
+	import { compactNumber, formatNumber } from '$lib/utils/format';
 	import type { FlowChart, FlowSeriesDef } from '$lib/views/repo';
 
 	let {
@@ -105,9 +106,11 @@
 			return { ...series, path: splinePath(points, bars.length > 2), points };
 		});
 
-		const flowTicks: { value: number; up: number; down: number }[] = [];
+		const flowTicks: { label: string; y: number }[] = [];
 		for (let value = 0; value <= flowMax; value += flowStep) {
-			flowTicks.push({ value, up: zeroY - value * flowScale, down: zeroY + value * flowScale });
+			const label = compactNumber(value);
+			flowTicks.push({ label, y: zeroY - value * flowScale });
+			if (value) flowTicks.push({ label, y: zeroY + value * flowScale });
 		}
 		const backTicks: { value: number; y: number }[] = [];
 		for (let value = 0; value <= backMax; value += backStep) {
@@ -174,38 +177,7 @@
 			onpointermove={move}
 			onpointerleave={leave}
 		>
-			{#each geom.flowTicks as tick (tick.value)}
-				<line
-					class="stroke-chart-grid"
-					x1={PAD.left}
-					x2={width - padRight}
-					y1={tick.up}
-					y2={tick.up}
-				/>
-				<text
-					class="fill-muted-foreground text-[0.6rem] tabular-nums"
-					x={PAD.left - 6}
-					y={tick.up}
-					dy="0.32em"
-					text-anchor="end">{compactNumber(tick.value)}</text
-				>
-				{#if tick.value !== 0}
-					<line
-						class="stroke-chart-grid"
-						x1={PAD.left}
-						x2={width - padRight}
-						y1={tick.down}
-						y2={tick.down}
-					/>
-					<text
-						class="fill-muted-foreground text-[0.6rem] tabular-nums"
-						x={PAD.left - 6}
-						y={tick.down}
-						dy="0.32em"
-						text-anchor="end">{compactNumber(tick.value)}</text
-					>
-				{/if}
-			{/each}
+			<Gridlines ticks={geom.flowTicks} left={PAD.left} right={width - padRight} size="0.6rem" />
 
 			<line
 				x1={PAD.left}

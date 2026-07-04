@@ -1,13 +1,5 @@
 <script lang="ts">
-	import {
-		Rocket,
-		CircleCheck,
-		Layers,
-		Clock,
-		TrendingUp,
-		Server,
-		History
-	} from '@lucide/svelte';
+	import { Rocket, CircleCheck, Layers, Clock, TrendingUp, Server, History } from '@lucide/svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
 	import StatTileGrid from '$lib/components/common/StatTileGrid.svelte';
 	import type { Tile } from '$lib/components/common/StatTileGrid.svelte';
@@ -22,15 +14,18 @@
 		defaultDeploymentView,
 		type DeploymentView
 	} from '$lib/views/repo-deployments';
-	import type { RepoDeployments } from '$lib/server/github/deployments';
-	import { compactNumber, relativeTime, formatDateTime } from '$lib/format';
-	import { APP_NAME } from '$lib/config';
+	import type { RepoDeployments } from '$lib/types';
+	import { compactNumber, relativeTime, formatDateTime, formatPercent } from '$lib/utils/format';
 	import type { PageData } from './$types';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
 	let view = $state<DeploymentView>(defaultDeploymentView());
 
-	const pct = (rate: number | null) => (rate == null ? '-' : `${Math.round(rate * 100)}%`);
+	// Fresh filters when the route swaps to another repo
+	$effect(() => {
+		if (data.repo.nameWithOwner) view = defaultDeploymentView();
+	});
 
 	function tiles(d: RepoDeployments, environments: number): Tile[] {
 		return [
@@ -50,12 +45,12 @@
 			},
 			{
 				label: 'Success rate',
-				value: pct(d.successRate),
+				value: formatPercent(d.successRate),
 				icon: CircleCheck,
 				hint:
 					d.successRate == null
 						? 'No deployments have reached a final status yet'
-						: `Of deployments that reached a final status, ${pct(d.successRate)} succeeded`
+						: `Of deployments that reached a final status, ${formatPercent(d.successRate)} succeeded`
 			},
 			{
 				label: 'Last deploy',
@@ -67,9 +62,10 @@
 	}
 </script>
 
-<svelte:head>
-	<title>Deployments · {data.repo.nameWithOwner} · {APP_NAME}</title>
-</svelte:head>
+<PageMeta
+	title={`Deployments · ${data.repo.nameWithOwner}`}
+	description={`Environments, deploy status and frequency for ${data.repo.nameWithOwner}`}
+/>
 
 <div class="space-y-5">
 	{#await data.deployments}
@@ -84,10 +80,7 @@
 			{@const deployedEnvs = d.environments.filter((env) => env.count > 0)}
 			{@const freq = frequencyChart(d, view.windowKey)}
 			{@const recent = filteredRecent(d, view.environment)}
-			<StatTileGrid
-				tiles={tiles(d, deployedEnvs.length)}
-				class="sm:grid-cols-2 lg:grid-cols-4"
-			/>
+			<StatTileGrid tiles={tiles(d, deployedEnvs.length)} class="sm:grid-cols-2 lg:grid-cols-4" />
 
 			<DeploymentFilters bind:view environments={environmentOptions(d)} />
 
@@ -116,9 +109,7 @@
 				empty={recent.length === 0}
 				emptyText="No deployments to this environment"
 			>
-				{#key view.environment}
-					<DeploymentTable deployments={recent} repoUrl={data.repo.url} />
-				{/key}
+				<DeploymentTable deployments={recent} repoUrl={data.repo.url} />
 			</Panel>
 		{/if}
 	{/await}

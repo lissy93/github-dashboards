@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
 	runState,
-	formatDuration,
 	lifecycleBars,
 	cumulativeTicks,
 	pointsInWindow,
@@ -14,6 +13,7 @@ import {
 	activityHeatmap,
 	defaultTimelineView
 } from '$lib/views/repo';
+import { formatDuration } from '$lib/utils/format';
 
 const point = (over: Partial<Parameters<typeof groupPoints>[0][number]> = {}) => ({
 	period: '2024-01-01',

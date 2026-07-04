@@ -1,18 +1,19 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import SearchInput from '$lib/components/common/SearchInput.svelte';
+	import UserAvatar from '$lib/components/common/UserAvatar.svelte';
 	import { browser } from '$app/environment';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
-	import { Tag, Search, GitBranch, GitFork, Loader2 } from '@lucide/svelte';
+	import { Tag, GitBranch, GitFork, Loader2 } from '@lucide/svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import { Input } from '$lib/components/ui/input';
-	import * as Avatar from '$lib/components/ui/avatar';
 	import * as Select from '$lib/components/ui/select';
 	import { computeGraph, laneColor, mergeCommits, type Connector } from '$lib/views/commit-graph';
-	import { relativeTime } from '$lib/format';
-	import { fetchApi } from '$lib/api';
+	import { relativeTime } from '$lib/utils/format';
+	import { fetchApi } from '$lib/state/api';
 	import { GITHUB_WEB } from '$lib/config';
-	import { toDisplayError } from '$lib/errors';
+	import { toDisplayError } from '$lib/utils/errors';
 	import { cn } from '$lib/utils';
 	import type { GraphRow } from '$lib/views/commit-graph';
 	import type { CommitPage, RepoCommitGraph } from '$lib/types';
@@ -53,9 +54,7 @@
 	const railWidth = $derived(Math.max(layout.laneCount, 1) * COL);
 	const needle = $derived(search.trim().toLowerCase());
 	const shownBranches = $derived(
-		graph.branches.filter((name) =>
-			name.toLowerCase().includes(branchFilter.trim().toLowerCase())
-		)
+		graph.branches.filter((name) => name.toLowerCase().includes(branchFilter.trim().toLowerCase()))
 	);
 	const cx = (lane: number) => lane * COL + COL / 2;
 
@@ -103,9 +102,7 @@
 	}
 
 	// A ?branch= param deep-links straight to that branch's history
-	const urlBranch = untrack(() =>
-		browser && !limit ? page.url.searchParams.get('branch') : null
-	);
+	const urlBranch = untrack(() => (browser && !limit ? page.url.searchParams.get('branch') : null));
 	if (urlBranch) selectBranch(urlBranch);
 
 	// Append the next older page, ignoring overlapping triggers and the end
@@ -154,19 +151,12 @@
 			</p>
 
 			<div class="flex items-center gap-2">
-				<div class="relative min-w-36">
-					<Icon
-						icon={Search}
-						size={14}
-						class="text-muted-foreground absolute top-1/2 left-2.5 -translate-y-1/2"
-					/>
-					<Input
-						bind:value={search}
-						placeholder="Search commits"
-						aria-label="Search commits"
-						class="h-8 pl-8 text-xs"
-					/>
-				</div>
+				<SearchInput
+					bind:value={search}
+					placeholder="Search commits"
+					class="min-w-36"
+					inputClass="h-8 pl-8 text-xs"
+				/>
 				<Select.Root
 					type="single"
 					value={branch}
@@ -303,12 +293,14 @@
 									rel="noreferrer"
 									class="hover:text-foreground hidden items-center gap-1.5 sm:flex"
 								>
-									<Avatar.Root size="sm" class="size-5">
-										<Avatar.Image src="{GITHUB_WEB}/{row.commit.login}.png?size=40" alt="" />
-										<Avatar.Fallback class="text-[0.5rem]">
-											{row.commit.login.slice(0, 2).toUpperCase()}
-										</Avatar.Fallback>
-									</Avatar.Root>
+									<UserAvatar
+										login={row.commit.login}
+										src="{GITHUB_WEB}/{row.commit.login}.png?size=40"
+										alt=""
+										size="sm"
+										class="size-5"
+										fallbackClass="text-[0.5rem]"
+									/>
 									{row.commit.author}
 								</a>
 							{:else}

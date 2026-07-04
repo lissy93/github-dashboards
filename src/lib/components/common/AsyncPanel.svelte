@@ -1,7 +1,7 @@
 <script lang="ts" generics="T">
 	import type { Component, Snippet } from 'svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
-	import type { LoadResult } from '$lib/views/overview';
+	import type { LoadResult } from '$lib/types';
 
 	type Props = {
 		title: string;
@@ -14,6 +14,7 @@
 		capped?: (data: T) => boolean;
 		empty?: (data: T) => boolean;
 		class?: string;
+		actions?: Snippet<[T]>;
 		children: Snippet<[T]>;
 	};
 	let {
@@ -27,6 +28,7 @@
 		capped,
 		empty,
 		class: className,
+		actions,
 		children
 	}: Props = $props();
 </script>
@@ -34,6 +36,9 @@
 {#await result}
 	<Panel {title} {icon} {href} class={className} loading />
 {:then res}
+	{#snippet loadedActions()}
+		{#if res.ok}{@render actions?.(res.data)}{/if}
+	{/snippet}
 	<Panel
 		{title}
 		{icon}
@@ -41,19 +46,14 @@
 		{emptyText}
 		{emptyHint}
 		class={className}
+		error={res.ok ? undefined : res.error}
 		count={res.ok ? count?.(res.data) : undefined}
 		capped={res.ok ? (capped?.(res.data) ?? false) : false}
 		empty={res.ok ? (empty?.(res.data) ?? false) : false}
+		actions={res.ok && actions ? loadedActions : undefined}
 	>
 		{#if res.ok}
 			{@render children(res.data)}
-		{:else if res.error.pending}
-			<p class="text-muted-foreground flex items-center gap-2 text-sm">
-				<span class="bg-muted-foreground/60 size-2 shrink-0 animate-pulse rounded-full"></span>
-				{res.error.message}
-			</p>
-		{:else}
-			<p class="text-danger text-sm">{res.error.message}</p>
 		{/if}
 	</Panel>
 {/await}

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { TriangleAlert } from '@lucide/svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
-	import type { DisplayError } from '$lib/errors';
+	import type { DisplayError } from '$lib/utils/errors';
 
 	let { error }: { error: DisplayError } = $props();
 </script>

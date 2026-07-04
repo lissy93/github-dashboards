@@ -4,9 +4,9 @@ import {
 	grade,
 	summariseAlerts,
 	tally,
-	type SecurityAlerts,
 	type SecuritySignals
 } from '$lib/server/github/security';
+import type { SecurityAlerts } from '$lib/types';
 
 const NOW = Date.parse('2026-06-23T00:00:00Z');
 

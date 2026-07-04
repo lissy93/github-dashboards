@@ -3,7 +3,7 @@
 	import Icon from '$lib/components/common/Icon.svelte';
 	import Self from './TreeRow.svelte';
 	import { iconForFile } from '$lib/views/repo-tree';
-	import { formatBytes } from '$lib/format';
+	import { formatBytes } from '$lib/utils/format';
 	import { cn } from '$lib/utils';
 	import type { TreeNode } from '$lib/types';
 

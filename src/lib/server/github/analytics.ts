@@ -1,8 +1,8 @@
 import { getUserOverview } from '$lib/server/github/user';
 import { getRepoTraffic, getTrafficHistory } from '$lib/server/github/traffic';
-import { cached, readCached, writeCached } from '$lib/server/cache';
+import { checkpointed, cached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
-import { logError } from '$lib/errors';
+import { logError } from '$lib/utils/errors';
 import type { AnalyticsItem, UserAnalytics } from '$lib/types';
 
 // Full traffic for many repos is heavy, so bound the fan-out and the repo count
@@ -18,8 +18,6 @@ type AnalyticsState = {
 };
 
 const key = (login: string) => `user:analytics-state:v1:${login.toLowerCase()}`;
-const syncing = new Map<string, Promise<AnalyticsState>>();
-
 // Refresh a rotating repo batch, preserving successful data from earlier batches
 async function syncAnalytics(login: string, current?: AnalyticsState): Promise<AnalyticsState> {
 	const { ownedRepos } = await getUserOverview(login);
@@ -74,31 +72,12 @@ async function syncAnalytics(login: string, current?: AnalyticsState): Promise<A
 	};
 }
 
-async function refreshAnalytics(login: string, current?: AnalyticsState): Promise<AnalyticsState> {
-	const cacheKey = key(login);
-	const running = syncing.get(cacheKey);
-	if (running) return running;
-	const task = syncAnalytics(login, current)
-		.then(async (state) => {
-			await writeCached(cacheKey, state, TTL);
-			return state;
-		})
-		.finally(() => syncing.delete(cacheKey));
-	syncing.set(cacheKey, task);
-	return task;
-}
-
 // Combined traffic analytics, rotating through repos while serving cached snapshots
 export async function getUserAnalytics(login: string): Promise<UserAnalytics> {
-	const cacheKey = key(login);
-	const stored = await readCached<AnalyticsState>(cacheKey).catch(() => null);
-	if (!stored) return (await refreshAnalytics(login)).data;
-	if (Date.now() - stored.fetchedAt.getTime() >= TTL * 1000) {
-		void refreshAnalytics(login, stored.value).catch((caught) =>
-			logError('analytics-refresh', caught)
-		);
-	}
-	return stored.value.data;
+	const state = await checkpointed<AnalyticsState>('user-analytics', key(login), TTL, (current) =>
+		syncAnalytics(login, current)
+	);
+	return state.data;
 }
 
 const repoKey = (owner: string, name: string) => `repo:analytics:1:${owner}/${name}`.toLowerCase();

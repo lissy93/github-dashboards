@@ -1,7 +1,9 @@
 import { and, asc, desc, eq, gt, ilike, lt, notInArray, or, sql, type SQL } from 'drizzle-orm';
-import { graphql, rest } from '$lib/server/github/client';
+import { graphql, rest, paginate } from '$lib/server/github/client';
+import { getRepo } from '$lib/server/github/repo';
+import { buildPunchCard } from '$lib/utils/punch-card';
 import { cached, isCached, readCached, writeCached } from '$lib/server/cache';
-import { logError } from '$lib/errors';
+import { logError } from '$lib/utils/errors';
 import { db } from '$lib/server/db';
 import { activityEvent } from '$lib/server/db/schema';
 import { getUserContributions } from '$lib/server/github/user-stats';
@@ -116,15 +118,19 @@ async function fetchRepoEvents(owner: string, repo: string): Promise<ActivityEve
 	return out;
 }
 
+// The stored events feed public pages, so private repos must never land in the store
+async function repoIsPublic(owner: string, repo: string): Promise<boolean> {
+	const meta = await getRepo(owner, repo);
+	return !!meta && !meta.isPrivate;
+}
+
 // Refresh the newest repo-wide events, throttled per repo
-export function syncRepoActivity(
-	owner: string,
-	repo: string
-): Promise<{ stored: number }> {
+export function syncRepoActivity(owner: string, repo: string): Promise<{ stored: number }> {
 	const fullName = `${owner}/${repo}`;
 	return cached(
 		`activity:repo-sync:${fullName.toLowerCase()}`,
 		async () => {
+			if (!(await repoIsPublic(owner, repo))) return { stored: 0 };
 			const events = await fetchRepoEvents(owner, repo);
 			await store(owner, events);
 			return { stored: events.length };
@@ -137,11 +143,14 @@ type Conn<T> = { nodes: T[]; pageInfo: { hasNextPage: boolean; endCursor: string
 type BackfillProgress = { cursor: string | null; complete: boolean };
 type BackfillState = Record<string, BackfillProgress>;
 
+// Reaction tallies, requested identically by every backfill query
+const REACTIONS = 'reactionGroups { content reactors { totalCount } }';
+
 const PR_QUERY = `
 	query BackfillPRs($login: String!, $cursor: String) {
 		user(login: $login) {
 			pullRequests(first: ${PER_PAGE}, after: $cursor, orderBy: { field: CREATED_AT, direction: DESC }) {
-				nodes { number title url createdAt mergedAt closedAt repository { nameWithOwner } reactionGroups { content reactors { totalCount } } }
+				nodes { number title url createdAt mergedAt closedAt repository { nameWithOwner } ${REACTIONS} }
 				pageInfo { hasNextPage endCursor }
 			}
 		}
@@ -152,7 +161,7 @@ const ISSUE_QUERY = `
 	query BackfillIssues($login: String!, $cursor: String) {
 		user(login: $login) {
 			issues(first: ${PER_PAGE}, after: $cursor, orderBy: { field: CREATED_AT, direction: DESC }) {
-				nodes { number title url createdAt closedAt repository { nameWithOwner } reactionGroups { content reactors { totalCount } } }
+				nodes { number title url createdAt closedAt repository { nameWithOwner } ${REACTIONS} }
 				pageInfo { hasNextPage endCursor }
 			}
 		}
@@ -163,7 +172,7 @@ const DISCUSSION_QUERY = `
 	query BackfillDiscussions($login: String!, $cursor: String) {
 		user(login: $login) {
 			repositoryDiscussions(first: ${PER_PAGE}, after: $cursor, orderBy: { field: CREATED_AT, direction: DESC }) {
-				nodes { number title url createdAt repository { nameWithOwner } reactionGroups { content reactors { totalCount } } }
+				nodes { number title url createdAt repository { nameWithOwner } ${REACTIONS} }
 				pageInfo { hasNextPage endCursor }
 			}
 		}
@@ -175,7 +184,7 @@ const DISCUSSION_COMMENT_QUERY = `
 	query BackfillDiscussionComments($login: String!, $cursor: String) {
 		user(login: $login) {
 			repositoryDiscussionComments(last: ${PER_PAGE}, before: $cursor) {
-				nodes { url createdAt bodyText discussion { number title repository { nameWithOwner } } reactionGroups { content reactors { totalCount } } }
+				nodes { url createdAt bodyText discussion { number title repository { nameWithOwner } } ${REACTIONS} }
 				pageInfo { hasNextPage: hasPreviousPage endCursor: startCursor }
 			}
 		}
@@ -186,7 +195,7 @@ const COMMENT_QUERY = `
 	query BackfillComments($login: String!, $cursor: String) {
 		user(login: $login) {
 			issueComments(first: ${PER_PAGE}, after: $cursor, orderBy: { field: UPDATED_AT, direction: DESC }) {
-				nodes { url createdAt bodyText issue { number title repository { nameWithOwner } } reactionGroups { content reactors { totalCount } } }
+				nodes { url createdAt bodyText issue { number title repository { nameWithOwner } } ${REACTIONS} }
 				pageInfo { hasNextPage endCursor }
 			}
 		}
@@ -198,7 +207,7 @@ const COMMIT_COMMENT_QUERY = `
 	query BackfillCommitComments($login: String!, $cursor: String) {
 		user(login: $login) {
 			commitComments(last: ${PER_PAGE}, before: $cursor) {
-				nodes { url createdAt bodyText repository { nameWithOwner } reactionGroups { content reactors { totalCount } } }
+				nodes { url createdAt bodyText repository { nameWithOwner } ${REACTIONS} }
 				pageInfo { hasNextPage: hasPreviousPage endCursor: startCursor }
 			}
 		}
@@ -220,33 +229,20 @@ const REVIEW_QUERY = `
 
 // Page one authored connection up to the backfill cap, keyed by its field name
 async function fetchBackfill<Node>(
-	login: string,
+	root: 'user' | 'repository',
+	variables: Record<string, unknown>,
 	query: string,
 	field: string,
 	cursor: string | null,
 	pages: number
 ): Promise<{ items: Node[]; progress: BackfillProgress }> {
-	const items: Node[] = [];
-	let complete = false;
-	for (let page = 0; page < pages; page++) {
-		const data: { user: Record<string, Conn<Node>> | null } = await graphql(query, {
-			login,
-			cursor
-		});
-		const conn = data.user?.[field];
-		if (!conn) {
-			complete = true;
-			break;
-		}
-		items.push(...conn.nodes);
-		if (!conn.pageInfo.hasNextPage || !conn.pageInfo.endCursor) {
-			cursor = null;
-			complete = true;
-			break;
-		}
-		cursor = conn.pageInfo.endCursor;
-	}
-	return { items, progress: { cursor, complete } };
+	const result = await paginate<Node, Record<string, Record<string, Conn<Node>> | null>>(
+		query,
+		variables,
+		(data) => data[root]?.[field],
+		{ maxPages: pages, cursor }
+	);
+	return { items: result.nodes, progress: { cursor: result.cursor, complete: result.complete } };
 }
 
 // One bounded page of the last year of submitted reviews, dropping deleted ones
@@ -278,18 +274,27 @@ async function source<T>(
 const backfillKey = (login: string) => `activity:backfill-state:v1:${login.toLowerCase()}`;
 const backfilling = new Map<string, Promise<{ stored: number }>>();
 
+// Resume or start one backfill source: refresh the newest page, then walk older pages
 async function backfillSource<T>(
-	login: string,
+	root: 'user' | 'repository',
+	variables: Record<string, unknown>,
 	query: string,
 	field: string,
 	progress: BackfillProgress
 ): Promise<{ items: T[]; progress: BackfillProgress }> {
 	if (!progress.cursor && !progress.complete) {
-		return fetchBackfill<T>(login, query, field, null, BACKFILL_PAGES);
+		return fetchBackfill<T>(root, variables, query, field, null, BACKFILL_PAGES);
 	}
-	const latest = await fetchBackfill<T>(login, query, field, null, 1);
+	const latest = await fetchBackfill<T>(root, variables, query, field, null, 1);
 	if (progress.complete) return { items: latest.items, progress };
-	const older = await fetchBackfill<T>(login, query, field, progress.cursor, BACKFILL_PAGES);
+	const older = await fetchBackfill<T>(
+		root,
+		variables,
+		query,
+		field,
+		progress.cursor,
+		BACKFILL_PAGES
+	);
 	return { items: [...latest.items, ...older.items], progress: older.progress };
 }
 
@@ -310,19 +315,34 @@ export async function backfillActivity(login: string): Promise<{ stored: number 
 			await Promise.all([
 				source(
 					'prs',
-					() => backfillSource<BackfillItem>(login, PR_QUERY, 'pullRequests', pending('prs')),
+					() =>
+						backfillSource<BackfillItem>(
+							'user',
+							{ login },
+							PR_QUERY,
+							'pullRequests',
+							pending('prs')
+						),
 					pending('prs')
 				),
 				source(
 					'issues',
-					() => backfillSource<BackfillItem>(login, ISSUE_QUERY, 'issues', pending('issues')),
+					() =>
+						backfillSource<BackfillItem>(
+							'user',
+							{ login },
+							ISSUE_QUERY,
+							'issues',
+							pending('issues')
+						),
 					pending('issues')
 				),
 				source(
 					'discussions',
 					() =>
 						backfillSource<DiscussionItem>(
-							login,
+							'user',
+							{ login },
 							DISCUSSION_QUERY,
 							'repositoryDiscussions',
 							pending('discussions')
@@ -333,7 +353,8 @@ export async function backfillActivity(login: string): Promise<{ stored: number 
 					'discussion-comments',
 					() =>
 						backfillSource<DiscussionCommentItem>(
-							login,
+							'user',
+							{ login },
 							DISCUSSION_COMMENT_QUERY,
 							'repositoryDiscussionComments',
 							pending('discussion-comments')
@@ -343,14 +364,21 @@ export async function backfillActivity(login: string): Promise<{ stored: number 
 				source(
 					'comments',
 					() =>
-						backfillSource<CommentItem>(login, COMMENT_QUERY, 'issueComments', pending('comments')),
+						backfillSource<CommentItem>(
+							'user',
+							{ login },
+							COMMENT_QUERY,
+							'issueComments',
+							pending('comments')
+						),
 					pending('comments')
 				),
 				source(
 					'commit-comments',
 					() =>
 						backfillSource<CommitCommentItem>(
-							login,
+							'user',
+							{ login },
 							COMMIT_COMMENT_QUERY,
 							'commitComments',
 							pending('commit-comments')
@@ -398,7 +426,7 @@ const REPO_PR_QUERY = `
 	query RepoBackfillPRs($owner: String!, $name: String!, $cursor: String) {
 		repository(owner: $owner, name: $name) {
 			pullRequests(first: ${PER_PAGE}, after: $cursor, orderBy: { field: CREATED_AT, direction: DESC }) {
-				nodes { number title url createdAt mergedAt closedAt repository { nameWithOwner } author { login } reactionGroups { content reactors { totalCount } } }
+				nodes { number title url createdAt mergedAt closedAt repository { nameWithOwner } author { login } ${REACTIONS} }
 				pageInfo { hasNextPage endCursor }
 			}
 		}
@@ -409,69 +437,12 @@ const REPO_ISSUE_QUERY = `
 	query RepoBackfillIssues($owner: String!, $name: String!, $cursor: String) {
 		repository(owner: $owner, name: $name) {
 			issues(first: ${PER_PAGE}, after: $cursor, orderBy: { field: CREATED_AT, direction: DESC }) {
-				nodes { number title url createdAt closedAt repository { nameWithOwner } author { login } reactionGroups { content reactors { totalCount } } }
+				nodes { number title url createdAt closedAt repository { nameWithOwner } author { login } ${REACTIONS} }
 				pageInfo { hasNextPage endCursor }
 			}
 		}
 	}
 `;
-
-// Page one repo-level connection, same shape as the user-level fetcher
-async function fetchRepoBackfill<Node>(
-	owner: string,
-	name: string,
-	query: string,
-	field: string,
-	cursor: string | null,
-	pages: number
-): Promise<{ items: Node[]; progress: BackfillProgress }> {
-	const items: Node[] = [];
-	let complete = false;
-	for (let page = 0; page < pages; page++) {
-		const data: { repository: Record<string, Conn<Node>> | null } = await graphql(query, {
-			owner,
-			name,
-			cursor
-		});
-		const conn = data.repository?.[field];
-		if (!conn) {
-			complete = true;
-			break;
-		}
-		items.push(...conn.nodes);
-		if (!conn.pageInfo.hasNextPage || !conn.pageInfo.endCursor) {
-			cursor = null;
-			complete = true;
-			break;
-		}
-		cursor = conn.pageInfo.endCursor;
-	}
-	return { items, progress: { cursor, complete } };
-}
-
-// Resume or start a repo-scoped backfill source with the same cursor pattern
-async function repoBackfillSource<T>(
-	owner: string,
-	name: string,
-	query: string,
-	field: string,
-	progress: BackfillProgress
-): Promise<{ items: T[]; progress: BackfillProgress }> {
-	if (!progress.cursor && !progress.complete) {
-		return fetchRepoBackfill<T>(owner, name, query, field, null, BACKFILL_PAGES);
-	}
-	const latest = await fetchRepoBackfill<T>(owner, name, query, field, null, 1);
-	if (progress.complete) return { items: latest.items, progress };
-	const older = await fetchRepoBackfill<T>(
-		owner,
-		name,
-		query,
-		field,
-		progress.cursor,
-		BACKFILL_PAGES
-	);
-	return { items: [...latest.items, ...older.items], progress: older.progress };
-}
 
 const repoBackfilling = new Map<string, Promise<{ stored: number }>>();
 
@@ -486,6 +457,7 @@ export async function backfillRepoActivity(
 	if (running) return running;
 
 	const task = (async () => {
+		if (!(await repoIsPublic(owner, repo))) return { stored: 0 };
 		const stored = await readCached<BackfillState>(cacheKey).catch(() => null);
 		if (stored && Date.now() - stored.fetchedAt.getTime() < BACKFILL_TTL * 1000) {
 			return { stored: 0 };
@@ -496,9 +468,9 @@ export async function backfillRepoActivity(
 			source(
 				'repo-prs',
 				() =>
-					repoBackfillSource<RepoBackfillItem>(
-						owner,
-						repo,
+					backfillSource<RepoBackfillItem>(
+						'repository',
+						{ owner, name: repo },
 						REPO_PR_QUERY,
 						'pullRequests',
 						pending('prs')
@@ -508,9 +480,9 @@ export async function backfillRepoActivity(
 			source(
 				'repo-issues',
 				() =>
-					repoBackfillSource<RepoBackfillItem>(
-						owner,
-						repo,
+					backfillSource<RepoBackfillItem>(
+						'repository',
+						{ owner, name: repo },
 						REPO_ISSUE_QUERY,
 						'issues',
 						pending('issues')
@@ -530,11 +502,7 @@ export async function backfillRepoActivity(
 			events.push(...mapped);
 		}
 		await store(owner, events);
-		await writeCached(
-			cacheKey,
-			{ prs: prs.progress, issues: issues.progress },
-			BACKFILL_TTL
-		);
+		await writeCached(cacheKey, { prs: prs.progress, issues: issues.progress }, BACKFILL_TTL);
 		return { stored: events.length };
 	})().finally(() => repoBackfilling.delete(cacheKey));
 
@@ -545,10 +513,14 @@ export async function backfillRepoActivity(
 // Whether this user has been synced before, so the page renders inline vs streams
 export const isSynced = (login: string) => isCached(`activity:sync:${login.toLowerCase()}`);
 
+// Same gate for repo-wide feeds
+export const isRepoSynced = (owner: string, repo: string) =>
+	isCached(`activity:repo-sync:${owner}/${repo}`.toLowerCase());
+
 // Refreshed hourly, the heavy backfill behind it is itself cached for a day
 const RHYTHM_TTL = 3600;
 
-const rhythmKey = (login: string) => `activity:rhythm:${login.toLowerCase()}`;
+const rhythmKey = (login: string) => `activity:rhythm:v1:${login.toLowerCase()}`;
 
 // Whether the rhythm is built, so the stats page renders inline vs streams
 export const isRhythmReady = (login: string) => isCached(rhythmKey(login));
@@ -569,22 +541,7 @@ export function getActivityRhythm(login: string): Promise<ActivityRhythm> {
 				.where(eq(activityEvent.user, login.toLowerCase()))
 				.groupBy(sql`1, 2`);
 
-			const punch = Array.from({ length: 7 }, () => new Array(24).fill(0));
-			let total = 0;
-			for (const row of rows) {
-				// Postgres dow is Sunday-first, shift so Monday leads the punch card
-				const weekday = (row.dow + 6) % 7;
-				punch[weekday][row.hour] += row.count;
-				total += row.count;
-			}
-
-			let peak: ActivityRhythm['peak'] = null;
-			punch.forEach((row, weekday) =>
-				row.forEach((count, hour) => {
-					if (count > 0 && (!peak || count > peak.count)) peak = { weekday, hour, count };
-				})
-			);
-			return { total, punch, peak };
+			return buildPunchCard(rows.map((row) => [row.dow, row.hour, row.count]));
 		},
 		RHYTHM_TTL
 	);
@@ -695,13 +652,16 @@ export async function getActivityPage(
 	const cursor = options.cursor ? decodeCursor(options.cursor) : null;
 	if (cursor) {
 		const at = new Date(cursor.createdAt);
-		const after = ascending ? gt : lt;
-		conditions.push(
-			or(
-				after(activityEvent.createdAt, at),
-				and(eq(activityEvent.createdAt, at), after(activityEvent.id, cursor.id))
-			)!
-		);
+		// A tampered cursor date would blow up the query serializer, treat it as no cursor
+		if (!Number.isNaN(at.getTime())) {
+			const after = ascending ? gt : lt;
+			conditions.push(
+				or(
+					after(activityEvent.createdAt, at),
+					and(eq(activityEvent.createdAt, at), after(activityEvent.id, cursor.id))
+				)!
+			);
+		}
 	}
 
 	const order = ascending

@@ -5,8 +5,8 @@ import {
 	releaseCadence,
 	labelTreemap
 } from '$lib/views/repo-stats';
-import type { ReleaseRow } from '$lib/server/github/releases';
-import type { LabelCount } from '$lib/server/github/repo-labels';
+import type { ReleaseRow } from '$lib/types';
+import type { LabelCount } from '$lib/types';
 
 // Minimal release for cadence maths, only the dated fields matter here
 const release = (tag: string, publishedAt: string, prerelease = false): ReleaseRow => ({

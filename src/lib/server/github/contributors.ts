@@ -1,8 +1,9 @@
+import type { ContributorRow, WeekChurn, RepoContributors } from '$lib/types';
 import { restResponse } from '$lib/server/github/client';
 import { fetchStatsEndpoint, statsPending } from '$lib/server/github/stats-endpoint';
 import { enrichOwnedRepos } from '$lib/server/github/enrich';
 import { cached, isCached } from '$lib/server/cache';
-import { AppError } from '$lib/errors';
+import { AppError } from '$lib/utils/errors';
 import type { OwnedRepoData } from '$lib/types';
 
 const DAY = 86400;
@@ -36,26 +37,6 @@ export function getOwnedContributors(login: string): Promise<OwnedRepoData<numbe
 		return count > 0 ? count : null;
 	});
 }
-
-export type ContributorRow = {
-	login: string;
-	avatarUrl: string;
-	htmlUrl: string;
-	contributions: number;
-	additions: number;
-	deletions: number;
-	firstCommit: string | null;
-	lastCommit: string | null;
-	spark: number[];
-};
-// One week of repo-wide code churn, additions and deletions across all authors
-export type WeekChurn = { week: string; additions: number; deletions: number };
-export type RepoContributors = {
-	contributors: ContributorRow[];
-	total: number;
-	sampled: boolean;
-	weekly: WeekChurn[];
-};
 
 type StatWeek = { w: number; a: number; d: number; c: number };
 type RawStat = {

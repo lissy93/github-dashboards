@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { niceStep, splinePath } from '$lib/components/charts/chart';
+	import { niceStep, splinePath, nearestIndex, CHART_PAD } from '$lib/components/charts/chart';
 	import { chartTip } from '$lib/components/charts/chart-tip.svelte';
 	import ChartTooltip from '$lib/components/charts/ChartTooltip.svelte';
 	import ChartLegend from '$lib/components/charts/ChartLegend.svelte';
+	import Gridlines from '$lib/components/charts/Gridlines.svelte';
 	import { legendState } from '$lib/components/charts/legend.svelte';
-	import { compactNumber, formatNumber, formatDate } from '$lib/format';
+	import { compactNumber, formatNumber, formatDate } from '$lib/utils/format';
 	import type { ChartData } from '$lib/views/analytics';
 
 	let {
@@ -15,7 +16,7 @@
 		unit
 	}: { data: ChartData; area?: boolean; height?: number; label?: string; unit?: string } = $props();
 
-	const PAD = { top: 12, right: 14, bottom: 22, left: 44 };
+	const PAD = CHART_PAD;
 	const Y_TICKS = 5;
 	const MAX_X_TICKS = 6;
 	const H = $derived(height * 16);
@@ -54,7 +55,7 @@
 		});
 
 		const yTicks = Array.from({ length: Math.floor(axisTop / step) + 1 }, (_, index) => ({
-			value: index * step,
+			label: compactNumber(Math.round(index * step)),
 			y: yOf(index * step)
 		}));
 		// A handful of evenly spaced date labels, readable across any window length
@@ -80,10 +81,7 @@
 	function move(event: PointerEvent) {
 		if (!svg || !geom.xs.length) return;
 		const x = event.clientX - svg.getBoundingClientRect().left;
-		const nearest = geom.xs.reduce(
-			(best, cx, index) => (Math.abs(cx - x) < Math.abs(geom.xs[best] - x) ? index : best),
-			0
-		);
+		const nearest = nearestIndex(geom.xs, x);
 		hover = nearest;
 		tip.show(event, {
 			title: formatDate(data.dates[nearest]),
@@ -113,24 +111,7 @@
 			onpointermove={move}
 			onpointerleave={leave}
 		>
-			{#each geom.yTicks as tick (tick.value)}
-				<line
-					class="stroke-chart-grid"
-					x1={PAD.left}
-					x2={width - PAD.right}
-					y1={tick.y}
-					y2={tick.y}
-				/>
-				<text
-					class="fill-muted-foreground text-[0.65rem] tabular-nums"
-					x={PAD.left - 6}
-					y={tick.y}
-					dy="0.32em"
-					text-anchor="end"
-				>
-					{compactNumber(Math.round(tick.value))}
-				</text>
-			{/each}
+			<Gridlines ticks={geom.yTicks} left={PAD.left} right={width - PAD.right} />
 
 			{#each geom.xTicks as tick (tick.index)}
 				<text

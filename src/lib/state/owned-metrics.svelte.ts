@@ -1,9 +1,9 @@
-import { loadJson } from '$lib/owned-maps';
-import type { DisplayError } from '$lib/errors';
+import { loadJson } from '$lib/state/api';
+import type { DisplayError } from '$lib/utils/errors';
 import type { OwnedRepoData, RepoStats } from '$lib/types';
 
 // Share the heavier per-repo maps across every stats panel
-export function ownedMetrics(user: () => string) {
+export function createOwnedMetrics(user: () => string) {
 	let stats = $state<Record<string, RepoStats>>();
 	let contributors = $state<Record<string, number>>();
 	let statsError = $state<DisplayError>();

@@ -1,7 +1,7 @@
 import { config } from '$lib/server/env';
 import { activeToken } from '$lib/server/auth/context';
-import { AppError, type ErrorCode } from '$lib/errors';
-import { createLogger } from '$lib/logger';
+import { AppError, type ErrorCode } from '$lib/utils/errors';
+import { createLogger } from '$lib/utils/logger';
 
 const log = createLogger('github');
 const TIMEOUT_MS = 15000;
@@ -39,10 +39,13 @@ function release(): void {
 	else active--;
 }
 
+// 'app' pins the shared token, for fetches that feed the shared cache
+export type AuthMode = 'viewer' | 'app';
+
 // headers sent with every GitHub request, using the logged-in token when present.
 // With no token at all we send none, falling back to GitHub's anonymous rate limit
-function baseHeaders(): Record<string, string> {
-	const token = activeToken();
+function baseHeaders(auth: AuthMode): Record<string, string> {
+	const token = auth === 'app' ? config.GITHUB_TOKEN : activeToken();
 	return {
 		...(token ? { Authorization: `Bearer ${token}` } : {}),
 		'User-Agent': 'goard',
@@ -81,7 +84,12 @@ function context(res: Response): string {
 }
 
 // Fetch through the concurrency gate with auth and a timeout, retrying gateway failures
-async function call(url: string, init: RequestInit = {}, label = 'request'): Promise<Response> {
+async function call(
+	url: string,
+	init: RequestInit = {},
+	label = 'request',
+	auth: AuthMode = 'viewer'
+): Promise<Response> {
 	await acquire();
 	try {
 		let lastError: unknown;
@@ -89,7 +97,7 @@ async function call(url: string, init: RequestInit = {}, label = 'request'): Pro
 			try {
 				const res = await fetch(url, {
 					...init,
-					headers: { ...baseHeaders(), ...init.headers },
+					headers: { ...baseHeaders(auth), ...init.headers },
 					signal: AbortSignal.timeout(TIMEOUT_MS)
 				});
 				if (RETRYABLE_STATUS.has(res.status) && attempt < MAX_ATTEMPTS) {
@@ -121,7 +129,8 @@ async function call(url: string, init: RequestInit = {}, label = 'request'): Pro
 // Run a GraphQL query and return its typed data payload
 export async function graphql<T>(
 	query: string,
-	variables: Record<string, unknown> = {}
+	variables: Record<string, unknown> = {},
+	auth: AuthMode = 'viewer'
 ): Promise<T> {
 	// Name the operation so failures point at the query that failed, not just "GraphQL"
 	const label = query.match(/\b(?:query|mutation)\s+(\w+)/)?.[1] ?? 'GraphQL';
@@ -132,7 +141,8 @@ export async function graphql<T>(
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ query, variables })
 		},
-		label
+		label,
+		auth
 	);
 	logRate(res);
 	if (!res.ok) {
@@ -149,7 +159,9 @@ export async function graphql<T>(
 			? 'not_found'
 			: types.has('RATE_LIMITED')
 				? 'rate_limited'
-				: 'upstream';
+				: types.has('FORBIDDEN')
+					? 'forbidden'
+					: 'upstream';
 		throw new AppError(code, message);
 	}
 	if (!body.data) throw new AppError('upstream', 'GitHub returned no data');
@@ -157,8 +169,12 @@ export async function graphql<T>(
 }
 
 // Call a REST endpoint and return the raw Response, null on 404, for header access
-export async function restResponse(path: string, init?: RequestInit): Promise<Response | null> {
-	const res = await call(`${config.GITHUB_API}${path}`, init, path);
+export async function restResponse(
+	path: string,
+	init?: RequestInit,
+	auth: AuthMode = 'viewer'
+): Promise<Response | null> {
+	const res = await call(`${config.GITHUB_API}${path}`, init, path, auth);
 	logRate(res);
 	if (res.status === 404) return null;
 	if (!res.ok) {
@@ -169,7 +185,68 @@ export async function restResponse(path: string, init?: RequestInit): Promise<Re
 }
 
 // Call a GitHub REST endpoint, returning null on 404 so callers can fall back
-export async function rest<T>(path: string, init?: RequestInit): Promise<T | null> {
-	const res = await restResponse(path, init);
+export async function rest<T>(
+	path: string,
+	init?: RequestInit,
+	auth: AuthMode = 'viewer'
+): Promise<T | null> {
+	const res = await restResponse(path, init, auth);
 	return res ? ((await res.json()) as T) : null;
+}
+
+export const PAGE_INFO = 'pageInfo { hasNextPage endCursor }';
+export type Conn<T> = {
+	nodes: T[];
+	pageInfo: { hasNextPage: boolean; endCursor: string | null };
+};
+
+// Walk a cursored connection page by page, up to maxPages. Each page's connection
+// passes through pick, so callers can read totals off it as pages arrive
+export async function paginate<T, D>(
+	query: string,
+	variables: Record<string, unknown>,
+	pick: (data: D) => Conn<T> | null | undefined,
+	options: { maxPages: number; cursor?: string | null },
+	auth: AuthMode = 'viewer'
+): Promise<{ nodes: T[]; cursor: string | null; complete: boolean }> {
+	const nodes: T[] = [];
+	let cursor = options.cursor ?? null;
+	for (let page = 0; page < options.maxPages; page++) {
+		const conn = pick(await graphql<D>(query, { ...variables, cursor }, auth));
+		if (!conn) return { nodes, cursor, complete: true };
+		nodes.push(...conn.nodes);
+		if (!conn.pageInfo.hasNextPage || !conn.pageInfo.endCursor)
+			return { nodes, cursor: null, complete: true };
+		cursor = conn.pageInfo.endCursor;
+	}
+	return { nodes, cursor, complete: false };
+}
+
+// A REST call where some statuses are expected (no access, not enabled), not errors
+export async function restTolerant<T>(
+	path: string,
+	codes: ErrorCode[] = ['forbidden'],
+	auth?: AuthMode
+): Promise<T | null> {
+	try {
+		return await rest<T>(path, undefined, auth);
+	} catch (error) {
+		if (error instanceof AppError && codes.includes(error.code)) return null;
+		throw error;
+	}
+}
+
+// One aliased field per item, so a whole batch resolves in a single round trip
+export function batchedGraphql<T, D>(
+	name: string,
+	items: T[],
+	params: (index: number) => string,
+	field: (index: number) => string,
+	variables: (item: T, index: number) => Record<string, unknown>
+): Promise<Record<string, D>> {
+	if (!items.length) return Promise.resolve({});
+	const paramList = items.map((_, index) => params(index)).join(', ');
+	const fields = items.map((_, index) => field(index)).join('\n');
+	const vars = Object.assign({}, ...items.map((item, index) => variables(item, index)));
+	return graphql<Record<string, D>>(`query ${name}(${paramList}) { ${fields} }`, vars);
 }

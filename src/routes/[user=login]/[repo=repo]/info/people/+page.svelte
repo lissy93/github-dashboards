@@ -1,18 +1,19 @@
 <script lang="ts">
 	import { Users } from '@lucide/svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
-	import AsyncPanel from '$lib/components/repo/AsyncPanel.svelte';
+	import AsyncPanel from '$lib/components/common/AsyncPanel.svelte';
 	import ContributorTable from '$lib/components/repo/ContributorTable.svelte';
 	import AudiencePanels from '$lib/components/repo/AudiencePanels.svelte';
-	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
 </script>
 
-<svelte:head>
-	<title>People · {data.repo.nameWithOwner} · {APP_NAME}</title>
-</svelte:head>
+<PageMeta
+	title={`People · ${data.repo.nameWithOwner}`}
+	description={`Contributors, stargazers and forks for ${data.repo.nameWithOwner}`}
+/>
 
 <div class="grid items-start gap-5 lg:grid-cols-3">
 	<div class="lg:col-span-2">
@@ -43,6 +44,8 @@
 		{:else}
 			<div class="grid gap-5">
 				<Panel title="Stargazers" error={result.error} />
+				<Panel title="Forks" error={result.error} />
+				<Panel title="Watchers" error={result.error} />
 			</div>
 		{/if}
 	{/await}

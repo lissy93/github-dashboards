@@ -28,7 +28,7 @@
 		relativeTime,
 		formatDate,
 		formatDateTime
-	} from '$lib/format';
+	} from '$lib/utils/format';
 	import { paths } from '$lib/config';
 	import type { Repo, RepoExtras } from '$lib/types';
 

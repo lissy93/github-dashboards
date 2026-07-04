@@ -4,7 +4,7 @@
 	import { chartTip } from '$lib/components/charts/chart-tip.svelte';
 	import ChartTooltip from '$lib/components/charts/ChartTooltip.svelte';
 	import { HEATMAP_LEVELS } from '$lib/components/charts/chart';
-	import { compactNumber, formatNumber } from '$lib/format';
+	import { compactNumber, formatNumber } from '$lib/utils/format';
 	import type { HeatmapData, FlowScope } from '$lib/views/repo';
 
 	let {

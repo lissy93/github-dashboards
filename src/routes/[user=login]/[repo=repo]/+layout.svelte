@@ -16,10 +16,14 @@
 	// Header renders at once from the loaded repo, heavier counts fill in when settled
 	let stats = $state<RepoStats>();
 	$effect(() => {
+		let active = true;
 		stats = undefined;
 		Promise.resolve(data.stats).then((result) => {
-			stats = result.ok ? (result.data ?? undefined) : undefined;
+			if (active) stats = result.ok ? (result.data ?? undefined) : undefined;
 		});
+		return () => {
+			active = false;
+		};
 	});
 </script>
 

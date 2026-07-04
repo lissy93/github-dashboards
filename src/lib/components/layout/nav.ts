@@ -163,6 +163,20 @@ export function repoNav(user: string, repo: string, viewer: NavViewer): NavItem[
 	});
 }
 
+// Pill items for one repo tab's sub-nav, hiding owner-only pages from other viewers
+export function repoSubNavItems(
+	section: string,
+	user: string,
+	repo: string,
+	canSeeTraffic: boolean
+): { label: string; href: string }[] {
+	const sub = REPO_SUB_NAVS[section];
+	if (!sub) return [];
+	return sub.list
+		.filter(({ section: slug }) => slug !== 'traffic' || canSeeTraffic)
+		.map(({ label, section: slug }) => ({ label, href: sub.path(user, repo, slug) }));
+}
+
 // Every leaf href in a tree, used for active-route matching
 export function navHrefs(items: NavItem[]): string[] {
 	return items.flatMap((item) => [

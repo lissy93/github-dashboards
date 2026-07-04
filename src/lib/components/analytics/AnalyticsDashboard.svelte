@@ -11,16 +11,16 @@
 		ExternalLink,
 		BookMarked
 	} from '@lucide/svelte';
-	import * as Card from '$lib/components/ui/card';
 	import Panel from '$lib/components/common/Panel.svelte';
 	import StatTile from '$lib/components/common/StatTile.svelte';
+	import StatTileGrid from '$lib/components/common/StatTileGrid.svelte';
 	import ExpandableBarList from '$lib/components/charts/ExpandableBarList.svelte';
 	import ErrorState from '$lib/components/common/ErrorState.svelte';
 	import EmptyState from '$lib/components/common/EmptyState.svelte';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import MetricTimeChart from '$lib/components/analytics/MetricTimeChart.svelte';
 	import AnalyticsFilters from '$lib/components/analytics/AnalyticsFilters.svelte';
-	import { createAnalytics } from '$lib/analytics.svelte';
+	import { createAnalytics } from '$lib/state/analytics.svelte';
 	import {
 		defaultAnalyticsView,
 		aggregate,
@@ -33,7 +33,7 @@
 		type AnalyticsView,
 		type MetricKey
 	} from '$lib/views/analytics';
-	import { compactNumber } from '$lib/format';
+	import { compactNumber } from '$lib/utils/format';
 
 	let {
 		user,
@@ -65,11 +65,20 @@
 	const referrers = $derived(data ? topReferrers(data.referrers, view.repo, 100) : []);
 	const byRepo = $derived(data ? viewsByRepo(data.daily, view, 100) : []);
 	const showByRepo = $derived(repos.length > 1 && !view.repo);
+
+	const metricTiles = $derived(
+		metricTotals.map((metric) => ({
+			label: metric.label,
+			value: compactNumber(metric.value),
+			icon: METRIC_ICONS[metric.key],
+			delta: metric.delta
+		}))
+	);
 </script>
 
 {#if analytics.loading}
 	<div class="space-y-4">
-		<Skeleton class="h-24 w-full" />
+		<StatTileGrid loading={5} class="sm:grid-cols-3 lg:grid-cols-5" />
 		<Skeleton class="h-9 w-full" />
 		<Skeleton class="h-72 w-full" />
 	</div>
@@ -104,16 +113,7 @@
 	</div>
 {:else}
 	<div class="space-y-4">
-		<Card.Root class="grid grid-cols-2 gap-4 p-4 sm:grid-cols-3 lg:grid-cols-5">
-			{#each metricTotals as metric (metric.key)}
-				<StatTile
-					label={metric.label}
-					value={compactNumber(metric.value)}
-					icon={METRIC_ICONS[metric.key]}
-					delta={metric.delta}
-				/>
-			{/each}
-		</Card.Root>
+		<StatTileGrid tiles={metricTiles} class="sm:grid-cols-3 lg:grid-cols-5" />
 
 		<AnalyticsFilters bind:view {repos} />
 

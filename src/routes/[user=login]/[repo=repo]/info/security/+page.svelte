@@ -1,22 +1,24 @@
 <script lang="ts">
 	import { Megaphone, ShieldAlert, ShieldCheck } from '@lucide/svelte';
-	import AsyncPanel from '$lib/components/repo/AsyncPanel.svelte';
+	import AsyncPanel from '$lib/components/common/AsyncPanel.svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
 	import AdvisoryList from '$lib/components/repo/AdvisoryList.svelte';
 	import SecurityChecks from '$lib/components/repo/SecurityChecks.svelte';
 	import SecurityStrip from '$lib/components/repo/SecurityStrip.svelte';
 	import VulnerabilityList from '$lib/components/supply/VulnerabilityList.svelte';
-	import { APP_NAME, paths } from '$lib/config';
+	import { paths } from '$lib/config';
 	import type { PageData } from './$types';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
 
 	const supplyChain = $derived(paths.repoCodeSection(data.user, data.repo.name, 'supply-chain'));
 </script>
 
-<svelte:head>
-	<title>Security · {data.repo.nameWithOwner} · {APP_NAME}</title>
-</svelte:head>
+<PageMeta
+	title={`Security · ${data.repo.nameWithOwner}`}
+	description={`Security checks, alerts and advisories for ${data.repo.nameWithOwner}`}
+/>
 
 <div class="space-y-5">
 	{#await data.security then res}

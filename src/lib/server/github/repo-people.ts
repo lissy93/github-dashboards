@@ -1,40 +1,20 @@
+import type { PersonRow, RepoPeople } from '$lib/types';
 import { rest } from '$lib/server/github/client';
+import { newestStarPage, STAR_PAGE_CAP, STAR_PER_PAGE } from '$lib/server/github/stargazer-page';
 import { getRepo } from '$lib/server/github/repo';
 import { cached, isCached } from '$lib/server/cache';
 import type { Repo } from '$lib/types';
 
 const TTL = 6 * 3600;
-const PER_PAGE = 100;
 // Short side panels, so only a handful of faces each
 const KEEP = 10;
-// GitHub paginates only the first 40k stargazers, past that the tail is old not recent
-const PAGE_CAP = 400;
-const STAR_ACCEPT = 'application/vnd.github.star+json';
 
-export type PersonRow = { login: string; avatarUrl: string; at?: string };
-export type RepoPeople = {
-	stargazers: PersonRow[];
-	stargazersTotal: number;
-	stargazersAvailable: boolean;
-	forks: PersonRow[];
-	forksTotal: number;
-	watchers: PersonRow[];
-	watchersTotal: number;
-};
-
-type RawStar = { starred_at: string; user: { login: string; avatar_url: string } };
 type RawFork = { created_at: string; owner: { login: string; avatar_url: string } };
 type RawUser = { login: string; avatar_url: string };
 
 // Newest stargazers come from the last reachable page, since the listing is oldest first
 async function newestStargazers(repo: Repo): Promise<PersonRow[]> {
-	if (repo.stars === 0 || repo.stars > PAGE_CAP * PER_PAGE) return [];
-	const lastPage = Math.ceil(repo.stars / PER_PAGE);
-	const page =
-		(await rest<RawStar[]>(
-			`/repos/${repo.owner}/${repo.name}/stargazers?per_page=${PER_PAGE}&page=${lastPage}`,
-			{ headers: { Accept: STAR_ACCEPT } }
-		)) ?? [];
+	const page = await newestStarPage(repo);
 	return page
 		.slice(-KEEP)
 		.reverse()
@@ -92,7 +72,7 @@ export function getRepoPeople(owner: string, name: string): Promise<RepoPeople> 
 			return {
 				stargazers,
 				stargazersTotal: repo.stars,
-				stargazersAvailable: repo.stars <= PAGE_CAP * PER_PAGE,
+				stargazersAvailable: repo.stars <= STAR_PAGE_CAP * STAR_PER_PAGE,
 				forks,
 				forksTotal: repo.forks,
 				watchers,

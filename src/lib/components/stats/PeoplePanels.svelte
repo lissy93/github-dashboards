@@ -1,24 +1,28 @@
 <script lang="ts">
 	import { Users, Star, Heart, Building2 } from '@lucide/svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
+	import SegmentedControl from '$lib/components/common/SegmentedControl.svelte';
 	import PeopleList from './PeopleList.svelte';
-	import { userSocial } from '$lib/social.svelte';
-	import { latestStargazers } from '$lib/stargazers.svelte';
-	import { compactNumber, formatNumber, relativeTime } from '$lib/format';
-	import { cn } from '$lib/utils';
-	import type { Org } from '$lib/types';
+	import { lazyEndpoint } from '$lib/state/lazy.svelte';
+	import { compactNumber, formatNumber, relativeTime } from '$lib/utils/format';
+	import type { OverviewResult } from '$lib/views/overview';
+	import type { RecentStar, UserSocial } from '$lib/types';
 
-	let { user, organizations }: { user: string; organizations: Org[] } = $props();
+	let { user, result }: { user: string; result: Promise<OverviewResult> | OverviewResult } =
+		$props();
 
 	// Organizations and sponsors stack in one column, so keep each short
 	const SHOWN = 6;
-	const SORTS = ['newest', 'top'] as const;
+	const SORTS = [
+		{ key: 'newest', label: 'Newest' },
+		{ key: 'top', label: 'Top' }
+	] as const;
 
-	const social = userSocial(() => user);
-	const stars = latestStargazers(() => user);
+	const social = lazyEndpoint<UserSocial>(() => user, 'social');
+	const stars = lazyEndpoint<RecentStar[]>(() => user, 'stargazers');
 	const data = $derived(social.data);
 
-	let sort = $state<(typeof SORTS)[number]>('newest');
+	let sort = $state<(typeof SORTS)[number]['key']>('newest');
 	const followerRows = $derived(
 		(data ? (sort === 'newest' ? data.newestFollowers : data.topFollowers) : []).map((person) => ({
 			...person,
@@ -51,20 +55,12 @@
 	>
 		{#snippet actions()}
 			{#if hasFollowers}
-				<div class="bg-muted text-muted-foreground inline-flex rounded-md p-0.5 text-xs">
-					{#each SORTS as option (option)}
-						<button
-							type="button"
-							onclick={() => (sort = option)}
-							class={cn(
-								'rounded px-2 py-0.5 capitalize transition-colors',
-								sort === option && 'bg-background text-foreground shadow-sm'
-							)}
-						>
-							{option}
-						</button>
-					{/each}
-				</div>
+				<SegmentedControl
+					label="Follower sort"
+					size="sm"
+					options={SORTS.map(({ key, label }) => ({ value: key, label }))}
+					bind:value={sort}
+				/>
 			{/if}
 		{/snippet}
 		{#if followerRows.length}
@@ -85,26 +81,29 @@
 		{/if}
 	</Panel>
 
-	{#if organizations.length || showSponsors}
-		<div class="grid gap-5">
-			{#if organizations.length}
-				<Panel title="Organizations" icon={Building2}>
-					<PeopleList people={organizations.slice(0, SHOWN)} />
-				</Panel>
-			{/if}
+	{#await result then res}
+		{@const organizations = res.ok ? res.data.profile.organizations : []}
+		{#if organizations.length || showSponsors}
+			<div class="grid gap-5">
+				{#if organizations.length}
+					<Panel title="Organizations" icon={Building2}>
+						<PeopleList people={organizations.slice(0, SHOWN)} />
+					</Panel>
+				{/if}
 
-			{#if showSponsors && data}
-				<Panel title="Sponsors" icon={Heart}>
-					{#snippet actions()}
-						<span class="text-muted-foreground text-xs tabular-nums">
-							{formatNumber(data.sponsorsTotal)}{data.sponsorsTotal > data.sponsors.length
-								? '+'
-								: ''}
-						</span>
-					{/snippet}
-					<PeopleList people={data.sponsors.slice(0, SHOWN)} />
-				</Panel>
-			{/if}
-		</div>
-	{/if}
+				{#if showSponsors && data}
+					<Panel title="Sponsors" icon={Heart}>
+						{#snippet actions()}
+							<span class="text-muted-foreground text-xs tabular-nums">
+								{formatNumber(data.sponsorsTotal)}{data.sponsorsTotal > data.sponsors.length
+									? '+'
+									: ''}
+							</span>
+						{/snippet}
+						<PeopleList people={data.sponsors.slice(0, SHOWN)} />
+					</Panel>
+				{/if}
+			</div>
+		{/if}
+	{/await}
 </div>

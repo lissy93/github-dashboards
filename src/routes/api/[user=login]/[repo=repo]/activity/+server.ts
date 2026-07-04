@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import { getActivityPage, backfillRepoActivity } from '$lib/server/github/activity';
 import { requireRepo } from '$lib/server/github/repo';
 import { apiError } from '$lib/server/response';
-import { logError } from '$lib/errors';
+import { logError } from '$lib/utils/errors';
 import type { RequestHandler } from './$types';
 
 // Older pages of repo-wide activity from all contributors.

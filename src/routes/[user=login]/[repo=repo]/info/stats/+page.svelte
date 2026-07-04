@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { ok } from '$lib/state/api';
 	import {
 		Star,
 		Code,
@@ -10,7 +11,7 @@
 		Rocket,
 		Tags
 	} from '@lucide/svelte';
-	import AsyncPanel from '$lib/components/repo/AsyncPanel.svelte';
+	import AsyncPanel from '$lib/components/common/AsyncPanel.svelte';
 	import RepoStatStrip from '$lib/components/repo/RepoStatStrip.svelte';
 	import MetricTimeChart from '$lib/components/analytics/MetricTimeChart.svelte';
 	import PunchCard from '$lib/components/charts/PunchCard.svelte';
@@ -33,11 +34,10 @@
 		lifecycleView,
 		defaultTimelineView,
 		resolutionBars,
-		formatSpanHours,
 		TIMELINE_SAMPLED_NOTE,
 		type TimelineView
 	} from '$lib/views/repo';
-	import type { ResolutionStats } from '$lib/server/github/repo-timeline';
+	import type { ResolutionStats } from '$lib/types';
 	import {
 		languageSlices,
 		summariseStats,
@@ -45,11 +45,11 @@
 		releaseCadence,
 		labelTreemap
 	} from '$lib/views/repo-stats';
-	import { compactNumber } from '$lib/format';
-	import { readStored, writeStored } from '$lib/storage';
-	import { APP_NAME } from '$lib/config';
-	import type { LoadResult } from '$lib/views/overview';
+	import { compactNumber, formatSpanHours } from '$lib/utils/format';
+	import { readStored, writeStored } from '$lib/utils/storage';
 	import type { PageData } from './$types';
+	import StatTileGrid from '$lib/components/common/StatTileGrid.svelte';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	const VIEW_KEY = 'repo:timeline-view';
 
@@ -73,12 +73,12 @@
 	});
 
 	// Unwrap a settled result to its data, or null when it failed or is still warming
-	const ok = <T,>(result: LoadResult<T>): T | null => (result.ok ? result.data : null);
 </script>
 
-<svelte:head>
-	<title>Stats · {data.repo.nameWithOwner} · {APP_NAME}</title>
-</svelte:head>
+<PageMeta
+	title={`Stats · ${data.repo.nameWithOwner}`}
+	description={`Stars, contributions, churn and language stats for ${data.repo.nameWithOwner}`}
+/>
 
 <!-- One kind's resolution histogram under its median headline, with a grey still-open bar -->
 {#snippet resolution(stats: ResolutionStats, unit: string, open: number)}
@@ -103,11 +103,7 @@
 
 <div class="space-y-5">
 	{#await Promise.all([data.stats, data.contributors, data.recentCommits])}
-		<div class="bg-card grid grid-cols-2 gap-4 rounded-xl border p-4 sm:grid-cols-3 lg:grid-cols-5">
-			{#each Array.from({ length: 5 }, (_, index) => index) as index (index)}
-				<div class="bg-muted/40 h-12 animate-pulse rounded-md"></div>
-			{/each}
-		</div>
+		<StatTileGrid loading={5} class="sm:grid-cols-3 lg:grid-cols-5" />
 	{:then [statsResult, peopleResult, recentResult]}
 		{@const stats = ok(statsResult)}
 		{@const people = ok(peopleResult)}

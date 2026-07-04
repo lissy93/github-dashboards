@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import { canSeeTraffic } from '$lib/server/github/traffic';
 import { getUserAnalytics } from '$lib/server/github/analytics';
 import { apiError } from '$lib/server/response';
-import { AppError } from '$lib/errors';
+import { AppError } from '$lib/utils/errors';
 import type { RequestHandler } from './$types';
 
 // Combined repo traffic analytics, owner-only since traffic is private

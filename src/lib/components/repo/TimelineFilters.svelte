@@ -1,10 +1,9 @@
 <script lang="ts">
 	import { Activity, Layers, Gauge, Timer, CalendarDays } from '@lucide/svelte';
 	import { Switch } from '$lib/components/ui/switch';
-	import * as Select from '$lib/components/ui/select';
-	import Icon from '$lib/components/common/Icon.svelte';
 	import Hint from '$lib/components/common/Hint.svelte';
-	import { cn } from '$lib/utils';
+	import SegmentedControl from '$lib/components/common/SegmentedControl.svelte';
+	import SelectFilter from '$lib/components/filter/SelectFilter.svelte';
 	import {
 		TIMELINE_WINDOWS,
 		groupUnitsFor,
@@ -61,62 +60,28 @@
 		year: 'Year'
 	};
 
-	const windowLabel = $derived(
-		TIMELINE_WINDOWS.find((window) => window.key === view.windowKey)?.label ?? ''
-	);
 	const groupChoices = $derived<GroupChoice[]>(['auto', ...groupUnitsFor(base)]);
 	const groupLabel = (choice: GroupChoice) => (choice === 'auto' ? 'Auto' : GROUP_LABELS[choice]);
 </script>
 
 <div class="flex flex-wrap items-center gap-2">
-	<!-- Chart mode -->
-	<div class="bg-muted inline-flex rounded-md p-0.5 text-xs">
-		{#each MODES as mode (mode.key)}
-			<Hint text={mode.hint}>
-				<button
-					type="button"
-					aria-pressed={view.mode === mode.key}
-					onclick={() => (view.mode = mode.key)}
-					class={cn(
-						'flex items-center gap-1.5 rounded px-2.5 py-1.5 transition-colors',
-						view.mode === mode.key
-							? 'bg-background text-foreground shadow-sm'
-							: 'text-muted-foreground'
-					)}
-				>
-					<Icon icon={mode.icon} size={13} />{mode.label}
-				</button>
-			</Hint>
-		{/each}
-	</div>
+	<SegmentedControl
+		label="Chart mode"
+		options={MODES.map(({ key, label, icon, hint }) => ({ value: key, label, icon, hint }))}
+		bind:value={view.mode}
+	/>
 
-	<!-- Issues, PRs or both -->
-	<div class="bg-muted inline-flex rounded-md p-0.5 text-xs">
-		{#each SCOPES as scope (scope.key)}
-			<button
-				type="button"
-				aria-pressed={view.scope === scope.key}
-				onclick={() => (view.scope = scope.key)}
-				class={cn(
-					'rounded px-2.5 py-1.5 transition-colors',
-					view.scope === scope.key
-						? 'bg-background text-foreground shadow-sm'
-						: 'text-muted-foreground'
-				)}
-			>
-				{scope.label}
-			</button>
-		{/each}
-	</div>
+	<SegmentedControl
+		label="Issues or PRs"
+		options={SCOPES.map(({ key, label }) => ({ value: key, label }))}
+		bind:value={view.scope}
+	/>
 
-	<Select.Root type="single" bind:value={view.windowKey}>
-		<Select.Trigger class="h-8 w-32">{windowLabel}</Select.Trigger>
-		<Select.Content>
-			{#each TIMELINE_WINDOWS as window (window.key)}
-				<Select.Item value={window.key}>{window.label}</Select.Item>
-			{/each}
-		</Select.Content>
-	</Select.Root>
+	<SelectFilter
+		class="h-8 w-32"
+		options={TIMELINE_WINDOWS.map(({ key, label }) => ({ value: key, label }))}
+		bind:value={view.windowKey}
+	/>
 
 	<div class="ml-auto flex items-center gap-3">
 		{#if view.mode === 'flow' || view.mode === 'velocity'}
@@ -130,23 +95,11 @@
 
 		<!-- Bar grouping -->
 		{#if view.mode !== 'heatmap'}
-			<div class="bg-muted inline-flex rounded-md p-0.5 text-xs">
-				{#each groupChoices as choice (choice)}
-					<button
-						type="button"
-						aria-pressed={view.group === choice}
-						onclick={() => (view.group = choice)}
-						class={cn(
-							'rounded px-2 py-1.5 transition-colors',
-							view.group === choice
-								? 'bg-background text-foreground shadow-sm'
-								: 'text-muted-foreground'
-						)}
-					>
-						{groupLabel(choice)}
-					</button>
-				{/each}
-			</div>
+			<SegmentedControl
+				label="Bar grouping"
+				options={groupChoices.map((choice) => ({ value: choice, label: groupLabel(choice) }))}
+				bind:value={view.group}
+			/>
 		{/if}
 	</div>
 </div>

@@ -1,13 +1,5 @@
-import type { Repo } from '$lib/types';
-import type { SortFilterConfig, SortDef } from '$lib/components/filter/sort-filter';
-
-// Views, unique views and clones per repo, pending true until loaded
-export type RepoTrafficData = {
-	pending: boolean;
-	views: Record<string, number>;
-	uniques: Record<string, number>;
-	clones: Record<string, number>;
-};
+import type { Repo, RepoTrafficData } from '$lib/types';
+import type { SortFilterConfig, SortDef } from '$lib/utils/sort-filter';
 
 // Build a sort/filter config for a repo list, deriving languages from the data.
 // When traffic is provided, a Traffic sort is added (disabled while pending).

@@ -1,10 +1,10 @@
 <script lang="ts" generics="T">
-	import { Search, ArrowDownNarrowWide, ArrowUpNarrowWide } from '@lucide/svelte';
-	import { Input } from '$lib/components/ui/input';
+	import { ArrowDownNarrowWide, ArrowUpNarrowWide } from '@lucide/svelte';
+	import SearchInput from '$lib/components/common/SearchInput.svelte';
 	import { Button } from '$lib/components/ui/button';
-	import * as Select from '$lib/components/ui/select';
+	import SelectFilter from '$lib/components/filter/SelectFilter.svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
-	import type { SortFilterConfig, View } from '$lib/components/filter/sort-filter';
+	import type { SortFilterConfig, View } from '$lib/utils/sort-filter';
 
 	type Props = {
 		config: SortFilterConfig<T>;
@@ -20,50 +20,30 @@
 		showSort = true,
 		showDir = true
 	}: Props = $props();
-
-	const sortLabel = $derived(config.sorts.find((sort) => sort.key === view.sortKey)?.label ?? '');
-	function filterLabel(key: string): string {
-		const filter = config.filters?.find((option) => option.key === key);
-		const current = filter?.options.find((option) => option.value === view.filters[key]);
-		return current?.label ?? `All ${filter?.label.toLowerCase()}`;
-	}
 </script>
 
 <div class="flex flex-wrap items-center gap-2">
 	{#if config.search}
-		<div class="relative min-w-40 flex-1">
-			<Icon
-				icon={Search}
-				size={15}
-				class="text-muted-foreground absolute top-1/2 left-2.5 -translate-y-1/2"
-			/>
-			<Input bind:value={view.search} placeholder={searchPlaceholder} class="h-9 pl-8" />
-		</div>
+		<SearchInput bind:value={view.search} placeholder={searchPlaceholder} class="min-w-40 flex-1" />
 	{/if}
 
 	{#each config.filters ?? [] as filter (filter.key)}
-		<Select.Root type="single" bind:value={view.filters[filter.key]}>
-			<Select.Trigger class="h-9">{filterLabel(filter.key)}</Select.Trigger>
-			<Select.Content>
-				<Select.Item value="">All {filter.label.toLowerCase()}</Select.Item>
-				{#each filter.options as option (option.value)}
-					<Select.Item value={option.value}>{option.label}</Select.Item>
-				{/each}
-			</Select.Content>
-		</Select.Root>
+		<SelectFilter
+			options={filter.options}
+			allLabel="All {filter.label.toLowerCase()}"
+			bind:value={view.filters[filter.key]}
+		/>
 	{/each}
 
 	{#if showSort}
-		<Select.Root type="single" bind:value={view.sortKey}>
-			<Select.Trigger class="h-9">{sortLabel}</Select.Trigger>
-			<Select.Content>
-				{#each config.sorts as sort (sort.key)}
-					<Select.Item value={sort.key} disabled={sort.disabled}>
-						{sort.label}{sort.disabled ? ' (loading)' : ''}
-					</Select.Item>
-				{/each}
-			</Select.Content>
-		</Select.Root>
+		<SelectFilter
+			options={config.sorts.map(({ key, label, disabled }) => ({
+				value: key,
+				label: disabled ? `${label} (loading)` : label,
+				disabled
+			}))}
+			bind:value={view.sortKey}
+		/>
 	{/if}
 
 	{#if showDir}

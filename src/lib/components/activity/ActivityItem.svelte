@@ -1,9 +1,9 @@
 <script lang="ts">
-	import * as Avatar from '$lib/components/ui/avatar';
+	import UserAvatar from '$lib/components/common/UserAvatar.svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import Hint from '$lib/components/common/Hint.svelte';
 	import Reactions from '$lib/components/activity/Reactions.svelte';
-	import { relativeTime, formatDateTime } from '$lib/format';
+	import { relativeTime, formatDateTime } from '$lib/utils/format';
 	import { GITHUB_WEB, paths } from '$lib/config';
 	import {
 		activityIcon,
@@ -70,12 +70,13 @@
 	{#if showActor && event.actor}
 		<Hint text={event.actor} class="self-end shrink-0">
 			<a href={paths.user(event.actor)}>
-				<Avatar.Root size="sm" class="size-5">
-					<Avatar.Image src="{GITHUB_WEB}/{event.actor}.png?size=40" alt={event.actor} />
-					<Avatar.Fallback class="text-[0.5rem]">
-						{event.actor.slice(0, 2).toUpperCase()}
-					</Avatar.Fallback>
-				</Avatar.Root>
+				<UserAvatar
+					login={event.actor}
+					src="{GITHUB_WEB}/{event.actor}.png?size=40"
+					size="sm"
+					class="size-5"
+					fallbackClass="text-[0.5rem]"
+				/>
 			</a>
 		</Hint>
 	{/if}

@@ -1,59 +1,19 @@
-import { graphql, rest } from '$lib/server/github/client';
+import type {
+	Dependency,
+	LicenseRisk,
+	ManifestFile,
+	SupplyChain,
+	SupplyChainSummary,
+	Vulnerability,
+	VulnSeverity
+} from '$lib/types';
+import { graphql, rest, paginate } from '$lib/server/github/client';
 import { cached, isCached } from '$lib/server/cache';
-import { createLogger } from '$lib/logger';
+import { createLogger } from '$lib/utils/logger';
 
 const log = createLogger('supply-chain');
 // Dependencies move slowly, so cache for a while and refresh on visit
 const TTL = 21600;
-
-export type LicenseRisk = 'permissive' | 'weak-copyleft' | 'strong-copyleft' | 'unknown';
-export type VulnSeverity = 'critical' | 'high' | 'moderate' | 'low';
-
-// One resolved dependency in the repo's graph, flattened from the SPDX SBOM
-export type Dependency = {
-	name: string;
-	version: string | null;
-	ecosystem: string;
-	license: string | null;
-	licenseRisk: LicenseRisk;
-	direct: boolean;
-	depth: number | null;
-	fanIn: number;
-	url: string | null;
-	vuln: VulnSeverity | null;
-};
-
-// One open advisory affecting a dependency, from the GraphQL vulnerability alerts
-export type Vulnerability = {
-	name: string;
-	ecosystem: string;
-	severity: VulnSeverity;
-	summary: string;
-	identifier: string;
-	url: string;
-	vulnerableRange: string;
-	patchedVersion: string | null;
-};
-
-export type ManifestFile = { path: string; ecosystem: string; count: number };
-
-export type SupplyChainSummary = {
-	total: number;
-	direct: number;
-	transitive: number;
-	ecosystems: number;
-	licenses: number;
-	unlicensed: number;
-	vulnerabilities: number;
-	manifests: number;
-};
-
-export type SupplyChain = {
-	packages: Dependency[];
-	vulnerabilities: Vulnerability[];
-	manifests: ManifestFile[];
-	summary: SupplyChainSummary;
-};
 
 // SPDX shapes, only the fields we read
 type SpdxRef = { referenceType: string; referenceLocator: string };
@@ -224,31 +184,34 @@ export const severityOf = (value: string): VulnSeverity => {
 		: 'moderate';
 };
 
+const MAX_VULN_PAGES = 10;
+
+// Alerts are maintainer-only, so use the app token to keep the shared cache viewer-independent
 export async function fetchVulns(owner: string, name: string): Promise<Vulnerability[]> {
+	const { nodes } = await paginate<RawVuln, VulnPage>(
+		VULN_QUERY,
+		{ owner, name },
+		(data) => data.repository?.vulnerabilityAlerts,
+		{ maxPages: MAX_VULN_PAGES },
+		'app'
+	);
 	const out: Vulnerability[] = [];
-	let cursor: string | null = null;
-	do {
-		const data: VulnPage = await graphql<VulnPage>(VULN_QUERY, { owner, name, cursor });
-		const page = data.repository?.vulnerabilityAlerts;
-		if (!page) break;
-		for (const node of page.nodes) {
-			const vuln = node.securityVulnerability;
-			if (!vuln) continue;
-			const ghsa = vuln.advisory.identifiers.find((id) => id.type === 'GHSA');
-			const cve = vuln.advisory.identifiers.find((id) => id.type === 'CVE');
-			out.push({
-				name: vuln.package.name,
-				ecosystem: vuln.package.ecosystem.toLowerCase(),
-				severity: severityOf(vuln.severity),
-				summary: vuln.advisory.summary,
-				identifier: cve?.value ?? ghsa?.value ?? 'advisory',
-				url: vuln.advisory.permalink,
-				vulnerableRange: vuln.vulnerableVersionRange,
-				patchedVersion: vuln.firstPatchedVersion?.identifier ?? null
-			});
-		}
-		cursor = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
-	} while (cursor);
+	for (const node of nodes) {
+		const vuln = node.securityVulnerability;
+		if (!vuln) continue;
+		const ghsa = vuln.advisory.identifiers.find((id) => id.type === 'GHSA');
+		const cve = vuln.advisory.identifiers.find((id) => id.type === 'CVE');
+		out.push({
+			name: vuln.package.name,
+			ecosystem: vuln.package.ecosystem.toLowerCase(),
+			severity: severityOf(vuln.severity),
+			summary: vuln.advisory.summary,
+			identifier: cve?.value ?? ghsa?.value ?? 'advisory',
+			url: vuln.advisory.permalink,
+			vulnerableRange: vuln.vulnerableVersionRange,
+			patchedVersion: vuln.firstPatchedVersion?.identifier ?? null
+		});
+	}
 	return out;
 }
 

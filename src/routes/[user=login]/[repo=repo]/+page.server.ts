@@ -16,14 +16,16 @@ import { getRepoTree, isRepoTreeCached } from '$lib/server/github/repo-tree';
 import { getSupplyChain, isSupplyChainCached } from '$lib/server/github/supply-chain';
 import { licenseRiskSlices, severitySlices } from '$lib/views/supply-chain';
 import { settle } from '$lib/server/load';
-import { logError } from '$lib/errors';
+import { logError } from '$lib/utils/errors';
 import type { PageServerLoad } from './$types';
 
 const PREVIEW = 6;
 const ACTIVITY_PREVIEW = 10;
 const HISTORY_PREVIEW = 12;
 
-export const load: PageServerLoad = async ({ params }) => {
+export const load: PageServerLoad = async ({ params, parent }) => {
+	// the layout 404s hidden repos, so gate on it before fanning out
+	await parent();
 	const owner = params.user;
 	const name = params.repo;
 

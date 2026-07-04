@@ -3,8 +3,8 @@
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
 	import { legendState } from './legend.svelte';
-	import { compactNumber, formatNumber } from '$lib/format';
-	import type { Slice, TipData } from '$lib/views/stats';
+	import { compactNumber, formatNumber } from '$lib/utils/format';
+	import type { Slice, TipData } from '$lib/types/charts';
 
 	let {
 		data,

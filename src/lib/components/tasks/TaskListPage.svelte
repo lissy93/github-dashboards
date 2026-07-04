@@ -3,7 +3,7 @@
 	import SortFilterBar from '$lib/components/filter/SortFilterBar.svelte';
 	import Pagination from '$lib/components/common/Pagination.svelte';
 	import ItemRow from '$lib/components/tasks/ItemRow.svelte';
-	import { applyView, defaultView, type View } from '$lib/components/filter/sort-filter';
+	import { applyView, defaultView, type View } from '$lib/utils/sort-filter';
 	import { taskConfig } from '$lib/views/tasks';
 	import type { TaskList } from '$lib/types';
 
@@ -26,6 +26,14 @@
 	const viewKey = $derived(
 		`${view.search}|${view.sortKey}|${view.dir}|${JSON.stringify(view.filters)}`
 	);
+
+	// Fresh view and first page when a different list arrives (route reuse)
+	$effect(() => {
+		if (list) {
+			view = untrack(() => defaultView(config));
+			page = 1;
+		}
+	});
 
 	// Back to the first page whenever the sort, filter or search changes
 	$effect(() => {

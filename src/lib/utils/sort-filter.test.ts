@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyView, defaultView, type SortFilterConfig } from '$lib/components/filter/sort-filter';
+import { applyView, defaultView, type SortFilterConfig } from '$lib/utils/sort-filter';
 
 type Item = { name: string; stars: number; lang: string };
 

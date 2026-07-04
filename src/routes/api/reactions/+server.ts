@@ -1,9 +1,9 @@
 import { json } from '@sveltejs/kit';
 import { getReactionUsers } from '$lib/server/github/reactions';
 import { requireRepo } from '$lib/server/github/repo';
-import { REACTION_KEYS } from '$lib/reactions';
+import { REACTION_KEYS } from '$lib/config/reactions';
 import { apiError } from '$lib/server/response';
-import { AppError } from '$lib/errors';
+import { AppError } from '$lib/utils/errors';
 import type { RequestHandler } from './$types';
 
 const REPO = /^[\w.-]+\/[\w.-]+$/;

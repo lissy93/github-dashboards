@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { stackColor, niceStep, splinePath, yearMarks } from './chart';
+	import { stackColor, niceStep, splinePath, timeTicks, nearestIndex, CHART_PAD } from './chart';
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
-	import { compactNumber, formatNumber, formatDate } from '$lib/format';
+	import Gridlines from './Gridlines.svelte';
+	import { compactNumber, formatNumber, formatDate } from '$lib/utils/format';
 	import type { StarStack } from '$lib/views/stats';
 
 	let {
@@ -11,7 +12,7 @@
 		smooth = true
 	}: { data: StarStack; height?: number; smooth?: boolean } = $props();
 
-	const PAD = { top: 12, right: 14, bottom: 22, left: 44 };
+	const PAD = CHART_PAD;
 	const Y_TICKS = 5;
 	const H = $derived(height * 16);
 
@@ -59,7 +60,7 @@
 		);
 		// Gridlines at clean steps up to the data max, which sits flush with the top
 		const yTicks = Array.from({ length: Math.floor(top / step) + 1 }, (_, index) => ({
-			value: index * step,
+			label: compactNumber(Math.round(index * step)),
 			y: yOf(index * step)
 		}));
 		return { xs, plotH, baseline: PAD.top + plotH, bands, outline, yTicks };
@@ -70,17 +71,12 @@
 		const days = data.days;
 		if (!days.length) return [];
 		const first = Date.parse(days[0]);
-		const span = Date.parse(days.at(-1)!) - first || 1;
-		const years = yearMarks(first, Date.parse(days.at(-1)!)).map((mark) => ({
-			label: String(mark.year),
-			x: geom.xs[0] + ((mark.ms - first) / span) * (geom.xs.at(-1)! - geom.xs[0]),
-			line: true
-		}));
-		if (years.length >= 2) return years;
-		return [...new Set([0, Math.floor((days.length - 1) / 2), days.length - 1])].map((index) => ({
-			label: formatDate(days[index]),
-			x: geom.xs[index],
-			line: false
+		const last = Date.parse(days.at(-1)!);
+		const span = last - first || 1;
+		return timeTicks(first, last).map((tick) => ({
+			label: tick.label,
+			x: PAD.left + ((tick.ms - first) / span) * (width - PAD.left - PAD.right),
+			line: tick.year
 		}));
 	});
 
@@ -89,10 +85,7 @@
 	function move(event: PointerEvent) {
 		if (!svg || !geom.xs.length) return;
 		const x = event.clientX - svg.getBoundingClientRect().left;
-		const nearest = geom.xs.reduce(
-			(best, cx, index) => (Math.abs(cx - x) < Math.abs(geom.xs[best] - x) ? index : best),
-			0
-		);
+		const nearest = nearestIndex(geom.xs, x);
 		hover = nearest;
 		tip.show(event, {
 			title: formatDate(data.days[nearest]),
@@ -123,24 +116,7 @@
 			onpointermove={move}
 			onpointerleave={leave}
 		>
-			{#each geom.yTicks as tick (tick.value)}
-				<line
-					class="stroke-chart-grid"
-					x1={PAD.left}
-					x2={width - PAD.right}
-					y1={tick.y}
-					y2={tick.y}
-				/>
-				<text
-					class="fill-muted-foreground text-[0.65rem] tabular-nums"
-					x={PAD.left - 6}
-					y={tick.y}
-					dy="0.32em"
-					text-anchor="end"
-				>
-					{compactNumber(Math.round(tick.value))}
-				</text>
-			{/each}
+			<Gridlines ticks={geom.yTicks} left={PAD.left} right={width - PAD.right} />
 
 			{#each xTicks as tick (tick.label)}
 				{#if tick.line}

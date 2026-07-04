@@ -1,4 +1,5 @@
-import { graphql } from '$lib/server/github/client';
+import type { LabelCount } from '$lib/types';
+import { paginate } from '$lib/server/github/client';
 import { cached, isCached } from '$lib/server/cache';
 
 // Labels move slowly, so cache them alongside the other day-scale repo stats
@@ -7,13 +8,6 @@ const PER_PAGE = 100;
 const MAX_PAGES = 5;
 
 // One label and how many issues and PRs carry it
-export type LabelCount = {
-	name: string;
-	color: string;
-	issues: number;
-	prs: number;
-	total: number;
-};
 export type RepoLabels = { labels: LabelCount[]; sampled: boolean };
 
 const QUERY = `
@@ -43,26 +37,20 @@ type Raw = {
 };
 
 async function fetchLabels(owner: string, name: string): Promise<RepoLabels> {
-	const labels: LabelCount[] = [];
-	let cursor: string | null = null;
-	let sampled = false;
-	for (let page = 0; page < MAX_PAGES; page++) {
-		const data: Raw = await graphql<Raw>(QUERY, { owner, name, cursor });
-		const conn = data.repository?.labels;
-		if (!conn) break;
-		for (const node of conn.nodes) {
-			const issues = node.issues.totalCount;
-			const prs = node.pullRequests.totalCount;
-			labels.push({ name: node.name, color: node.color, issues, prs, total: issues + prs });
-		}
-		if (!conn.pageInfo.hasNextPage || !conn.pageInfo.endCursor) break;
-		cursor = conn.pageInfo.endCursor;
-		// Beyond the page budget there are still more labels than we charted
-		if (page === MAX_PAGES - 1) sampled = true;
-	}
+	const { nodes, complete } = await paginate<RawLabel, Raw>(
+		QUERY,
+		{ owner, name },
+		(data) => data.repository?.labels,
+		{ maxPages: MAX_PAGES }
+	);
+	const labels = nodes.map((node) => {
+		const issues = node.issues.totalCount;
+		const prs = node.pullRequests.totalCount;
+		return { name: node.name, color: node.color, issues, prs, total: issues + prs };
+	});
 	// Heaviest labels first, dropping the unused ones that would only clutter the chart
 	const used = labels.filter((label) => label.total > 0).sort((a, b) => b.total - a.total);
-	return { labels: used, sampled };
+	return { labels: used, sampled: !complete };
 }
 
 const key = (owner: string, name: string) => `repo:labels:v1:${owner}/${name}`.toLowerCase();

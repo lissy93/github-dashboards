@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { seriesColor, niceMax, niceStep, yearMarks } from './chart';
+	import { seriesColor, niceMax, niceStep, timeTicks, CHART_PAD } from './chart';
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
-	import { compactNumber, formatDate } from '$lib/format';
-	import type { ScatterPoint } from '$lib/views/stats';
+	import Gridlines from './Gridlines.svelte';
+	import { compactNumber } from '$lib/utils/format';
+	import type { ScatterPoint } from '$lib/types/charts';
 
 	// time axes plot a date span, numeric axes plot zero to a nice max
 	let {
@@ -22,7 +23,7 @@
 		yFormat?: (value: number) => string;
 	} = $props();
 
-	const PAD = { top: 12, right: 14, bottom: 22, left: 48 };
+	const PAD = { ...CHART_PAD, left: 48 };
 	const LINES = 4;
 	const R = { min: 2.5, max: 9 };
 	const H = $derived(height * 16);
@@ -41,15 +42,7 @@
 			const max = Math.max(...values);
 			const span = max - min || 1;
 			const norm = (value: number) => (value - min) / span;
-			const ticks: Tick[] = yearMarks(min, max).map((mark) => ({
-				frac: norm(mark.ms),
-				label: String(mark.year)
-			}));
-			if (ticks.length < 2) {
-				for (const value of [...new Set([min, (min + max) / 2, max])]) {
-					ticks.push({ frac: norm(value), label: formatDate(new Date(value).toISOString()) });
-				}
-			}
+			const ticks = timeTicks(min, max).map((tick) => ({ frac: norm(tick.ms), label: tick.label }));
 			return { norm, ticks };
 		}
 		const peak = Math.max(0, ...values);
@@ -84,7 +77,11 @@
 			cy: baseline - ys.norm(point.y) * plotH,
 			rad: rOf(point.r)
 		}));
-		return { points, xs, ys, baseline, plotH, plotW };
+		const yTicks = ys.ticks.map((tick) => ({
+			label: tick.label,
+			y: baseline - tick.frac * plotH
+		}));
+		return { points, xs, yTicks, baseline, plotW };
 	});
 
 	const tip = chartTip();
@@ -124,19 +121,7 @@
 			onpointermove={move}
 			onpointerleave={leave}
 		>
-			{#each geom.ys.ticks as tick (tick.label)}
-				{@const y = geom.baseline - tick.frac * geom.plotH}
-				<line class="stroke-chart-grid" x1={PAD.left} x2={width - PAD.right} y1={y} y2={y} />
-				<text
-					class="fill-muted-foreground text-[0.65rem] tabular-nums"
-					x={PAD.left - 6}
-					{y}
-					dy="0.32em"
-					text-anchor="end"
-				>
-					{tick.label}
-				</text>
-			{/each}
+			<Gridlines ticks={geom.yTicks} left={PAD.left} right={width - PAD.right} />
 
 			{#each geom.xs.ticks as tick (tick.label)}
 				{@const x = PAD.left + tick.frac * geom.plotW}

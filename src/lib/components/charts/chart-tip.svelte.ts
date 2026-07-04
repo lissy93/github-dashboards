@@ -1,4 +1,4 @@
-import type { TipData } from '$lib/views/stats';
+import type { TipData } from '$lib/types/charts';
 
 // Shared cursor-following tooltip state for a chart, one instance per chart
 export function chartTip() {

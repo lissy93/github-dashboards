@@ -1,13 +1,10 @@
+import { MONTHS_SHORT } from '$lib/utils/datetime';
 import type { ChartData } from '$lib/views/analytics';
-import { outcomeBars, type OutcomeChart } from '$lib/views/outcomes';
-import type { Slice, StackBar, StackSeries } from '$lib/views/stats';
-import type { RepoRunActivity, RepoWorkflows } from '$lib/server/github/workflows';
-import type { RepoStarHistory } from '$lib/server/github/star-history';
-import type {
-	ResolutionStats,
-	TimelineBaseline,
-	TimelinePoint
-} from '$lib/server/github/repo-timeline';
+import { outcomeBars, type OutcomeChart } from '$lib/utils/outcomes';
+import type { Slice, StackBar, StackSeries } from '$lib/types/charts';
+import type { RepoRunActivity, RepoWorkflows } from '$lib/types';
+import type { RepoStarHistory } from '$lib/types';
+import type { ResolutionStats, TimelineBaseline, TimelinePoint } from '$lib/types';
 
 // Issues vs PRs, the chart mode, and the bar grouping for the flow timeline
 export type FlowScope = 'issues' | 'prs' | 'both';
@@ -529,7 +526,7 @@ export function lifecycleView(
 // Lifecycle series for the cumulative total charts. Order is the stacking order from the
 // baseline up: resolved at the bottom, the open backlog on top. Colours come from the
 // --lifecycle-* tokens in layout.css, so the whole palette is tweakable in one place
-export const ISSUE_LIFECYCLE_SERIES: StackSeries[] = [
+const ISSUE_LIFECYCLE_SERIES: StackSeries[] = [
 	{
 		key: 'earlier',
 		label: 'Earlier history',
@@ -550,7 +547,7 @@ export const ISSUE_LIFECYCLE_SERIES: StackSeries[] = [
 	},
 	{ key: 'open', label: 'Open', color: 'var(--lifecycle-open)', hint: 'Issues still open' }
 ];
-export const PR_LIFECYCLE_SERIES: StackSeries[] = [
+const PR_LIFECYCLE_SERIES: StackSeries[] = [
 	{
 		key: 'earlier',
 		label: 'Earlier history',
@@ -579,16 +576,14 @@ export const lifecycleSeries = (kind: 'issue' | 'pr'): StackSeries[] =>
 export const TIMELINE_SAMPLED_NOTE =
 	'Older items are grouped as Earlier history, with detailed states shown for recent items';
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
 // Compact bar label from a bucket-start date, in the grouping unit's own terms
 function bucketLabel(period: string, unit: GroupUnit): string {
 	const [year, monthNum, day] = period.split('-').map(Number);
 	const yy = String(year).slice(2);
-	if (unit === 'week') return `${day} ${MONTHS[monthNum - 1]}`;
+	if (unit === 'week') return `${day} ${MONTHS_SHORT[monthNum - 1]}`;
 	if (unit === 'quarter') return `Q${Math.floor((monthNum - 1) / 3) + 1} ${yy}`;
 	if (unit === 'year') return String(year);
-	return `${MONTHS[monthNum - 1]} ${yy}`;
+	return `${MONTHS_SHORT[monthNum - 1]} ${yy}`;
 }
 
 // Total issues or PRs ever opened per bucket, split into still open, resolved
@@ -629,7 +624,7 @@ export function cumulativeTicks(points: TimelinePoint[], unit: GroupUnit): strin
 			const changed = month !== prevMonth || year !== prevYear;
 			prevYear = year;
 			prevMonth = month;
-			return changed ? MONTHS[Number(month) - 1] : '';
+			return changed ? MONTHS_SHORT[Number(month) - 1] : '';
 		}
 		if (unit === 'year') return year;
 		if (year !== prevYear) {
@@ -711,27 +706,6 @@ export function workflowKpiStats(wf: RepoWorkflows): WorkflowKpis {
 // Repo-wide run outcomes as a stacked timeline
 export function runActivityChart(activity: RepoRunActivity): OutcomeChart {
 	return outcomeBars(activity.buckets);
-}
-
-// Compact mm:ss style duration from seconds, for workflow runtimes
-export function formatDuration(seconds: number | null): string {
-	if (seconds == null) return '-';
-	if (seconds < 60) return `${Math.round(seconds)}s`;
-	const minutes = Math.floor(seconds / 60);
-	if (minutes < 60) return `${minutes}m ${Math.round(seconds % 60)}s`;
-	return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-}
-
-// A coarse human span for resolution medians, scaling from hours up through years
-export function formatSpanHours(hours: number | null): string {
-	if (hours == null) return '-';
-	if (hours < 1) return '< 1h';
-	if (hours < 24) return `${Math.round(hours)}h`;
-	const days = hours / 24;
-	if (days < 7) return `${Math.round(days)}d`;
-	if (days < 30) return `${Math.round(days / 7)}w`;
-	if (days < 365) return `${Math.round(days / 30)}mo`;
-	return `${(days / 365).toFixed(1)}y`;
 }
 
 // Severity ramp for the resolution bands, fast and healthy green through slow red

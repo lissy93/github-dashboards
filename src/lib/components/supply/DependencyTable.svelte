@@ -6,11 +6,17 @@
 	import SortFilterBar from '$lib/components/filter/SortFilterBar.svelte';
 	import Pagination from '$lib/components/common/Pagination.svelte';
 	import Hint from '$lib/components/common/Hint.svelte';
-	import { applyView, defaultView, type View } from '$lib/components/filter/sort-filter';
-	import { supplyChainConfig, toCsv, RISK_COLOR, RISK_LABEL, SEVERITY_COLOR } from '$lib/views/supply-chain';
-	import { compactNumber } from '$lib/format';
+	import { applyView, defaultView, type View } from '$lib/utils/sort-filter';
+	import {
+		supplyChainConfig,
+		toCsv,
+		RISK_COLOR,
+		RISK_LABEL,
+		SEVERITY_COLOR
+	} from '$lib/views/supply-chain';
+	import { compactNumber } from '$lib/utils/format';
 	import { cn } from '$lib/utils';
-	import type { Dependency } from '$lib/server/github/supply-chain';
+	import type { Dependency } from '$lib/types';
 
 	let { packages, repo }: { packages: Dependency[]; repo: string } = $props();
 
@@ -68,7 +74,13 @@
 <div class="space-y-3">
 	<div class="flex flex-wrap items-center gap-2">
 		<div class="min-w-40 flex-1">
-			<SortFilterBar {config} bind:view searchPlaceholder="Search dependencies" showSort={false} showDir={false} />
+			<SortFilterBar
+				{config}
+				bind:view
+				searchPlaceholder="Search dependencies"
+				showSort={false}
+				showDir={false}
+			/>
 		</div>
 		<Button variant="outline" size="sm" class="h-9 gap-1.5" onclick={exportCsv}>
 			<Icon icon={Download} size={15} />
@@ -85,15 +97,33 @@
 							<span class="sr-only">Advisory</span>
 						</th>
 						{@render head('name', 'Package', false, 'Dependency name and version', '')}
-						{@render head('depth', 'Depth', true, 'Hops from the project root, 1 means direct', 'hidden w-16 sm:table-cell lg:w-32')}
+						{@render head(
+							'depth',
+							'Depth',
+							true,
+							'Hops from the project root, 1 means direct',
+							'hidden w-16 sm:table-cell lg:w-32'
+						)}
 						<th
 							scope="col"
 							class="hidden w-24 px-3 py-2 text-left font-medium sm:table-cell lg:w-32"
 						>
 							<Hint text="Package registry the dependency comes from">Ecosystem</Hint>
 						</th>
-						{@render head('license', 'Licence', false, 'Declared licence, coloured by risk', 'hidden w-32 md:table-cell')}
-						{@render head('fanIn', 'Dependents', true, 'Packages that depend on this one', 'w-24 lg:w-32')}
+						{@render head(
+							'license',
+							'Licence',
+							false,
+							'Declared licence, coloured by risk',
+							'hidden w-32 md:table-cell'
+						)}
+						{@render head(
+							'fanIn',
+							'Dependents',
+							true,
+							'Packages that depend on this one',
+							'w-24 lg:w-32'
+						)}
 					</tr>
 				</thead>
 				<tbody class="divide-y">

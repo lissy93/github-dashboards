@@ -10,7 +10,7 @@
 	import StatTileGrid from '$lib/components/common/StatTileGrid.svelte';
 	import type { Tile } from '$lib/components/common/StatTileGrid.svelte';
 	import { GRADE_COLOR } from '$lib/views/security';
-	import type { RepoSecurity } from '$lib/server/github/security';
+	import type { RepoSecurity } from '$lib/types';
 
 	let { security }: { security: RepoSecurity } = $props();
 

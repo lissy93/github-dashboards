@@ -57,6 +57,10 @@
 	--lifecycle-resolved: var(--merged); /* purple: merged PRs, completed issues */
 	--lifecycle-discarded: oklch(0.45 0.17 302); /* dark purple: closed PRs, not-planned issues */
 
+	/* Fixed contrast inks for tiles filled with arbitrary data colours */
+	--ink-light: oklch(0.985 0 0);
+	--ink-dark: oklch(0.145 0 0);
+
 	/* Charts pull from the palette, grid is the border at low opacity */
 	--chart-1: var(--primary);
 	--chart-2: var(--success);

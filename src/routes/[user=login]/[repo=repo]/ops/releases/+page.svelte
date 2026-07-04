@@ -5,12 +5,16 @@
 	import type { Tile } from '$lib/components/common/StatTileGrid.svelte';
 	import ReleaseTable from '$lib/components/repo/ReleaseTable.svelte';
 	import BarChart from '$lib/components/charts/BarChart.svelte';
-	import { releaseDownloadBars, hasReleaseDownloads } from '$lib/views/repo-stats';
-	import type { RepoReleases, ReleaseRow } from '$lib/server/github/releases';
-	import { compactNumber, relativeTime, formatDateTime } from '$lib/format';
-	import { APP_NAME } from '$lib/config';
-	import type { LoadResult } from '$lib/views/overview';
+	import {
+		releaseDownloadBars,
+		hasReleaseDownloads,
+		releaseCadence,
+		cadenceLabel
+	} from '$lib/views/repo-stats';
+	import type { RepoReleases } from '$lib/types';
+	import { compactNumber, relativeTime, formatDateTime, plural } from '$lib/utils/format';
 	import type { PageData } from './$types';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -29,9 +33,7 @@
 				label: 'Latest',
 				value: latest?.tag ?? '-',
 				icon: Package,
-				hint: latest
-					? `${latest.name} published ${formatDateTime(latest.publishedAt)}`
-					: undefined
+				hint: latest ? `${latest.name} published ${formatDateTime(latest.publishedAt)}` : undefined
 			},
 			{
 				label: 'Last published',
@@ -41,31 +43,17 @@
 			}
 		];
 	}
-
-	function cadence(releases: ReleaseRow[]): string {
-		if (releases.length < 2) return '-';
-		const first = Date.parse(releases[0].publishedAt);
-		const last = Date.parse(releases[releases.length - 1].publishedAt);
-		const days = Math.round(
-			(last - first) / (releases.length - 1) / 86_400_000
-		);
-		if (days < 1) return 'Multiple per day';
-		if (days === 1) return 'Daily';
-		if (days <= 7) return `Every ${days} days`;
-		if (days <= 45) return `Every ${Math.round(days / 7)} weeks`;
-		return `Every ${Math.round(days / 30)} months`;
-	}
 </script>
 
-<svelte:head>
-	<title>Releases · {data.repo.nameWithOwner} · {APP_NAME}</title>
-</svelte:head>
+<PageMeta
+	title={`Releases · ${data.repo.nameWithOwner}`}
+	description={`Releases, cadence and downloads for ${data.repo.nameWithOwner}`}
+/>
 
 <div class="space-y-5">
 	{#await data.releases}
 		<Panel title="Releases" icon={Tag} loading />
-	{:then result}
-		{@const res = result as LoadResult<RepoReleases>}
+	{:then res}
 		{#if !res.ok}
 			<Panel title="Releases" icon={Tag} error={res.error} />
 		{:else if res.data.releases.length === 0}
@@ -77,9 +65,12 @@
 
 			<Panel title="Release cadence" icon={Clock}>
 				<p class="text-sm">
-					<span class="text-foreground font-medium">{cadence(r.releases)}</span>
+					<span class="text-foreground font-medium">
+						{cadenceLabel(releaseCadence(r.releases).medianGapDays)}
+					</span>
 					<span class="text-muted-foreground ml-1">
-						across {compactNumber(r.total)} release{r.total === 1 ? '' : 's'}
+						across {compactNumber(r.total)}
+						{plural(r.total, 'release')}
 						{#if r.sampled}(sampled){/if}
 					</span>
 				</p>

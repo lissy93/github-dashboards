@@ -4,8 +4,8 @@
 	import ChartTooltip from './ChartTooltip.svelte';
 	import Hint from '$lib/components/common/Hint.svelte';
 	import { contributionLevels, type LevelDay } from '$lib/views/stats';
-	import { MONTHS_SHORT, DAYS_FULL, toMondayFirst } from '$lib/datetime';
-	import { compactNumber, formatNumber, formatDate } from '$lib/format';
+	import { MONTHS_SHORT, DAYS_FULL, toMondayFirst } from '$lib/utils/datetime';
+	import { compactNumber, formatNumber, formatDate } from '$lib/utils/format';
 	import type { ContributionDay } from '$lib/types';
 
 	let { days, year, total }: { days: ContributionDay[]; year: number; total: number } = $props();

@@ -2,7 +2,7 @@ import { graphql } from '$lib/server/github/client';
 import { getUserOverview } from '$lib/server/github/user';
 import { cached, isCached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
-import { AppError, logError } from '$lib/errors';
+import { AppError, logError } from '$lib/utils/errors';
 import type {
 	ContributionDay,
 	ContributionTotals,

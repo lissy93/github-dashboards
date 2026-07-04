@@ -3,16 +3,17 @@
 	import { TASK_BUCKETS } from '$lib/components/tasks/tasks-config';
 	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
 
 	const meta = $derived(TASK_BUCKETS[data.bucket]);
 </script>
 
-<svelte:head>
-	<title>{data.title} · {data.user} · {APP_NAME}</title>
-	<meta name="description" content="{data.title} for {data.user} on {APP_NAME}" />
-</svelte:head>
+<PageMeta
+	title={`${data.title} · ${data.user}`}
+	description={`${data.title} for ${data.user} on ${APP_NAME}`}
+/>
 
 <div class="space-y-4">
 	<h1 class="text-base font-medium">{data.title}</h1>

@@ -1,17 +1,19 @@
 <script lang="ts">
 	import { ScatterChart } from '@lucide/svelte';
-	import Panel from '$lib/components/common/Panel.svelte';
+	import AsyncPanel from '$lib/components/common/AsyncPanel.svelte';
 	import ScatterPlot from '$lib/components/charts/ScatterPlot.svelte';
 	import * as Select from '$lib/components/ui/select';
-	import { ownedMetrics } from '$lib/owned-metrics.svelte';
+	import { createOwnedMetrics } from '$lib/state/owned-metrics.svelte';
 	import { portfolioScatter, SCATTER_AXES } from '$lib/views/stats';
+	import type { OverviewResult } from '$lib/views/overview';
 	import type { Repo } from '$lib/types';
 
-	let { user, repos }: { user: string; repos: Repo[] } = $props();
+	let { user, result }: { user: string; result: Promise<OverviewResult> | OverviewResult } =
+		$props();
 
 	let xKey = $state('created');
 	let yKey = $state('stars');
-	const metrics = ownedMetrics(() => user);
+	const metrics = createOwnedMetrics(() => user);
 
 	const byKey = (key: string) =>
 		SCATTER_AXES.find((option) => option.key === key) ?? SCATTER_AXES[0];
@@ -26,12 +28,11 @@
 			: false) ||
 			((xAxis.lazy || yAxis.lazy) && metrics.statsSampled)
 	);
-	const points = $derived(
+	const scatter = (repos: Repo[]) =>
 		portfolioScatter(repos, xAxis, yAxis, {
 			stats: metrics.stats,
 			contributors: metrics.contributors
-		})
-	);
+		});
 </script>
 
 {#snippet picker(axis: 'x' | 'y')}
@@ -60,21 +61,28 @@
 	</div>
 {/snippet}
 
-<Panel title="Portfolio" icon={ScatterChart} empty={!points.length}>
-	<div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-		<p class="text-muted-foreground text-xs">
-			{yAxis.label} vs {xAxis.label} · dot size = forks{sampled ? ' · sampled repos' : ''}
-		</p>
-		<div class="flex items-center gap-2">
-			{@render picker('y')}
-			{@render picker('x')}
+<AsyncPanel
+	title="Portfolio"
+	icon={ScatterChart}
+	{result}
+	empty={(data) => !scatter(data.ownedRepos).length}
+>
+	{#snippet children(data)}
+		<div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+			<p class="text-muted-foreground text-xs">
+				{yAxis.label} vs {xAxis.label} · dot size = forks{sampled ? ' · sampled repos' : ''}
+			</p>
+			<div class="flex items-center gap-2">
+				{@render picker('y')}
+				{@render picker('x')}
+			</div>
 		</div>
-	</div>
-	<ScatterPlot
-		data={points}
-		xTime={xAxis.time}
-		yTime={yAxis.time}
-		xFormat={xAxis.format}
-		yFormat={yAxis.format}
-	/>
-</Panel>
+		<ScatterPlot
+			data={scatter(data.ownedRepos)}
+			xTime={xAxis.time}
+			yTime={yAxis.time}
+			xFormat={xAxis.format}
+			yFormat={yAxis.format}
+		/>
+	{/snippet}
+</AsyncPanel>

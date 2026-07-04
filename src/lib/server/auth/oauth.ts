@@ -1,10 +1,11 @@
 import { config } from '$lib/server/env';
-import { AppError } from '$lib/errors';
+import { AppError } from '$lib/utils/errors';
 import type { Session } from '$lib/server/auth/session';
 
 // Identity plus push access to public repos, the latter needed to read repo
 // traffic. No private-repo read, so the shared public cache stays clean
 const SCOPE = 'read:user public_repo';
+const TIMEOUT_MS = 15000;
 
 // Whether GitHub OAuth is fully configured, gates the login UI
 export function oauthEnabled(): boolean {
@@ -33,7 +34,8 @@ async function exchangeCode(code: string, redirectUri: string): Promise<string> 
 			client_secret: config.GITHUB_CLIENT_SECRET,
 			code,
 			redirect_uri: redirectUri
-		})
+		}),
+		signal: AbortSignal.timeout(TIMEOUT_MS)
 	});
 	if (!res.ok) throw new AppError('upstream', `GitHub token exchange failed (${res.status})`);
 	const body = (await res.json()) as { access_token?: string; error_description?: string };
@@ -49,7 +51,8 @@ async function fetchViewer(token: string): Promise<Omit<Session, 'token'>> {
 			Authorization: `Bearer ${token}`,
 			'User-Agent': 'goard',
 			Accept: 'application/vnd.github+json'
-		}
+		},
+		signal: AbortSignal.timeout(TIMEOUT_MS)
 	});
 	if (!res.ok) throw new AppError('upstream', `Could not load GitHub profile (${res.status})`);
 	const user = (await res.json()) as { login: string; name: string | null; avatar_url: string };

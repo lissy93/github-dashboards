@@ -1,8 +1,9 @@
+import { median } from '$lib/utils/datetime';
 import { languageBreakdown, FALLBACK_COLORS } from '$lib/views/stats';
-import type { Slice } from '$lib/views/stats';
+import type { Slice } from '$lib/types/charts';
 import type { LanguageUsage } from '$lib/types';
-import type { ReleaseRow } from '$lib/server/github/releases';
-import type { LabelCount } from '$lib/server/github/repo-labels';
+import type { ReleaseRow } from '$lib/types';
+import type { LabelCount } from '$lib/types';
 
 // Language byte breakdown as donut/bar slices, reusing the user-stats shaping
 export function languageSlices(usage: LanguageUsage[], limit = 8): Slice[] {
@@ -165,14 +166,6 @@ export type ReleaseMarker = {
 };
 export type ReleaseCadence = { markers: ReleaseMarker[]; medianGapDays: number | null };
 
-// Middle value of a set, averaging the two middles for an even count
-function medianOf(values: number[]): number | null {
-	if (!values.length) return null;
-	const sorted = [...values].sort((first, second) => first - second);
-	const mid = Math.floor(sorted.length / 2);
-	return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
-}
-
 // Releases on a real time axis, each carrying the gap since the previous one, plus
 // the median cadence. Releases arrive oldest first so the gaps read forward in time
 export function releaseCadence(releases: ReleaseRow[]): ReleaseCadence {
@@ -193,7 +186,18 @@ export function releaseCadence(releases: ReleaseRow[]): ReleaseCadence {
 		});
 		previous = time;
 	}
-	return { markers, medianGapDays: medianOf(gaps) };
+	const gap = median(gaps);
+	return { markers, medianGapDays: gap === null ? null : Math.round(gap) };
+}
+
+// Human label for the typical gap between releases
+export function cadenceLabel(medianGapDays: number | null): string {
+	if (medianGapDays == null) return '-';
+	if (medianGapDays < 1) return 'Multiple per day';
+	if (medianGapDays === 1) return 'Daily';
+	if (medianGapDays <= 7) return `Every ${medianGapDays} days`;
+	if (medianGapDays <= 45) return `Every ${Math.round(medianGapDays / 7)} weeks`;
+	return `Every ${Math.round(medianGapDays / 30)} months`;
 }
 
 // ---- Label work-mix -------------------------------------------------------

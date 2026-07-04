@@ -1,4 +1,4 @@
-import type { SortFilterConfig, View } from '$lib/components/filter/sort-filter';
+import type { SortFilterConfig, View } from '$lib/utils/sort-filter';
 import { ACTIVITY_TYPE_OPTIONS } from '$lib/components/activity/activity-config';
 import type { ActivityEvent } from '$lib/types';
 

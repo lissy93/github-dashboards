@@ -1,8 +1,8 @@
 import { readCached, writeCached } from '$lib/server/cache';
 import { getUserOverview } from '$lib/server/github/user';
 import { mapLimit } from '$lib/server/concurrency';
-import { createLogger } from '$lib/logger';
-import { AppError, toAppError } from '$lib/errors';
+import { createLogger } from '$lib/utils/logger';
+import { AppError, toAppError } from '$lib/utils/errors';
 import type { OwnedRepoData, Repo } from '$lib/types';
 
 const REPOS_PER_SYNC = 24;

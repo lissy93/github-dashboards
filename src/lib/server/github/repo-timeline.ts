@@ -1,51 +1,19 @@
-import { graphql } from '$lib/server/github/client';
-import { isCached, readCached, writeCached } from '$lib/server/cache';
-import { logError } from '$lib/errors';
+import type {
+	Granularity,
+	RepoResolution,
+	RepoTimeline,
+	ResolutionStats,
+	TimelineCore
+} from '$lib/types';
+import { paginate } from '$lib/server/github/client';
+import { median, monthStartOf, weekStartOf } from '$lib/utils/datetime';
+import { checkpointed, isCached } from '$lib/server/cache';
+import { logError } from '$lib/utils/errors';
 
 // Refresh the newest data often, while each refresh resumes a bounded older backfill
 const TTL = 300;
 const PER_PAGE = 100;
 const BACKFILL_PAGES = 10;
-
-export type TimelinePoint = {
-	period: string;
-	openedIssues: number;
-	closedIssues: number;
-	completedIssues: number;
-	discardedIssues: number;
-	openIssues: number;
-	openedPrs: number;
-	closedPrs: number;
-	mergedPrs: number;
-	discardedPrs: number;
-	openPrs: number;
-	// Median hours to resolve items closed in this bucket, null when none resolved
-	resolveIssuesHours: number | null;
-	resolvePrsHours: number | null;
-};
-export type Granularity = 'month' | 'week';
-export type TimelineCore = {
-	points: TimelinePoint[];
-	sampled: boolean;
-	granularity: Granularity;
-};
-
-// One duration band and how many resolved items fell into it
-export type DurationBucket = { label: string; count: number };
-// How long resolved items took, summarised server side so we ship counts not raw items
-export type ResolutionStats = {
-	count: number;
-	medianHours: number | null;
-	buckets: DurationBucket[];
-};
-// Time to close issues and merge PRs, the two resolution histograms for a repo
-export type RepoResolution = { issues: ResolutionStats; prs: ResolutionStats };
-export type TimelineBaseline = { total: number; open: number };
-
-export type RepoTimeline = TimelineCore & {
-	resolution: RepoResolution;
-	baseline: { issues: TimelineBaseline; prs: TimelineBaseline };
-};
 
 // A created/closed item, resolved means merged (PR) or completed (issue), default true
 export type Lifecycle = { createdAt: string; closedAt: string | null; resolved?: boolean };
@@ -109,14 +77,6 @@ const DURATION_BUCKETS: { label: string; max: number }[] = [
 const hoursBetween = (createdAt: string, closedAt: string) =>
 	Math.max(0, (Date.parse(closedAt) - Date.parse(createdAt)) / 3600000);
 
-// Middle value of a set, averaging the two middles for an even count
-function median(values: number[]): number | null {
-	if (!values.length) return null;
-	const sorted = [...values].sort((first, second) => first - second);
-	const mid = Math.floor(sorted.length / 2);
-	return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
 // Median duration and a per-band count over a set of resolution times. Pure, so the
 // histogram maths tests apart from the GraphQL walk
 export function resolutionStats(hours: number[]): ResolutionStats {
@@ -141,15 +101,7 @@ function buildResolution(issues: IssueNode[], prs: PrNode[]): RepoResolution {
 
 // Bucket-start date (YYYY-MM-DD) for a timestamp: first of the month, or the week's Monday
 function bucketStart(iso: string, granularity: Granularity): string {
-	const date = new Date(iso);
-	if (granularity === 'week') {
-		const offset = (date.getUTCDay() + 6) % 7;
-		const monday = new Date(
-			Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - offset)
-		);
-		return monday.toISOString().slice(0, 10);
-	}
-	return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-01`;
+	return granularity === 'week' ? weekStartOf(iso) : monthStartOf(iso);
 }
 
 // Every bucket start from the earliest activity to now, so quiet spells still show
@@ -195,29 +147,21 @@ async function fetchBatch<T extends Lifecycle & { id: string }>(
 	startCursor: string | null,
 	pages: number
 ): Promise<Crawl<T>> {
-	const text = kind === 'issues' ? ISSUE_QUERY : PR_QUERY;
-	const nodes: T[] = [];
-	let cursor = startCursor;
-	let complete = false;
 	let openTotal = 0;
 	let total = 0;
-	for (let page = 0; page < pages; page++) {
-		const data: TimelineResp<T> = await graphql<TimelineResp<T>>(text, { owner, name, cursor });
-		const conn: Conn<T> | undefined = data.repository?.[kind];
-		if (!conn) {
-			complete = true;
-			break;
-		}
-		openTotal = data.repository?.open.totalCount ?? 0;
-		total = conn.totalCount;
-		nodes.push(...conn.nodes);
-		if (!conn.pageInfo.hasNextPage || !conn.pageInfo.endCursor) {
-			cursor = null;
-			complete = true;
-			break;
-		}
-		cursor = conn.pageInfo.endCursor;
-	}
+	const { nodes, cursor, complete } = await paginate<T, TimelineResp<T>>(
+		kind === 'issues' ? ISSUE_QUERY : PR_QUERY,
+		{ owner, name },
+		(data) => {
+			const conn = data.repository?.[kind];
+			if (conn) {
+				openTotal = data.repository?.open.totalCount ?? 0;
+				total = conn.totalCount;
+			}
+			return conn;
+		},
+		{ maxPages: pages, cursor: startCursor }
+	);
 	return { nodes, cursor, complete, openTotal, total };
 }
 
@@ -380,18 +324,13 @@ function build(state: TimelineState): RepoTimeline {
 
 const key = (owner: string, name: string) =>
 	`repo:timeline-state:v1:${owner}/${name}`.toLowerCase();
-const syncing = new Map<string, Promise<TimelineState>>();
-
+// One kind failing mid-refresh keeps the other's progress instead of blanking both
 async function syncState(
 	owner: string,
 	name: string,
 	current?: TimelineState
 ): Promise<TimelineState> {
-	const cacheKey = key(owner, name);
-	const running = syncing.get(cacheKey);
-	if (running) return running;
-
-	const task = Promise.all([
+	const [issues, prs] = await Promise.all([
 		syncKind<IssueNode>(owner, name, 'issues', current?.issues).catch((caught) => {
 			if (current) {
 				logError('repo-timeline-issues', caught);
@@ -406,20 +345,8 @@ async function syncState(
 			}
 			throw caught;
 		})
-	])
-		.then(async ([issues, prs]) => {
-			const state = { issues, prs };
-			try {
-				await writeCached(cacheKey, state, TTL);
-			} catch (caught) {
-				logError('repo-timeline-cache', caught);
-			}
-			return state;
-		})
-		.finally(() => syncing.delete(cacheKey));
-
-	syncing.set(cacheKey, task);
-	return task;
+	]);
+	return { issues, prs };
 }
 
 export const isRepoTimelineCached = (owner: string, name: string) => isCached(key(owner, name));
@@ -427,20 +354,11 @@ export const isRepoTimelineCached = (owner: string, name: string) => isCached(ke
 // Serve the last good timeline immediately, refreshing recent rows and resuming older
 // history in the background. A cold repo fetches one bounded batch before first render
 export async function getRepoIssuePrTimeline(owner: string, name: string): Promise<RepoTimeline> {
-	const cacheKey = key(owner, name);
-	let stored: Awaited<ReturnType<typeof readCached<TimelineState>>> = null;
-	try {
-		stored = await readCached<TimelineState>(cacheKey);
-	} catch (caught) {
-		logError('repo-timeline-cache', caught);
-	}
-	if (!stored) return build(await syncState(owner, name));
-
-	const stale = Date.now() - stored.fetchedAt.getTime() >= TTL * 1000;
-	if (stale) {
-		void syncState(owner, name, stored.value).catch((caught) =>
-			logError('repo-timeline-refresh', caught)
-		);
-	}
-	return build(stored.value);
+	const state = await checkpointed<TimelineState>(
+		'repo-timeline',
+		key(owner, name),
+		TTL,
+		(current) => syncState(owner, name, current)
+	);
+	return build(state);
 }

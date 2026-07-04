@@ -1,5 +1,6 @@
-import { formatNumber } from '$lib/format';
-import type { Slice } from '$lib/views/stats';
+import { monthStartOf, weekStartOf } from '$lib/utils/datetime';
+import { formatNumber } from '$lib/utils/format';
+import type { Slice } from '$lib/types/charts';
 import type { AnalyticsItem, TrafficDay } from '$lib/types';
 
 export type MetricKey = 'views' | 'uniqueViews' | 'returning' | 'clones' | 'uniqueClones';
@@ -70,12 +71,8 @@ function cutoffDay(days: number): string {
 
 // Snap a day to the first day of its bucket, so rows group by period
 function periodKey(day: string, granularity: Granularity): string {
-	if (granularity === 'month') return `${day.slice(0, 7)}-01`;
-	if (granularity === 'week') {
-		const date = new Date(`${day}T00:00:00Z`);
-		const offset = (date.getUTCDay() + 6) % 7;
-		return new Date(date.getTime() - offset * 86400000).toISOString().slice(0, 10);
-	}
+	if (granularity === 'month') return monthStartOf(day);
+	if (granularity === 'week') return weekStartOf(day);
 	return day;
 }
 

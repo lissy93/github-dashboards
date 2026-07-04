@@ -1,13 +1,12 @@
 <script lang="ts">
 	import { chartTip } from './chart-tip.svelte';
-	import { yearMarks } from './chart';
+	import { timeTicks, nearestIndex, CHART_PAD } from './chart';
 	import ChartTooltip from './ChartTooltip.svelte';
-	import { formatDate } from '$lib/format';
 	import type { ReleaseCadence } from '$lib/views/repo-stats';
 
 	let { cadence, height = 5 }: { cadence: ReleaseCadence; height?: number } = $props();
 
-	const PAD = { top: 12, right: 14, bottom: 22, left: 14 };
+	const PAD = { ...CHART_PAD, left: 14 };
 	const STABLE = 'var(--chart-3)';
 	const PRE = 'var(--muted-foreground)';
 	const H = $derived(height * 16);
@@ -30,19 +29,13 @@
 		return { dots, axisY, first, span, plotW };
 	});
 
-	// A label per calendar year, falling back to first and last for short spans
+	// A label per calendar year, falling back to a few dates for short spans
 	const xTicks = $derived.by(() => {
 		if (!cadence.markers.length) return [];
 		const { first, span, plotW } = geom;
-		const last = first + span;
-		const years = yearMarks(first, last).map((mark) => ({
-			label: String(mark.year),
-			x: PAD.left + ((mark.ms - first) / span) * plotW
-		}));
-		if (years.length) return years;
-		return [...new Set([first, last])].map((time) => ({
-			label: formatDate(new Date(time).toISOString()),
-			x: PAD.left + ((time - first) / span) * plotW
+		return timeTicks(first, first + span).map((tick) => ({
+			label: tick.label,
+			x: PAD.left + ((tick.ms - first) / span) * plotW
 		}));
 	});
 
@@ -51,10 +44,9 @@
 	function move(event: PointerEvent) {
 		if (!svg || !geom.dots.length) return;
 		const x = event.clientX - svg.getBoundingClientRect().left;
-		const nearest = geom.dots.reduce(
-			(best, dot, index) =>
-				Math.abs(dot.cx - x) < Math.abs(geom.dots[best].cx - x) ? index : best,
-			0
+		const nearest = nearestIndex(
+			geom.dots.map((dot) => dot.cx),
+			x
 		);
 		hover = nearest;
 		const dot = geom.dots[nearest];

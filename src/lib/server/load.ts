@@ -1,5 +1,5 @@
-import { logError, toDisplayError } from '$lib/errors';
-import type { LoadResult } from '$lib/views/overview';
+import { logError, toDisplayError } from '$lib/utils/errors';
+import type { LoadResult } from '$lib/types';
 
 // Wrap a fetch as a LoadResult, so one duff dataset doesn't blank the others
 export function settle<T>(scope: string, task: Promise<T>): Promise<LoadResult<T>> {

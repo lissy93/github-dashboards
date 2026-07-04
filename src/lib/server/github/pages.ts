@@ -1,29 +1,9 @@
-import { rest } from '$lib/server/github/client';
+import type { RepoPages } from '$lib/types';
+import { restTolerant } from '$lib/server/github/client';
 import { cached, isCached } from '$lib/server/cache';
-import { AppError } from '$lib/errors';
 
 // Pages config rarely changes, refresh every 15 minutes
 const TTL = 900;
-
-export type PagesBuild = {
-	status: string;
-	createdAt: string;
-	duration: number;
-	commitSha: string | null;
-	url: string | null;
-	error: string | null;
-};
-export type RepoPages = {
-	enabled: boolean;
-	url: string | null;
-	cname: string | null;
-	https: boolean;
-	source: { branch: string; path: string } | null;
-	buildType: string | null;
-	status: string | null;
-	builds: PagesBuild[];
-	certificate: { state: string; expiresAt: string | null } | null;
-};
 
 const EMPTY: RepoPages = {
 	enabled: false,
@@ -56,23 +36,18 @@ type RawBuild = {
 	error?: { message: string | null } | null;
 };
 
-// Pages 404 means not enabled, 403 means no access (not an error)
-async function tryPages<T>(path: string): Promise<T | null> {
-	try {
-		return await rest<T>(path);
-	} catch (error) {
-		if (error instanceof AppError && (error.code === 'not_found' || error.code === 'forbidden'))
-			return null;
-		throw error;
-	}
-}
-
 async function fetchPages(owner: string, name: string): Promise<RepoPages> {
-	const info = await tryPages<RawPages>(`/repos/${owner}/${name}/pages`);
+	const info = await restTolerant<RawPages>(`/repos/${owner}/${name}/pages`, [
+		'forbidden',
+		'not_found'
+	]);
 	if (!info) return EMPTY;
 
 	const rawBuilds =
-		(await tryPages<RawBuild[]>(`/repos/${owner}/${name}/pages/builds?per_page=20`)) ?? [];
+		(await restTolerant<RawBuild[]>(`/repos/${owner}/${name}/pages/builds?per_page=20`, [
+			'forbidden',
+			'not_found'
+		])) ?? [];
 
 	return {
 		enabled: true,

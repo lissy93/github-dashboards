@@ -1,24 +1,18 @@
-import { rest } from '$lib/server/github/client';
+import { newestStarPage } from '$lib/server/github/stargazer-page';
 import { getUserOverview } from '$lib/server/github/user';
 import { cached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
-import { AppError } from '$lib/errors';
-import { createLogger } from '$lib/logger';
+import { AppError } from '$lib/utils/errors';
+import { createLogger } from '$lib/utils/logger';
 import type { Repo, RecentStar } from '$lib/types';
 
 const log = createLogger('latest-stargazers');
 
-const PER_PAGE = 100;
 // Most recent stars cluster on a user's biggest repos, so only scan the top few
 const TOP_REPOS = 40;
-// GitHub paginates only the first 40k stargazers; past that the newest are unreachable
-const PAGE_CAP = 400;
 const KEEP = 12;
 const CONCURRENCY = 6;
 const TTL = 6 * 3600;
-const STAR_ACCEPT = 'application/vnd.github.star+json';
-
-type RawStar = { starred_at: string; user: { login: string; avatar_url: string } };
 
 // The most recent stargazers across a user's owned repos, merged and deduped
 export function getLatestStargazers(login: string): Promise<RecentStar[]> {
@@ -43,15 +37,8 @@ export function getLatestStargazers(login: string): Promise<RecentStar[]> {
 
 // Newest stargazers for one repo from its last reachable page, null if the fetch fails
 async function newestForRepo(repo: Repo): Promise<RecentStar[] | null> {
-	const lastPage = Math.ceil(repo.stars / PER_PAGE);
-	// Past the pagination cap the reachable tail is old, not recent, so skip it
-	if (lastPage > PAGE_CAP) return [];
 	try {
-		const page =
-			(await rest<RawStar[]>(
-				`/repos/${repo.owner}/${repo.name}/stargazers?per_page=${PER_PAGE}&page=${lastPage}`,
-				{ headers: { Accept: STAR_ACCEPT } }
-			)) ?? [];
+		const page = await newestStarPage(repo);
 		return page.slice(-KEEP).map((star) => ({
 			login: star.user.login,
 			avatarUrl: star.user.avatar_url,

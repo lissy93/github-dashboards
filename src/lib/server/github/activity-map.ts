@@ -1,5 +1,5 @@
 import { GITHUB_WEB } from '$lib/config';
-import { REACTION_KEYS } from '$lib/reactions';
+import { REACTION_KEYS } from '$lib/config/reactions';
 import type { ActivityEvent, Reactions } from '$lib/types';
 
 // GraphQL reactionGroups use enum content names, mapped back to the canonical keys

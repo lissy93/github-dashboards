@@ -1,6 +1,6 @@
 import { env } from '$env/dynamic/private';
 import { z } from 'zod';
-import { AppError } from '$lib/errors';
+import { AppError } from '$lib/utils/errors';
 
 const schema = z.object({
 	DATABASE_URL: z.string().url(),

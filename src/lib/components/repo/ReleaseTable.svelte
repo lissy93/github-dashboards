@@ -1,19 +1,17 @@
 <script lang="ts">
-	import { ExternalLink, ChevronDown } from '@lucide/svelte';
-	import Icon from '$lib/components/common/Icon.svelte';
 	import Hint from '$lib/components/common/Hint.svelte';
-	import { Button } from '$lib/components/ui/button';
-	import { relativeTime, formatDateTime, formatNumber } from '$lib/format';
-	import type { ReleaseRow } from '$lib/server/github/releases';
+	import ExtLink from '$lib/components/common/ExtLink.svelte';
+	import TimeAgo from '$lib/components/common/TimeAgo.svelte';
+	import LoadMore from '$lib/components/common/LoadMore.svelte';
+	import { formatNumber } from '$lib/utils/format';
+	import type { ReleaseRow } from '$lib/types';
 
-	const INITIAL = 20;
 	const STEP = 20;
 
 	let { releases }: { releases: ReleaseRow[] } = $props();
 
-	let shown = $state(INITIAL);
+	let shown = $state(STEP);
 	const rows = $derived(releases.slice(0, shown));
-	const remaining = $derived(releases.length - shown);
 </script>
 
 <div class="overflow-x-auto">
@@ -33,15 +31,7 @@
 				<tr class="border-b last:border-0">
 					<td class="max-w-[14rem] px-2 py-2 font-medium first:pl-0 sm:max-w-[18rem]">
 						<div class="truncate">
-							<a
-								href={release.url}
-								target="_blank"
-								rel="noopener noreferrer"
-								class="inline-flex items-center gap-1 hover:underline"
-							>
-								{release.name}
-								<Icon icon={ExternalLink} size={12} class="text-muted-foreground" />
-							</a>
+							<ExtLink href={release.url}>{release.name}</ExtLink>
 						</div>
 					</td>
 					<td class="text-muted-foreground max-w-[10rem] px-2 py-2 max-sm:hidden">
@@ -69,9 +59,7 @@
 						{/if}
 					</td>
 					<td class="text-muted-foreground px-2 py-2 text-right whitespace-nowrap last:pr-0">
-						<Hint text={formatDateTime(release.publishedAt)}>
-							{relativeTime(release.publishedAt)}
-						</Hint>
+						<TimeAgo date={release.publishedAt} />
 					</td>
 				</tr>
 			{/each}
@@ -79,10 +67,4 @@
 	</table>
 </div>
 
-{#if remaining > 0}
-	<div class="mt-3 flex justify-center">
-		<Button variant="outline" size="sm" onclick={() => (shown += STEP)}>
-			<Icon icon={ChevronDown} size={14} />Load more ({remaining})
-		</Button>
-	</div>
-{/if}
+<LoadMore total={releases.length} step={STEP} bind:shown resetKey={releases} />

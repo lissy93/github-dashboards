@@ -2,7 +2,7 @@
 	import { cn } from '$lib/utils';
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
-	import { formatNumber } from '$lib/format';
+	import { formatNumber } from '$lib/utils/format';
 
 	// Tiny activity bar chart, each value a bucket over the repo's life. Pass labels/valueLabel to
 	// make the bars hoverable with a tooltip, otherwise it stays a decorative sparkline
@@ -45,7 +45,9 @@
 		>
 			<div
 				class="min-h-px w-full rounded-t-sm"
-				style="height: {(value / max) * 100}%; background-color: {color}; opacity: {value ? 1 : 0.2}"
+				style="height: {(value / max) * 100}%; background-color: {color}; opacity: {value
+					? 1
+					: 0.2}"
 			></div>
 		</div>
 	{/each}

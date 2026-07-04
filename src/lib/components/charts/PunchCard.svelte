@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
-	import { DAYS_SHORT, DAYS_FULL } from '$lib/datetime';
-	import { formatNumber } from '$lib/format';
+	import { DAYS_SHORT, DAYS_FULL } from '$lib/utils/datetime';
+	import { formatNumber } from '$lib/utils/format';
 	import type { ActivityRhythm } from '$lib/types';
 
 	let { punch, peak }: { punch: number[][]; peak: ActivityRhythm['peak'] } = $props();

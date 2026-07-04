@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { SEVERITY_COLOR } from '$lib/views/supply-chain';
-	import type { VulnSeverity } from '$lib/server/github/supply-chain';
+	import type { VulnSeverity } from '$lib/types';
 
 	// Uppercase severity tag, tinted with the shared advisory palette
 	let { severity }: { severity: VulnSeverity } = $props();

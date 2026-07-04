@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { compactNumber } from '$lib/format';
+	import { compactNumber } from '$lib/utils/format';
 	import { DIRECT_COLOR, TRANSITIVE_COLOR } from '$lib/views/supply-chain';
 	import type { EcosystemStat } from '$lib/views/supply-chain';
 

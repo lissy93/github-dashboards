@@ -1,36 +1,24 @@
 <script lang="ts">
-	import {
-		Workflow,
-		CircleCheck,
-		Activity,
-		Timer,
-		Power,
-		RotateCcw
-	} from '@lucide/svelte';
-	import AsyncPanel from '$lib/components/repo/AsyncPanel.svelte';
+	import { Workflow, CircleCheck, Activity, Timer, Power, RotateCcw } from '@lucide/svelte';
+	import AsyncPanel from '$lib/components/common/AsyncPanel.svelte';
 	import StatTileGrid from '$lib/components/common/StatTileGrid.svelte';
 	import type { Tile } from '$lib/components/common/StatTileGrid.svelte';
 	import WorkflowTable from '$lib/components/repo/WorkflowTable.svelte';
 	import StackedBarChart from '$lib/components/charts/StackedBarChart.svelte';
-	import { workflowKpiStats, runActivityChart, formatDuration } from '$lib/views/repo';
-	import { compactNumber } from '$lib/format';
-	import { APP_NAME } from '$lib/config';
-	import type { LoadResult } from '$lib/views/overview';
+	import { workflowKpiStats, runActivityChart } from '$lib/views/repo';
+	import { compactNumber, formatDuration, formatPercent, plural } from '$lib/utils/format';
+	import { ok } from '$lib/state/api';
 	import type { PageData } from './$types';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
-
-	const ok = <T,>(result: LoadResult<T>): T | null => (result.ok ? result.data : null);
-	const pct = (rate: number | null) => (rate == null ? '-' : `${Math.round(rate * 100)}%`);
-	const plural = (count: number, noun: string) =>
-		`${count} ${noun}${count === 1 ? '' : 's'}`;
 
 	function tiles(stats: ReturnType<typeof workflowKpiStats>): Tile[] {
 		return [
 			{ label: 'Workflows', value: compactNumber(stats.workflows), icon: Workflow },
 			{
 				label: 'Pass rate',
-				value: pct(stats.passRate),
+				value: formatPercent(stats.passRate),
 				icon: CircleCheck,
 				hint: 'Share of recently sampled runs that passed, weighted by run count'
 			},
@@ -51,12 +39,12 @@
 				value: compactNumber(stats.active),
 				icon: Power,
 				hint: stats.disabled
-					? `${plural(stats.active, 'workflow')} active, ${plural(stats.disabled, 'workflow')} disabled`
+					? `${stats.active} ${plural(stats.active, 'workflow')} active, ${stats.disabled} ${plural(stats.disabled, 'workflow')} disabled`
 					: 'All workflows are active'
 			},
 			{
 				label: 'Retries',
-				value: pct(stats.retryRate),
+				value: formatPercent(stats.retryRate),
 				icon: RotateCcw,
 				hint: 'Share of sampled runs that were re-triggered'
 			}
@@ -64,18 +52,16 @@
 	}
 </script>
 
-<svelte:head>
-	<title>Workflows · {data.repo.nameWithOwner} · {APP_NAME}</title>
-</svelte:head>
+<PageMeta
+	title={`Workflows · ${data.repo.nameWithOwner}`}
+	description={`Actions workflows, statuses and pass rates for ${data.repo.nameWithOwner}`}
+/>
 
 <div class="space-y-5">
 	{#await data.workflows then res}
 		{@const wf = ok(res)}
 		{#if wf && wf.workflows.length}
-			<StatTileGrid
-				tiles={tiles(workflowKpiStats(wf))}
-				class="sm:grid-cols-3 lg:grid-cols-6"
-			/>
+			<StatTileGrid tiles={tiles(workflowKpiStats(wf))} class="sm:grid-cols-3 lg:grid-cols-6" />
 		{/if}
 	{/await}
 

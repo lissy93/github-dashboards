@@ -1,5 +1,5 @@
 import type { ParamMatcher } from '@sveltejs/kit';
-import { BUCKET_BY_SECTION } from '$lib/components/tasks/tasks-config';
+import { BUCKET_BY_SECTION } from '$lib/config/tasks';
 
 // Only the four known task list sections route, anything else 404s
 export const match: ParamMatcher = (param) => param in BUCKET_BY_SECTION;

@@ -1,6 +1,6 @@
 import { getTaskData, isTaskReady } from '$lib/server/github/tasks';
 import { settle } from '$lib/server/load';
-import { BUCKET_BY_SECTION, TASK_BUCKETS } from '$lib/components/tasks/tasks-config';
+import { BUCKET_BY_SECTION, TASK_BUCKET_INFO } from '$lib/config/tasks';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params }) => {
@@ -16,7 +16,7 @@ export const load: PageServerLoad = async ({ params }) => {
 	return {
 		user: params.user,
 		bucket,
-		title: TASK_BUCKETS[bucket].title,
+		title: TASK_BUCKET_INFO[bucket].title,
 		result: ready ? await result : result
 	};
 };

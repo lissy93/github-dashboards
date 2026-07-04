@@ -19,7 +19,7 @@
 		Package
 	} from '@lucide/svelte';
 	import SectionHeading from '$lib/components/common/SectionHeading.svelte';
-	import AsyncPanel from '$lib/components/repo/AsyncPanel.svelte';
+	import AsyncPanel from '$lib/components/common/AsyncPanel.svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
 	import EmptyState from '$lib/components/common/EmptyState.svelte';
 	import ItemRow from '$lib/components/tasks/ItemRow.svelte';
@@ -34,13 +34,7 @@
 	import HBarList from '$lib/components/charts/HBarList.svelte';
 	import SecurityChecks from '$lib/components/repo/SecurityChecks.svelte';
 	import AnalyticsDashboard from '$lib/components/analytics/AnalyticsDashboard.svelte';
-	import {
-		starChart,
-		lifecycleBars,
-		lifecycleSeries,
-		cumulativeTicks,
-		formatDuration
-	} from '$lib/views/repo';
+	import { starChart, lifecycleBars, lifecycleSeries, cumulativeTicks } from '$lib/views/repo';
 	import {
 		workflowSummary,
 		deploymentSummary,
@@ -55,7 +49,7 @@
 	import { deploymentMiniChart } from '$lib/views/repo-deployments';
 	import { releaseDownloadBars, hasReleaseDownloads } from '$lib/views/repo-stats';
 	import { paths, APP_NAME } from '$lib/config';
-	import { formatBytes } from '$lib/format';
+	import { formatBytes, formatDuration } from '$lib/utils/format';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();

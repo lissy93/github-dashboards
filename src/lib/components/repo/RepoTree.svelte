@@ -1,13 +1,13 @@
 <script lang="ts">
+	import SegmentedControl from '$lib/components/common/SegmentedControl.svelte';
+	import SearchInput from '$lib/components/common/SearchInput.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { Search, UnfoldVertical, FoldVertical, GitBranch, TriangleAlert } from '@lucide/svelte';
-	import { Input } from '$lib/components/ui/input';
+	import { UnfoldVertical, FoldVertical, GitBranch, TriangleAlert } from '@lucide/svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import Hint from '$lib/components/common/Hint.svelte';
 	import TreeRow from './TreeRow.svelte';
 	import { filterTree, sortNodes, allDirPaths, type TreeSort } from '$lib/views/repo-tree';
-	import { formatBytes, compactNumber } from '$lib/format';
-	import { cn } from '$lib/utils';
+	import { formatBytes, compactNumber } from '$lib/utils/format';
 	import type { RepoTree } from '$lib/types';
 
 	let { tree, repoUrl }: { tree: RepoTree; repoUrl: string } = $props();
@@ -37,37 +37,13 @@
 
 <div class="space-y-3">
 	<div class="flex flex-wrap items-center gap-2">
-		<div class="relative min-w-40 flex-1">
-			<Icon
-				icon={Search}
-				size={15}
-				class="text-muted-foreground absolute top-1/2 left-2.5 -translate-y-1/2"
-			/>
-			<Input
-				bind:value={query}
-				placeholder="Filter files"
-				aria-label="Filter files"
-				class="h-9 pl-8"
-			/>
-		</div>
+		<SearchInput bind:value={query} placeholder="Filter files" class="min-w-40 flex-1" />
 
-		<div class="bg-muted inline-flex rounded-md p-0.5 text-xs">
-			{#each SORTS as option (option.key)}
-				<button
-					type="button"
-					aria-pressed={sort === option.key}
-					onclick={() => (sort = option.key)}
-					class={cn(
-						'rounded px-2.5 py-1.5 transition-colors',
-						sort === option.key
-							? 'bg-background text-foreground shadow-sm'
-							: 'text-muted-foreground'
-					)}
-				>
-					{option.label}
-				</button>
-			{/each}
-		</div>
+		<SegmentedControl
+			label="Sort files"
+			options={SORTS.map(({ key, label }) => ({ value: key, label }))}
+			bind:value={sort}
+		/>
 
 		<div class="flex items-center gap-1">
 			<Hint text="Expand all folders">

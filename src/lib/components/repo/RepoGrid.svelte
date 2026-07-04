@@ -3,12 +3,7 @@
 	import RepoCard from '$lib/components/repo/RepoCard.svelte';
 	import SortFilterBar from '$lib/components/filter/SortFilterBar.svelte';
 	import Pagination from '$lib/components/common/Pagination.svelte';
-	import {
-		applyView,
-		defaultView,
-		type SortFilterConfig,
-		type View
-	} from '$lib/components/filter/sort-filter';
+	import { applyView, defaultView, type SortFilterConfig, type View } from '$lib/utils/sort-filter';
 	import { cn } from '$lib/utils';
 	import type { Repo, RepoExtras } from '$lib/types';
 
@@ -37,6 +32,14 @@
 	const viewKey = $derived(
 		`${view.search}|${view.sortKey}|${view.dir}|${JSON.stringify(view.filters)}`
 	);
+
+	// Fresh view and first page when a different repo list arrives (route reuse)
+	$effect(() => {
+		if (repos) {
+			view = untrack(() => defaultView(config));
+			page = 1;
+		}
+	});
 
 	// Return to the first page whenever the sort, filter or search changes
 	$effect(() => {

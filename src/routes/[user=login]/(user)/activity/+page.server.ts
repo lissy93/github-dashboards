@@ -1,6 +1,6 @@
 import { syncActivity, getActivityPage, isSynced } from '$lib/server/github/activity';
 import { settle } from '$lib/server/load';
-import { logError } from '$lib/errors';
+import { logError } from '$lib/utils/errors';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, parent }) => {

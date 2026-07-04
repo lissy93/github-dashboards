@@ -7,8 +7,8 @@
 	import Icon from '$lib/components/common/Icon.svelte';
 	import EmptyState from '$lib/components/common/EmptyState.svelte';
 	import { cn } from '$lib/utils';
-	import { formatNumber } from '$lib/format';
-	import { toDisplayError } from '$lib/errors';
+	import { formatNumber } from '$lib/utils/format';
+	import { toDisplayError } from '$lib/utils/errors';
 
 	type Props = {
 		title: string;
@@ -79,7 +79,15 @@
 	</Card.Header>
 	<Card.Content class="p-4">
 		{#if error}
-			<p class="text-danger text-sm">{toDisplayError(error).message}</p>
+			{@const display = toDisplayError(error)}
+			{#if display.pending}
+				<p class="text-muted-foreground flex items-center gap-2 text-sm">
+					<span class="bg-muted-foreground/60 size-2 shrink-0 animate-pulse rounded-full"></span>
+					{display.message}
+				</p>
+			{:else}
+				<p class="text-danger text-sm">{display.message}</p>
+			{/if}
 		{:else if loading}
 			<div class="space-y-2">
 				<Skeleton class="h-4 w-2/3" />

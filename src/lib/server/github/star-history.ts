@@ -1,23 +1,24 @@
+import type { Repo, RepoStarHistory } from '$lib/types';
 import { inArray, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { repoStarsDaily } from '$lib/server/db/schema';
 import { rest, restResponse } from '$lib/server/github/client';
+import { STAR_ACCEPT, STAR_PAGE_CAP, STAR_PER_PAGE } from '$lib/server/github/stargazer-page';
 import { getUserOverview } from '$lib/server/github/user';
 import { getRepo } from '$lib/server/github/repo';
-import { cached, readCached, writeCached } from '$lib/server/cache';
+import { cached, isCached, readCached, writeCached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
-import { createLogger } from '$lib/logger';
-import { AppError } from '$lib/errors';
-import type { Repo } from '$lib/types';
+import { createLogger } from '$lib/utils/logger';
+import { AppError } from '$lib/utils/errors';
 import type { StarBreakdown } from '$lib/views/stats';
 
 const log = createLogger('star-history');
 
-const PER_PAGE = 100;
+const PER_PAGE = STAR_PER_PAGE;
 // Sparse page sample for huge repos, so a 50k-star repo still costs a handful of requests
 const SAMPLE_PAGES = 4;
 // GitHub only paginates the first 40k stargazers, so timestamps stop past this page
-const PAGE_CAP = 400;
+const PAGE_CAP = STAR_PAGE_CAP;
 const CONCURRENCY = 6;
 const MAX_REPOS = 150;
 const REFRESH_REPOS = 24;
@@ -26,7 +27,6 @@ const TOP_REPOS = 8;
 // Keep reconstructed history long and use daily snapshots for the recent tail
 const BACKFILL_TTL = 6 * 3600;
 const AGGREGATE_TTL = 6 * 3600;
-const STAR_ACCEPT = 'application/vnd.github.star+json';
 
 type Stargazer = { starred_at: string };
 type Point = { day: string; stars: number };
@@ -70,7 +70,9 @@ export function getUserStarHistory(login: string): Promise<StarBreakdown> {
 	);
 }
 
-export type RepoStarHistory = { days: string[]; stars: number[]; sampled: boolean };
+// Whether this repo's star curve is already cached, for SSR-vs-stream gating
+export const isRepoStarHistoryCached = (owner: string, name: string) =>
+	isCached(`repo:star-history:v2:${owner}/${name}`.toLowerCase());
 
 // One repo's reconstructed star curve, for the repo stars page and panel. Reuses
 // the per-repo backfill cache and the shared interpolation, as a single series

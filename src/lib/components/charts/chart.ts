@@ -1,3 +1,5 @@
+import { formatDate } from '$lib/utils/format';
+
 // Categorical series colours, cycled for charts without their own colours
 export const CHART_SERIES = [
 	'var(--chart-1)',
@@ -59,6 +61,36 @@ export function yearMarks(firstMs: number, lastMs: number): { year: number; ms: 
 	const marks: { year: number; ms: number }[] = [];
 	for (let year = start + 1; year <= end; year++) marks.push({ year, ms: Date.UTC(year, 0, 1) });
 	return marks;
+}
+
+type TimeTick = { ms: number; label: string; year: boolean };
+
+// Year ticks across a span, or a few spread dates when under two years
+export function timeTicks(firstMs: number, lastMs: number): TimeTick[] {
+	const years = yearMarks(firstMs, lastMs).map((mark) => ({
+		ms: mark.ms,
+		label: String(mark.year),
+		year: true
+	}));
+	if (years.length >= 2) return years;
+	const ticks: TimeTick[] = [];
+	for (const ms of [firstMs, (firstMs + lastMs) / 2, lastMs]) {
+		const label = formatDate(new Date(ms).toISOString());
+		if (!ticks.some((tick) => tick.label === label)) ticks.push({ ms, label, year: false });
+	}
+	return ticks;
+}
+
+// Default plot padding, spread and adjust the left gutter where labels run wider
+export const CHART_PAD = { top: 12, right: 14, bottom: 22, left: 44 };
+
+// Index of the position closest to a pointer x
+export function nearestIndex(positions: number[], x: number): number {
+	return positions.reduce(
+		(best, position, index) =>
+			Math.abs(position - x) < Math.abs(positions[best] - x) ? index : best,
+		0
+	);
 }
 
 // Round an axis maximum up to a clean step so bar heights read nicely

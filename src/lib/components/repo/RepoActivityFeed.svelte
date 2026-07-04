@@ -1,16 +1,16 @@
 <script lang="ts">
 	import SortFilterBar from '$lib/components/filter/SortFilterBar.svelte';
 	import Feed from '$lib/components/common/Feed.svelte';
+	import FeedSkeleton from '$lib/components/common/FeedSkeleton.svelte';
 	import ActivityItem from '$lib/components/activity/ActivityItem.svelte';
 	import ErrorState from '$lib/components/common/ErrorState.svelte';
 	import { Switch } from '$lib/components/ui/switch';
-	import { Skeleton } from '$lib/components/ui/skeleton';
-	import { defaultView, type View } from '$lib/components/filter/sort-filter';
+	import { defaultView, type View } from '$lib/utils/sort-filter';
 	import { activityFilterConfig, activityQuery, activityUrl } from '$lib/views/activity';
-	import { fetchApi } from '$lib/api';
-	import { COMMUNITY_EXCLUDE, COMMUNITY_TYPES } from '$lib/components/activity/activity-config';
+	import { fetchApi } from '$lib/state/api';
+	import { COMMUNITY_EXCLUDE, COMMUNITY_TYPES } from '$lib/config/activity';
 	import type { ActivityEvent, ActivityPage, ActivityType } from '$lib/types';
-	import type { LoadResult } from '$lib/views/overview';
+	import type { LoadResult } from '$lib/types';
 
 	// Repo-scoped activity feed with a core-only toggle, reused by the activity tab and the overview.
 	// showFilters adds the search/type bar; showToggle the core-only switch; framed wraps the list in
@@ -61,14 +61,7 @@
 </script>
 
 {#await result}
-	<div class="space-y-3">
-		{#if showFilters}<Skeleton class="h-9 w-full" />{/if}
-		<div class="space-y-3 {framed ? 'bg-card rounded-md border p-4' : ''}">
-			{#each [0, 1, 2, 3, 4, 5] as index (index)}
-				<Skeleton class="h-10 w-full" />
-			{/each}
-		</div>
-	</div>
+	<FeedSkeleton bar={showFilters} {framed} />
 {:then res}
 	{#if res.ok}
 		<div class="space-y-3">

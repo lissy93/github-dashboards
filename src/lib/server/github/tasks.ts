@@ -1,7 +1,7 @@
-import { graphql } from '$lib/server/github/client';
+import { paginate } from '$lib/server/github/client';
 import { getUserOverview } from '$lib/server/github/user';
 import { cached, isCached } from '$lib/server/cache';
-import { logError } from '$lib/errors';
+import { logError } from '$lib/utils/errors';
 import type {
 	CheckState,
 	Person,
@@ -18,6 +18,26 @@ const MAX_PAGES = 10;
 // Open work changes often, so refresh on visit but throttle rapid navigation
 const TTL = 300;
 
+// Field lists shared with the repo task lists, so both build the same TaskItem rows
+export const PR_FIELDS = `
+	id number title url state isDraft createdAt updatedAt
+	reviewDecision additions deletions changedFiles
+	repository { nameWithOwner }
+	author { login avatarUrl }
+	assignees(first: 5) { nodes { login avatarUrl } }
+	labels(first: 10) { nodes { name color } }
+	comments { totalCount }
+	commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+`;
+export const ISSUE_FIELDS = `
+	id number title url state createdAt updatedAt
+	repository { nameWithOwner }
+	author { login avatarUrl }
+	assignees(first: 5) { nodes { login avatarUrl } }
+	labels(first: 10) { nodes { name color } }
+	comments { totalCount }
+`;
+
 const SEARCH = `
 	query TaskSearch($q: String!, $cursor: String) {
 		search(query: $q, type: ISSUE, first: ${PER_PAGE}, after: $cursor) {
@@ -25,24 +45,8 @@ const SEARCH = `
 			pageInfo { hasNextPage endCursor }
 			nodes {
 				__typename
-				... on PullRequest {
-					id number title url state isDraft createdAt updatedAt
-					reviewDecision additions deletions changedFiles
-					repository { nameWithOwner }
-					author { login avatarUrl }
-					assignees(first: 5) { nodes { login avatarUrl } }
-					labels(first: 10) { nodes { name color } }
-					comments { totalCount }
-					commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
-				}
-				... on Issue {
-					id number title url state createdAt updatedAt
-					repository { nameWithOwner }
-					author { login avatarUrl }
-					assignees(first: 5) { nodes { login avatarUrl } }
-					labels(first: 10) { nodes { name color } }
-					comments { totalCount }
-				}
+				... on PullRequest { ${PR_FIELDS} }
+				... on Issue { ${ISSUE_FIELDS} }
 			}
 		}
 	}
@@ -141,16 +145,16 @@ type SearchPage = {
 // and reports no next page at that ceiling, so truncation is detected against the
 // true issueCount rather than the page cursor
 async function searchAll(q: string): Promise<{ nodes: RawNode[]; truncated: boolean }> {
-	const nodes: RawNode[] = [];
-	let cursor: string | null = null;
 	let issueCount = 0;
-	for (let page = 0; page < MAX_PAGES; page++) {
-		const { search }: SearchPage = await graphql<SearchPage>(SEARCH, { q, cursor });
-		issueCount = search.issueCount;
-		nodes.push(...search.nodes);
-		if (!search.pageInfo.hasNextPage || !search.pageInfo.endCursor) break;
-		cursor = search.pageInfo.endCursor;
-	}
+	const { nodes } = await paginate<RawNode, SearchPage>(
+		SEARCH,
+		{ q },
+		({ search }) => {
+			issueCount = search.issueCount;
+			return search;
+		},
+		{ maxPages: MAX_PAGES }
+	);
 	return { nodes, truncated: nodes.length < issueCount };
 }
 
@@ -188,7 +192,7 @@ const BUCKETS: { bucket: TaskBucket; kind: 'pr' | 'issue'; mine: boolean }[] = [
 	{ bucket: 'myIssues', kind: 'issue', mine: true }
 ];
 
-const bucketKey = (bucket: TaskBucket, login: string) => `task:${bucket}:${login.toLowerCase()}`;
+const bucketKey = (bucket: TaskBucket, login: string) => `task:v1:${bucket}:${login.toLowerCase()}`;
 
 // Load every bucket, each cached on its own so one slow search never holds the others
 export async function getTaskData(login: string): Promise<TaskData> {

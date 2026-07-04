@@ -79,3 +79,45 @@ export function formatDate(iso: string): string {
 export function formatDateTime(iso: string): string {
 	return dateTimeFmt.format(Date.parse(iso));
 }
+
+// GitHub lets the profile website be any string, so only link real web URLs
+export function safeHttpUrl(value: string): string | null {
+	const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`;
+	try {
+		const url = new URL(withScheme);
+		return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;
+	} catch {
+		return null;
+	}
+}
+
+// Compact mm:ss style duration from seconds, for workflow runtimes
+export function formatDuration(seconds: number | null): string {
+	if (seconds == null) return '-';
+	if (seconds < 60) return `${Math.round(seconds)}s`;
+	const minutes = Math.floor(seconds / 60);
+	if (minutes < 60) return `${minutes}m ${Math.round(seconds % 60)}s`;
+	return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+// A coarse human span for resolution medians, scaling from hours up through years
+export function formatSpanHours(hours: number | null): string {
+	if (hours == null) return '-';
+	if (hours < 1) return '< 1h';
+	if (hours < 24) return `${Math.round(hours)}h`;
+	const days = hours / 24;
+	if (days < 7) return `${Math.round(days)}d`;
+	if (days < 30) return `${Math.round(days / 7)}w`;
+	if (days < 365) return `${Math.round(days / 30)}mo`;
+	return `${(days / 365).toFixed(1)}y`;
+}
+
+// Whole percent from a 0..1 rate, dash when there is no rate yet
+export function formatPercent(rate: number | null): string {
+	return rate == null ? '-' : `${Math.round(rate * 100)}%`;
+}
+
+// Naive plural, fine for our simple s-suffix labels
+export function plural(count: number, word: string): string {
+	return count === 1 ? word : `${word}s`;
+}

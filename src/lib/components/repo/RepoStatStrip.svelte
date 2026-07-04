@@ -2,7 +2,7 @@
 	import { GitCommitHorizontal, Activity, Users, LifeBuoy, Tag } from '@lucide/svelte';
 	import StatTileGrid from '$lib/components/common/StatTileGrid.svelte';
 	import type { Tile } from '$lib/components/common/StatTileGrid.svelte';
-	import { compactNumber } from '$lib/format';
+	import { compactNumber } from '$lib/utils/format';
 	import type { StatsSummary } from '$lib/views/repo-stats';
 
 	let { summary }: { summary: StatsSummary } = $props();

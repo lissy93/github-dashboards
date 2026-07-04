@@ -2,8 +2,8 @@
 	import { niceMax } from './chart';
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
-	import { formatNumber } from '$lib/format';
-	import type { Slice } from '$lib/views/stats';
+	import { formatNumber } from '$lib/utils/format';
+	import type { Slice } from '$lib/types/charts';
 
 	// colored uses each bar's own slice colour, else a single accent for the whole set
 	let {

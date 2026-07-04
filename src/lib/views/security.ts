@@ -1,4 +1,4 @@
-import type { GradeLetter } from '$lib/server/github/security';
+import type { GradeLetter } from '$lib/types';
 
 // Grade letters coloured by the same bands the score maps onto
 export const GRADE_COLOR: Record<GradeLetter, string> = {

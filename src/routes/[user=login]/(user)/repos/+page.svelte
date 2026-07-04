@@ -6,14 +6,15 @@
 	import ErrorState from '$lib/components/common/ErrorState.svelte';
 	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
 </script>
 
-<svelte:head>
-	<title>Repos · {data.user} · {APP_NAME}</title>
-	<meta name="description" content="All repositories owned by {data.user} on {APP_NAME}" />
-</svelte:head>
+<PageMeta
+	title={`Repos · ${data.user}`}
+	description={`All repositories owned by ${data.user} on ${APP_NAME}`}
+/>
 
 {#await data.result}
 	<Panel title="Repositories" icon={BookMarked}>

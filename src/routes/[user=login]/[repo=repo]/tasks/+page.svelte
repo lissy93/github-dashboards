@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { CircleDot, GitPullRequest } from '@lucide/svelte';
-	import AsyncPanel from '$lib/components/repo/AsyncPanel.svelte';
+	import AsyncPanel from '$lib/components/common/AsyncPanel.svelte';
 	import StackedBarChart from '$lib/components/charts/StackedBarChart.svelte';
 	import ItemRow from '$lib/components/tasks/ItemRow.svelte';
 	import {
@@ -9,19 +9,21 @@
 		cumulativeTicks,
 		TIMELINE_SAMPLED_NOTE
 	} from '$lib/views/repo';
-	import { APP_NAME, paths } from '$lib/config';
-	import type { RepoTimeline } from '$lib/server/github/repo-timeline';
+	import { paths } from '$lib/config';
+	import type { RepoTimeline } from '$lib/types';
 	import type { TaskList } from '$lib/types';
 	import type { PageData } from './$types';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
 
 	const section = (slug: string) => paths.repoTasksSection(data.user, data.repo.name, slug);
 </script>
 
-<svelte:head>
-	<title>Tasks · {data.repo.nameWithOwner} · {APP_NAME}</title>
-</svelte:head>
+<PageMeta
+	title={`Tasks · ${data.repo.nameWithOwner}`}
+	description={`Issues and pull requests over time for ${data.repo.nameWithOwner}`}
+/>
 
 <!-- The running total chart for one kind, split open/resolved/discarded -->
 {#snippet totalChart(tl: RepoTimeline, kind: 'issue' | 'pr', unit: string)}

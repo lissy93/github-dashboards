@@ -2,8 +2,8 @@
 	import { Star, GitFork, Eye } from '@lucide/svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
 	import PeopleList from '$lib/components/stats/PeopleList.svelte';
-	import { compactNumber, relativeTime } from '$lib/format';
-	import type { PersonRow, RepoPeople } from '$lib/server/github/repo-people';
+	import { compactNumber, relativeTime } from '$lib/utils/format';
+	import type { PersonRow, RepoPeople } from '$lib/types';
 
 	let { people }: { people: RepoPeople } = $props();
 

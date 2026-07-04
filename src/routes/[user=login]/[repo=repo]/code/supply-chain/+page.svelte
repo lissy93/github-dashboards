@@ -9,19 +9,16 @@
 	import ManifestList from '$lib/components/supply/ManifestList.svelte';
 	import DependencyTable from '$lib/components/supply/DependencyTable.svelte';
 	import { ecosystemStats } from '$lib/views/supply-chain';
-	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
 </script>
 
-<svelte:head>
-	<title>Supply chain · {data.repo.nameWithOwner} · {APP_NAME}</title>
-	<meta
-		name="description"
-		content="Dependencies, licences and supply-chain risk for {data.repo.nameWithOwner}"
-	/>
-</svelte:head>
+<PageMeta
+	title={`Supply chain · ${data.repo.nameWithOwner}`}
+	description={`Dependencies, licences and supply-chain risk for ${data.repo.nameWithOwner}`}
+/>
 
 {#await data.supplyChain}
 	<div class="space-y-5">

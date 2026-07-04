@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Attachment } from 'svelte/attachments';
-	import type { TipData } from '$lib/views/stats';
+	import type { TipData } from '$lib/types/charts';
 
 	let { data, x, y }: { data: TipData | null; x: number; y: number } = $props();
 

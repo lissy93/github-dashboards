@@ -1,4 +1,4 @@
-import { graphql, rest } from '$lib/server/github/client';
+import { batchedGraphql, graphql, rest, paginate } from '$lib/server/github/client';
 import { cached } from '$lib/server/cache';
 import type { NotableFollower, Org, UserSocial } from '$lib/types';
 
@@ -64,22 +64,18 @@ export function rankFollowers(nodes: RawFollower[], limit = TOP_FOLLOWERS): Nota
 
 // Walk a few follower pages, returning the sample and the connection total
 async function fetchFollowers(login: string): Promise<{ all: RawFollower[]; total: number }> {
-	const all: RawFollower[] = [];
-	let cursor: string | null = null;
 	let total = 0;
-	for (let page = 0; page < MAX_FOLLOWER_PAGES; page++) {
-		const data: FollowersResult = await graphql<FollowersResult>(FOLLOWERS_QUERY, {
-			login,
-			cursor
-		});
-		const conn: RawFollowerConn | undefined = data.user?.followers;
-		if (!conn) break;
-		total = conn.totalCount;
-		all.push(...conn.nodes);
-		if (!conn.pageInfo.hasNextPage || !conn.pageInfo.endCursor) break;
-		cursor = conn.pageInfo.endCursor;
-	}
-	return { all, total };
+	const { nodes } = await paginate<RawFollower, FollowersResult>(
+		FOLLOWERS_QUERY,
+		{ login },
+		(data) => {
+			const conn = data.user?.followers;
+			if (conn) total = conn.totalCount;
+			return conn;
+		},
+		{ maxPages: MAX_FOLLOWER_PAGES }
+	);
+	return { all: nodes, total };
 }
 
 type RestFollower = { login: string; avatar_url: string };
@@ -105,16 +101,13 @@ async function fetchNewestFollowers(login: string, total: number): Promise<Notab
 
 // One aliased query fetches every login's own follower count in a single round trip
 async function followerCounts(logins: string[]): Promise<Map<string, number>> {
-	if (!logins.length) return new Map();
-	const params = logins.map((_, index) => `$l${index}: String!`).join(', ');
-	const fields = logins
-		.map((_, index) => `u${index}: user(login: $l${index}) { login followers { totalCount } }`)
-		.join('\n');
-	const variables = Object.fromEntries(logins.map((login, index) => [`l${index}`, login]));
 	type CountNode = { login: string; followers: { totalCount: number } } | null;
-	const data = await graphql<Record<string, CountNode>>(
-		`query FollowerCounts(${params}) {\n${fields}\n}`,
-		variables
+	const data = await batchedGraphql<string, CountNode>(
+		'FollowerCounts',
+		logins,
+		(index) => `$l${index}: String!`,
+		(index) => `u${index}: user(login: $l${index}) { login followers { totalCount } }`,
+		(login, index) => ({ [`l${index}`]: login })
 	);
 	const counts = new Map<string, number>();
 	for (const node of Object.values(data))

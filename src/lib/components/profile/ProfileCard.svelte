@@ -11,12 +11,12 @@
 		Activity
 	} from '@lucide/svelte';
 	import * as Card from '$lib/components/ui/card';
-	import * as Avatar from '$lib/components/ui/avatar';
+	import UserAvatar from '$lib/components/common/UserAvatar.svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import StatTile from '$lib/components/common/StatTile.svelte';
 	import Hint from '$lib/components/common/Hint.svelte';
-	import { compactNumber, formatDate, formatDateTime } from '$lib/format';
+	import { compactNumber, formatDate, formatDateTime, safeHttpUrl } from '$lib/utils/format';
 	import { GITHUB_WEB } from '$lib/config';
 	import type { UserProfile } from '$lib/types';
 
@@ -26,7 +26,11 @@
 		[
 			profile.company && { icon: Building2, text: profile.company },
 			profile.location && { icon: MapPin, text: profile.location },
-			profile.websiteUrl && { icon: LinkIcon, text: profile.websiteUrl, href: profile.websiteUrl },
+			profile.websiteUrl && {
+				icon: LinkIcon,
+				text: profile.websiteUrl,
+				href: safeHttpUrl(profile.websiteUrl) ?? undefined
+			},
 			{
 				icon: Calendar,
 				text: `Joined ${formatDate(profile.createdAt)}`,
@@ -48,22 +52,24 @@
 	<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-5">
 		<div class="flex min-w-0 grow flex-col gap-3">
 			<div class="flex items-start gap-4">
-				<Avatar.Root class="size-16 rounded-md border sm:size-20">
-					<Avatar.Image src={profile.avatarUrl} alt={profile.login} />
-					<Avatar.Fallback class="rounded-md"
-						>{profile.login.slice(0, 2).toUpperCase()}</Avatar.Fallback
-					>
-				</Avatar.Root>
+				<UserAvatar
+					login={profile.login}
+					src={profile.avatarUrl}
+					class="size-16 rounded-md border sm:size-20"
+					fallbackClass="rounded-md"
+				/>
 				<div class="min-w-0 space-y-1.5">
 					<div class="flex flex-wrap items-center gap-2">
-						<a
-							href="{GITHUB_WEB}/{profile.login}"
-							target="_blank"
-							rel="noreferrer"
-							class="truncate text-lg font-semibold hover:underline"
-						>
-							{profile.name ?? profile.login}
-						</a>
+						<h1 class="truncate text-lg font-semibold">
+							<a
+								href="{GITHUB_WEB}/{profile.login}"
+								target="_blank"
+								rel="noreferrer"
+								class="hover:underline"
+							>
+								{profile.name ?? profile.login}
+							</a>
+						</h1>
 						<span class="text-muted-foreground text-sm">@{profile.login}</span>
 						{#if profile.isOrg}<Badge variant="secondary">Org</Badge>{/if}
 					</div>

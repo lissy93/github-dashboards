@@ -1,11 +1,13 @@
 <script lang="ts">
-	import { ExternalLink, GitCommitHorizontal, ShieldCheck } from '@lucide/svelte';
+	import { GitCommitHorizontal, ShieldCheck } from '@lucide/svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import Hint from '$lib/components/common/Hint.svelte';
+	import ExtLink from '$lib/components/common/ExtLink.svelte';
+	import TimeAgo from '$lib/components/common/TimeAgo.svelte';
 	import { STATUS_GLYPH } from '$lib/components/repo/status-glyph';
 	import { deployState } from '$lib/views/repo-deployments';
-	import { compactNumber, relativeTime, formatDateTime } from '$lib/format';
-	import type { EnvironmentSummary } from '$lib/server/github/deployments';
+	import { compactNumber } from '$lib/utils/format';
+	import type { EnvironmentSummary } from '$lib/types';
 
 	// repoUrl is the repo's GitHub page, used to link an environment's current commit
 	let { environments, repoUrl }: { environments: EnvironmentSummary[]; repoUrl: string } = $props();
@@ -53,16 +55,9 @@
 						<Icon icon={GitCommitHorizontal} size={13} />{head.commitOid.slice(0, 7)}
 					</a>
 					{#if head.ref}<span class="truncate">{head.ref}</span>{/if}
-					<Hint text={formatDateTime(head.createdAt)}>{relativeTime(head.createdAt)}</Hint>
+					<TimeAgo date={head.createdAt} />
 					{#if head.url}
-						<a
-							href={head.url}
-							target="_blank"
-							rel="noopener noreferrer"
-							class="ml-auto inline-flex items-center gap-1 hover:underline"
-						>
-							Visit<Icon icon={ExternalLink} size={12} />
-						</a>
+						<ExtLink href={head.url} class="ml-auto">Visit</ExtLink>
 					{/if}
 				</div>
 			{/if}

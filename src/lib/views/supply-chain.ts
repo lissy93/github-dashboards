@@ -1,7 +1,7 @@
 import { seriesColor } from '$lib/components/charts/chart';
-import type { Slice } from '$lib/views/stats';
-import type { SortFilterConfig } from '$lib/components/filter/sort-filter';
-import type { Dependency, LicenseRisk, VulnSeverity } from '$lib/server/github/supply-chain';
+import type { Slice } from '$lib/types/charts';
+import type { SortFilterConfig } from '$lib/utils/sort-filter';
+import type { Dependency, LicenseRisk, VulnSeverity } from '$lib/types';
 
 // Token per licence risk bucket, reused by the donut and the table tags
 export const RISK_COLOR: Record<LicenseRisk, string> = {

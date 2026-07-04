@@ -1,13 +1,14 @@
 <script lang="ts">
-	import { splinePath, niceStep, yearMarks } from './chart';
+	import { splinePath, niceStep, timeTicks, nearestIndex, CHART_PAD } from './chart';
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
-	import { compactNumber, formatNumber, formatDate } from '$lib/format';
+	import Gridlines from './Gridlines.svelte';
+	import { compactNumber, formatNumber, formatDate } from '$lib/utils/format';
 
 	type Week = { week: string; additions: number; deletions: number };
 	let { data, height = 16 }: { data: Week[]; height?: number } = $props();
 
-	const PAD = { top: 12, right: 14, bottom: 22, left: 46 };
+	const PAD = { ...CHART_PAD, left: 46 };
 	const HALF_TICKS = 2;
 	const H = $derived(height * 16);
 
@@ -34,11 +35,12 @@
 		const delPts = xs.map((x, index) => ({ x, y: down(data[index].deletions) }));
 		const addArea = `${splinePath(addPts, true)} L${xs.at(-1)} ${zeroY} L${xs[0]} ${zeroY} Z`;
 		const delArea = `${splinePath(delPts, true)} L${xs.at(-1)} ${zeroY} L${xs[0]} ${zeroY} Z`;
-		const ticks: { value: number; y: number }[] = [];
+		const ticks: { label: string; y: number }[] = [];
 		for (let value = step; value <= top + step / 2; value += step) {
-			ticks.push({ value, y: up(value) }, { value: -value, y: down(value) });
+			const label = compactNumber(value);
+			ticks.push({ label, y: up(value) }, { label, y: down(value) });
 		}
-		return { xs, zeroY, addArea, delArea, ticks, plotW };
+		return { xs, zeroY, addArea, delArea, ticks };
 	});
 
 	// A vertical guide per calendar year, falling back to a few dates for short ranges
@@ -47,14 +49,9 @@
 		const first = Date.parse(data[0].week);
 		const last = Date.parse(data.at(-1)!.week);
 		const span = last - first || 1;
-		const years = yearMarks(first, last).map((mark) => ({
-			label: String(mark.year),
-			x: geom.xs[0] + ((mark.ms - first) / span) * geom.plotW
-		}));
-		if (years.length >= 2) return years;
-		return [...new Set([0, Math.floor((data.length - 1) / 2), data.length - 1])].map((index) => ({
-			label: formatDate(data[index].week),
-			x: geom.xs[index]
+		return timeTicks(first, last).map((tick) => ({
+			label: tick.label,
+			x: PAD.left + ((tick.ms - first) / span) * (width - PAD.left - PAD.right)
 		}));
 	});
 
@@ -63,10 +60,7 @@
 	function move(event: PointerEvent) {
 		if (!svg || !geom.xs.length) return;
 		const x = event.clientX - svg.getBoundingClientRect().left;
-		const nearest = geom.xs.reduce(
-			(best, cx, index) => (Math.abs(cx - x) < Math.abs(geom.xs[best] - x) ? index : best),
-			0
-		);
+		const nearest = nearestIndex(geom.xs, x);
 		hover = nearest;
 		const week = data[nearest];
 		tip.show(event, {
@@ -95,24 +89,7 @@
 			onpointermove={move}
 			onpointerleave={leave}
 		>
-			{#each geom.ticks as tick (tick.value)}
-				<line
-					class="stroke-chart-grid"
-					x1={PAD.left}
-					x2={width - PAD.right}
-					y1={tick.y}
-					y2={tick.y}
-				/>
-				<text
-					class="fill-muted-foreground text-[0.65rem] tabular-nums"
-					x={PAD.left - 6}
-					y={tick.y}
-					dy="0.32em"
-					text-anchor="end"
-				>
-					{compactNumber(Math.abs(tick.value))}
-				</text>
-			{/each}
+			<Gridlines ticks={geom.ticks} left={PAD.left} right={width - PAD.right} />
 
 			{#each xTicks as tick (tick.label)}
 				<text

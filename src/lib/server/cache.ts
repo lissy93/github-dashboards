@@ -1,14 +1,30 @@
-import { eq } from 'drizzle-orm';
+import { eq, lt, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { cacheEntry } from '$lib/server/db/schema';
 import { config } from '$lib/server/env';
-import { createLogger } from '$lib/logger';
-import { toAppError, isConnectionError } from '$lib/errors';
+import { createLogger } from '$lib/utils/logger';
+import { logError, toAppError, isConnectionError } from '$lib/utils/errors';
 
 const log = createLogger('cache');
 
 // Dedupes concurrent fetches for the same key so we never fire duplicate work
 const inflight = new Map<string, Promise<unknown>>();
+
+const PURGE_EVERY_MS = 24 * 3600 * 1000;
+const PURGE_AFTER_DAYS = 14;
+let lastPurge = 0;
+
+// Sweep out entries that sat expired for weeks, so junk rows never pile up
+function purgeExpired(): void {
+	if (Date.now() - lastPurge < PURGE_EVERY_MS) return;
+	lastPurge = Date.now();
+	const cutoff = new Date(Date.now() - PURGE_AFTER_DAYS * 86400 * 1000);
+	void db
+		.delete(cacheEntry)
+		.where(lt(sql`${cacheEntry.fetchedAt} + ${cacheEntry.ttl} * interval '1 second'`, cutoff))
+		.then(() => log.debug('purged long-expired cache rows'))
+		.catch((error) => log.warn('cache purge failed', { code: toAppError(error).code }));
+}
 
 // Latest known storage health, so the UI can warn when we are serving uncached
 let storageReachable = true;
@@ -99,6 +115,7 @@ export async function cached<T>(
 	fetcher: () => Promise<T>,
 	ttl: number = config.CACHE_TTL_SECONDS
 ): Promise<T> {
+	purgeExpired();
 	let existing: typeof cacheEntry.$inferSelect | undefined;
 	try {
 		[existing] = await db.select().from(cacheEntry).where(eq(cacheEntry.key, key)).limit(1);
@@ -121,4 +138,40 @@ export async function cached<T>(
 	}
 
 	return refresh(key, fetcher, ttl);
+}
+
+// Sync jobs in flight, keyed by cache key so concurrent visitors share one run
+const checkpointSyncs = new Map<string, Promise<unknown>>();
+
+// Serve the stored checkpoint: a cold miss blocks on one shared sync, stale data
+// is served instantly while a background sync reseeds it from the current value
+export async function checkpointed<T>(
+	scope: string,
+	key: string,
+	ttl: number,
+	sync: (current?: T) => Promise<T>
+): Promise<T> {
+	const run = (current?: T): Promise<T> => {
+		const running = checkpointSyncs.get(key);
+		if (running) return running as Promise<T>;
+		const task = (async () => {
+			const state = await sync(current);
+			await writeCached(key, state, ttl);
+			return state;
+		})().finally(() => checkpointSyncs.delete(key));
+		checkpointSyncs.set(key, task);
+		return task;
+	};
+
+	let stored: Awaited<ReturnType<typeof readCached<T>>> = null;
+	try {
+		stored = await readCached<T>(key);
+	} catch (caught) {
+		logError(scope, caught);
+	}
+	if (!stored) return run();
+	if (Date.now() - stored.fetchedAt.getTime() >= ttl * 1000) {
+		void run(stored.value).catch((caught) => logError(scope, caught));
+	}
+	return stored.value;
 }

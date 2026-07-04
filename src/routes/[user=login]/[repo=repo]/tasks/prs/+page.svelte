@@ -1,13 +1,14 @@
 <script lang="ts">
 	import AsyncTaskList from '$lib/components/tasks/AsyncTaskList.svelte';
-	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
 </script>
 
-<svelte:head>
-	<title>Pull requests · {data.repo.nameWithOwner} · {APP_NAME}</title>
-</svelte:head>
+<PageMeta
+	title={`Pull requests · ${data.repo.nameWithOwner}`}
+	description={`Open and merged pull requests for ${data.repo.nameWithOwner}`}
+/>
 
 <AsyncTaskList result={data.prs} kind="pr" title="pull requests" empty="No pull requests" />

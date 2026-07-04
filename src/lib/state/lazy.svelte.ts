@@ -1,10 +1,9 @@
-import { loadJson } from '$lib/owned-maps';
-import type { DisplayError } from '$lib/errors';
-import type { RecentStar } from '$lib/types';
+import { loadJson } from '$lib/state/api';
+import type { DisplayError } from '$lib/utils/errors';
 
-// Load recent stargazers without holding up the page
-export function latestStargazers(user: () => string) {
-	let data = $state<RecentStar[]>();
+// Lazily load one user endpoint, refetching when the viewed user changes
+export function lazyEndpoint<T>(user: () => string, endpoint: string) {
+	let data = $state<T>();
 	let error = $state<DisplayError>();
 	let loaded = $state(false);
 
@@ -14,7 +13,7 @@ export function latestStargazers(user: () => string) {
 		data = undefined;
 		error = undefined;
 		loaded = false;
-		loadJson<RecentStar[]>(login, 'stargazers').then((result) => {
+		loadJson<T>(login, endpoint).then((result) => {
 			if (!active) return;
 			loaded = true;
 			if (result.ok) data = result.data;

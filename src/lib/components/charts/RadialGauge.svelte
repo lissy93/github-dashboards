@@ -2,8 +2,8 @@
 	import { seriesColor } from './chart';
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
-	import { compactNumber, formatNumber } from '$lib/format';
-	import type { Slice, TipData } from '$lib/views/stats';
+	import { compactNumber, formatNumber } from '$lib/utils/format';
+	import type { Slice, TipData } from '$lib/types/charts';
 
 	// centerValue is the headline shown inside the arc, data stacks across the half ring.
 	// compact sits the legend beside the gauge (wrapping below when narrow) to save height

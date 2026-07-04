@@ -32,5 +32,3 @@ export function createLogger(scope: string) {
 		error: (message: string, meta?: unknown) => emit('error', scope, message, meta)
 	};
 }
-
-export const logger = createLogger('app');

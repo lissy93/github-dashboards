@@ -1,17 +1,17 @@
 <script lang="ts">
 	import { GitGraph } from '@lucide/svelte';
-	import AsyncPanel from '$lib/components/repo/AsyncPanel.svelte';
+	import AsyncPanel from '$lib/components/common/AsyncPanel.svelte';
 	import CommitGraph from '$lib/components/repo/CommitGraph.svelte';
-	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
 </script>
 
-<svelte:head>
-	<title>History · {data.repo.nameWithOwner} · {APP_NAME}</title>
-	<meta name="description" content="Commit history and branches for {data.repo.nameWithOwner}" />
-</svelte:head>
+<PageMeta
+	title={`History · ${data.repo.nameWithOwner}`}
+	description={`Commit history and branches for ${data.repo.nameWithOwner}`}
+/>
 
 <AsyncPanel
 	title="History"

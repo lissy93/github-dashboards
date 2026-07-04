@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
-	import { compactNumber, formatNumber } from '$lib/format';
-	import type { Slice } from '$lib/views/stats';
+	import { compactNumber, formatNumber } from '$lib/utils/format';
+	import type { Slice } from '$lib/types/charts';
 
 	let {
 		data,
@@ -10,10 +10,10 @@
 		format = compactNumber
 	}: { data: Slice[]; height?: number; format?: (value: number) => string } = $props();
 
-	// Tile fills are arbitrary GitHub label hex, so the contrast ink must be fixed
-	// near-black/near-white rather than a theme token that tracks the background
-	const INK_LIGHT = '#fafafa';
-	const INK_DARK = '#0a0a0a';
+	// Tile fills are arbitrary GitHub label hex, so the ink tokens stay theme-fixed
+	const INK_LIGHT = 'var(--ink-light)';
+	const INK_DARK = 'var(--ink-dark)';
+	const FALLBACK_FILL = '#888888';
 	const H = $derived(height * 16);
 
 	let width = $state(0);
@@ -109,7 +109,7 @@
 		<div
 			class="absolute flex flex-col justify-between overflow-hidden p-1.5"
 			style="left: {tile.x}px; top: {tile.y}px; width: {tile.w}px; height: {tile.h}px;
-				background-color: {tile.slice.color}; color: {ink(tile.slice.color ?? '#888888')};
+				background-color: {tile.slice.color}; color: {ink(tile.slice.color ?? FALLBACK_FILL)};
 				outline: 1px solid var(--card)"
 			role="img"
 			aria-label="{tile.slice.label}, {format(tile.slice.value)}"

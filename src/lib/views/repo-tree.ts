@@ -1,8 +1,8 @@
 import type { Component } from 'svelte';
 import { File, FileCode, FileJson, FileText, FileImage, FileCog } from '@lucide/svelte';
 import { seriesColor } from '$lib/components/charts/chart';
-import { formatBytes, formatNumber } from '$lib/format';
-import type { Slice } from '$lib/views/stats';
+import { formatBytes, formatNumber } from '$lib/utils/format';
+import type { Slice } from '$lib/types/charts';
 import type { TreeNode } from '$lib/types';
 
 export type TreeSort = 'name' | 'size';

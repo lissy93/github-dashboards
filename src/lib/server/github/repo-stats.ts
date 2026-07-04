@@ -51,7 +51,12 @@ export function getOwnedRepoStats(login: string): Promise<OwnedRepoData<RepoStat
 	return enrichOwnedRepos('repo-stats:v3', login, TTL, (repo) => fetchStats(repo.owner, repo.name));
 }
 
-// Heavier counts for a single repo, cached on its own. Null when the repo is gone
-export function getRepoStats(owner: string, name: string): Promise<RepoStats | null> {
-	return cached(`repo:stats:${owner}/${name}`.toLowerCase(), () => fetchStats(owner, name), TTL);
+// Heavier counts for a single repo. The miss is wrapped, jsonb can't hold a bare null
+export async function getRepoStats(owner: string, name: string): Promise<RepoStats | null> {
+	const { stats } = await cached(
+		`repo:stats:v2:${owner}/${name}`.toLowerCase(),
+		async () => ({ stats: await fetchStats(owner, name) }),
+		TTL
+	);
+	return stats;
 }

@@ -17,6 +17,7 @@ import {
 	MessagesSquare,
 	Heart
 } from '@lucide/svelte';
+import { plural } from '$lib/utils/format';
 import type { ActivityEvent, ActivityType } from '$lib/types';
 
 type IconComponent = Component<{ size?: number | string; class?: string }>;
@@ -106,7 +107,7 @@ export function activitySummary(event: ActivityEvent): string {
 			const target = p.branch ? ` to ${p.branch}` : '';
 			// A 0-commit push is a force-push or no-op ref update, so skip the misleading count
 			if (count === 0) return `pushed${target}`;
-			return `pushed ${count} commit${count === 1 ? '' : 's'}${target}`;
+			return `pushed ${count} ${plural(count, 'commit')}${target}`;
 		}
 		case 'star':
 			return 'starred';
@@ -132,7 +133,3 @@ export const ACTIVITY_TYPE_OPTIONS = (Object.keys(META) as ActivityType[]).map((
 	value: type,
 	label: META[type].label
 }));
-
-// Community types excluded when the repo feed is set to core-only mode
-export const COMMUNITY_TYPES: ActivityType[] = ['star', 'fork', 'public', 'sponsor'];
-export const COMMUNITY_EXCLUDE = COMMUNITY_TYPES.join(',');

@@ -3,7 +3,7 @@
 	import Hint from '$lib/components/common/Hint.svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import { GRADE_COLOR } from '$lib/views/security';
-	import type { RepoSecurity, CheckStatus } from '$lib/server/github/security';
+	import type { RepoSecurity, CheckStatus } from '$lib/types';
 
 	let { security, detailed = false }: { security: RepoSecurity; detailed?: boolean } = $props();
 

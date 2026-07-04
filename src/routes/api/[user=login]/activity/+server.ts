@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { getActivityPage, backfillActivity } from '$lib/server/github/activity';
-import { logError } from '$lib/errors';
+import { apiError } from '$lib/server/response';
+import { logError } from '$lib/utils/errors';
 import type { RequestHandler } from './$types';
 
 // Older pages of the activity timeline, served from the store. Reaching here means
@@ -31,7 +32,6 @@ export const GET: RequestHandler = async ({ params, url, setHeaders }) => {
 		}
 		return json(page);
 	} catch (caught) {
-		logError('activity-endpoint', caught);
-		return json({ events: [], nextCursor: null });
+		return apiError('activity-endpoint', caught);
 	}
 };

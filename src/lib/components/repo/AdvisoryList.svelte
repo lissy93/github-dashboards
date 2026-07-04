@@ -1,9 +1,8 @@
 <script lang="ts">
-	import { ExternalLink } from '@lucide/svelte';
-	import Icon from '$lib/components/common/Icon.svelte';
+	import ExtLink from '$lib/components/common/ExtLink.svelte';
 	import SeverityBadge from '$lib/components/common/SeverityBadge.svelte';
-	import { formatDate } from '$lib/format';
-	import type { SecurityAdvisory } from '$lib/server/github/security';
+	import { formatDate } from '$lib/utils/format';
+	import type { SecurityAdvisory } from '$lib/types';
 
 	let { advisories }: { advisories: SecurityAdvisory[] } = $props();
 </script>
@@ -15,15 +14,7 @@
 			<p class="min-w-0 grow truncate text-sm font-medium">{advisory.summary}</p>
 			<div class="text-muted-foreground shrink-0 text-right text-xs tabular-nums">
 				{#if advisory.publishedAt}<p>{formatDate(advisory.publishedAt)}</p>{/if}
-				<a
-					href={advisory.url}
-					target="_blank"
-					rel="noopener noreferrer"
-					class="inline-flex items-center gap-1 hover:underline"
-				>
-					{advisory.id}
-					<Icon icon={ExternalLink} size={11} />
-				</a>
+				<ExtLink href={advisory.url}>{advisory.id}</ExtLink>
 			</div>
 		</li>
 	{/each}

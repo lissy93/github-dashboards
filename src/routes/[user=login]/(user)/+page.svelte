@@ -10,14 +10,15 @@
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
 </script>
 
-<svelte:head>
-	<title>{data.user} · {APP_NAME}</title>
-	<meta name="description" content="{data.user} on {APP_NAME}: repos, stats and activity" />
-</svelte:head>
+<PageMeta
+	title={`${data.user}`}
+	description={`${data.user} on ${APP_NAME}: repos, stats and activity`}
+/>
 
 {#await data.overview}
 	<div class="space-y-5">

@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { FileCode } from '@lucide/svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
-	import { compactNumber } from '$lib/format';
-	import type { ManifestFile } from '$lib/server/github/supply-chain';
+	import { compactNumber } from '$lib/utils/format';
+	import type { ManifestFile } from '$lib/types';
 
 	let { manifests, repoUrl }: { manifests: ManifestFile[]; repoUrl: string } = $props();
 </script>

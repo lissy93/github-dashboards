@@ -1,17 +1,17 @@
 <script lang="ts">
 	import { FolderTree } from '@lucide/svelte';
-	import AsyncPanel from '$lib/components/repo/AsyncPanel.svelte';
+	import AsyncPanel from '$lib/components/common/AsyncPanel.svelte';
 	import RepoTree from '$lib/components/repo/RepoTree.svelte';
-	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
 </script>
 
-<svelte:head>
-	<title>Files · {data.repo.nameWithOwner} · {APP_NAME}</title>
-	<meta name="description" content="Browse the file tree of {data.repo.nameWithOwner}" />
-</svelte:head>
+<PageMeta
+	title={`Files · ${data.repo.nameWithOwner}`}
+	description={`Browse the file tree of ${data.repo.nameWithOwner}`}
+/>
 
 <AsyncPanel
 	title="Files"

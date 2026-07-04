@@ -3,8 +3,8 @@
 	import { seriesColor } from './chart';
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
-	import { compactNumber, formatNumber } from '$lib/format';
-	import type { Slice } from '$lib/views/stats';
+	import { compactNumber, formatNumber } from '$lib/utils/format';
+	import type { Slice } from '$lib/types/charts';
 
 	// colored uses each slice's own colour, else a single accent for the whole list
 	// animate slides rows in and out when the list grows or shrinks

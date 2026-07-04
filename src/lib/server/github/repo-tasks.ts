@@ -1,33 +1,13 @@
-import { graphql } from '$lib/server/github/client';
-import { toItem, type RawNode } from '$lib/server/github/tasks';
+import { paginate } from '$lib/server/github/client';
+import { toItem, PR_FIELDS, ISSUE_FIELDS, type RawNode } from '$lib/server/github/tasks';
 import { cached, isCached } from '$lib/server/cache';
-import type { TaskItem, TaskList } from '$lib/types';
+import type { TaskList } from '$lib/types';
 
 // PR nodes carry checks and diff stats, so keep the page small to dodge timeouts
 const PER_PAGE = 50;
 const MAX_PAGES = 4;
 // Open work changes often, so refresh on visit but throttle rapid navigation
 const TTL = 300;
-
-const PR_FIELDS = `
-	id number title url state isDraft createdAt updatedAt
-	reviewDecision additions deletions changedFiles
-	repository { nameWithOwner }
-	author { login avatarUrl }
-	assignees(first: 5) { nodes { login avatarUrl } }
-	labels(first: 10) { nodes { name color } }
-	comments { totalCount }
-	commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
-`;
-
-const ISSUE_FIELDS = `
-	id number title url state createdAt updatedAt
-	repository { nameWithOwner }
-	author { login avatarUrl }
-	assignees(first: 5) { nodes { login avatarUrl } }
-	labels(first: 10) { nodes { name color } }
-	comments { totalCount }
-`;
 
 const PR_QUERY = `
 	query RepoPRs($owner: String!, $name: String!, $cursor: String, $states: [PullRequestState!]) {
@@ -72,41 +52,33 @@ async function collect(
 	states: string[]
 ): Promise<TaskList> {
 	const typename = kind === 'pr' ? 'PullRequest' : 'Issue';
-	const items: TaskItem[] = [];
-	let cursor: string | null = null;
 	let total = 0;
-	for (let page = 0; page < MAX_PAGES; page++) {
-		let conn: Conn | null | undefined;
-		if (kind === 'pr') {
-			const data: PrPage = await graphql<PrPage>(PR_QUERY, { owner, name, cursor, states });
-			conn = data.repository?.pullRequests;
-		} else {
-			const data: IssuePage = await graphql<IssuePage>(ISSUE_QUERY, {
-				owner,
-				name,
-				cursor,
-				states
-			});
-			conn = data.repository?.issues;
-		}
-		if (!conn) break;
-		total = conn.totalCount;
-		for (const node of conn.nodes) items.push(toItem({ ...node, __typename: typename }));
-		if (!conn.pageInfo.hasNextPage || !conn.pageInfo.endCursor) break;
-		cursor = conn.pageInfo.endCursor;
-	}
+	const { nodes } = await paginate<Omit<RawNode, '__typename'>, PrPage | IssuePage>(
+		kind === 'pr' ? PR_QUERY : ISSUE_QUERY,
+		{ owner, name, states },
+		(data) => {
+			const conn =
+				kind === 'pr'
+					? (data as PrPage).repository?.pullRequests
+					: (data as IssuePage).repository?.issues;
+			if (conn) total = conn.totalCount;
+			return conn;
+		},
+		{ maxPages: MAX_PAGES }
+	);
+	const items = nodes.map((node) => toItem({ ...node, __typename: typename }));
 	return { items, total, capped: items.length < total };
 }
 
 // Open work refreshes on visit, closed history is stable so it can live longer
 const CLOSED_TTL = 3600;
 
-const issuesKey = (owner: string, name: string) => `repo:issues:${owner}/${name}`.toLowerCase();
-const prsKey = (owner: string, name: string) => `repo:prs:${owner}/${name}`.toLowerCase();
+const issuesKey = (owner: string, name: string) => `repo:issues:v1:${owner}/${name}`.toLowerCase();
+const prsKey = (owner: string, name: string) => `repo:prs:v1:${owner}/${name}`.toLowerCase();
 const closedIssuesKey = (owner: string, name: string) =>
-	`repo:issues-closed:${owner}/${name}`.toLowerCase();
+	`repo:issues-closed:v1:${owner}/${name}`.toLowerCase();
 const closedPrsKey = (owner: string, name: string) =>
-	`repo:prs-closed:${owner}/${name}`.toLowerCase();
+	`repo:prs-closed:v1:${owner}/${name}`.toLowerCase();
 
 // Currently open issues for a repo, newest activity first
 export function getRepoIssues(owner: string, name: string): Promise<TaskList> {
@@ -119,7 +91,7 @@ export function getRepoPullRequests(owner: string, name: string): Promise<TaskLi
 }
 
 // Recently closed issues, capped to the most recent, for the state-filtered detail page
-export function getRepoClosedIssues(owner: string, name: string): Promise<TaskList> {
+function getRepoClosedIssues(owner: string, name: string): Promise<TaskList> {
 	return cached(
 		closedIssuesKey(owner, name),
 		() => collect(owner, name, 'issue', ['CLOSED']),
@@ -128,7 +100,7 @@ export function getRepoClosedIssues(owner: string, name: string): Promise<TaskLi
 }
 
 // Recently closed and merged PRs, capped to the most recent
-export function getRepoClosedPullRequests(owner: string, name: string): Promise<TaskList> {
+function getRepoClosedPullRequests(owner: string, name: string): Promise<TaskList> {
 	return cached(
 		closedPrsKey(owner, name),
 		() => collect(owner, name, 'pr', ['CLOSED', 'MERGED']),

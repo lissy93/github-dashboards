@@ -1,35 +1,25 @@
 <script lang="ts">
-	import { Lock } from '@lucide/svelte';
-	import Notice from '$lib/components/common/Notice.svelte';
-	import { Button } from '$lib/components/ui/button';
-	import GithubMark from '$lib/components/common/GithubMark.svelte';
+	import PrivateNotice from '$lib/components/common/PrivateNotice.svelte';
 	import AnalyticsDashboard from '$lib/components/analytics/AnalyticsDashboard.svelte';
 	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
 </script>
 
-<svelte:head>
-	<title>{data.user} analytics · {APP_NAME}</title>
-	<meta name="description" content="Traffic analytics for {data.user} on {APP_NAME}" />
-</svelte:head>
+<PageMeta
+	title={`${data.user} analytics`}
+	description={`Traffic analytics for ${data.user} on ${APP_NAME}`}
+/>
 
 {#if data.allowed}
 	<AnalyticsDashboard user={data.user} />
 {:else}
-	<Notice
-		icon={Lock}
+	<PrivateNotice
 		title="Analytics is private"
-		message={data.loggedIn
-			? `Only ${data.user} can view their repo analytics`
-			: `Sign in as ${data.user} to view repo analytics`}
+		user={data.user}
+		subject="repo analytics"
+		loggedIn={data.loggedIn}
 	/>
-	{#if !data.loggedIn}
-		<div class="-mt-12 flex justify-center">
-			<Button href="/auth/github" variant="outline" class="h-10"
-				><GithubMark />Login with GitHub</Button
-			>
-		</div>
-	{/if}
 {/if}

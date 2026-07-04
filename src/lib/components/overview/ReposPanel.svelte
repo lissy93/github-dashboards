@@ -5,7 +5,7 @@
 	import StarWindow from '$lib/components/repo/StarWindow.svelte';
 	import { repoConfig } from '$lib/views/repos';
 	import { paths, STAR_WINDOW_DEFAULT } from '$lib/config';
-	import { createRepoExtras } from '$lib/repo-extras.svelte';
+	import { createRepoExtras } from '$lib/state/repo-extras.svelte';
 	import type { Repo } from '$lib/types';
 
 	let { user, canSeeTraffic, repos }: { user: string; canSeeTraffic: boolean; repos: Repo[] } =

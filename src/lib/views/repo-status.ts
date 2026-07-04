@@ -1,21 +1,27 @@
-import { compactNumber, formatBytes, relativeTime } from '$lib/format';
-import { workflowKpiStats, formatDuration } from '$lib/views/repo';
-import type { Slice } from '$lib/views/stats';
-import type { RepoWorkflows } from '$lib/server/github/workflows';
-import type { RepoDeployments } from '$lib/server/github/deployments';
-import type { RepoPages } from '$lib/server/github/pages';
-import type { RepoReleases } from '$lib/server/github/releases';
-import type { SupplyChain } from '$lib/server/github/supply-chain';
-import type { RepoSecurity } from '$lib/server/github/security';
-import type { RepoContributors } from '$lib/server/github/contributors';
-import type { RepoTrafficSummary } from '$lib/server/github/traffic';
+import {
+	compactNumber,
+	formatBytes,
+	relativeTime,
+	formatDuration,
+	plural
+} from '$lib/utils/format';
+import { workflowKpiStats } from '$lib/views/repo';
+import type { Slice } from '$lib/types/charts';
+import type { RepoWorkflows } from '$lib/types';
+import type { RepoDeployments } from '$lib/types';
+import type { RepoPages } from '$lib/types';
+import type { RepoReleases } from '$lib/types';
+import type { SupplyChain } from '$lib/types';
+import type { RepoSecurity } from '$lib/types';
+import type { RepoContributors } from '$lib/types';
+import type { RepoTrafficSummary } from '$lib/types';
 import type { Repo, RepoTree } from '$lib/types';
 
 // One-line status summaries for the ops panels, shared by the ops tab and the repo overview
 
 export function workflowSummary(wf: RepoWorkflows): string {
 	const stats = workflowKpiStats(wf);
-	const parts = [`${stats.workflows} workflow${stats.workflows === 1 ? '' : 's'}`];
+	const parts = [`${stats.workflows} ${plural(stats.workflows, 'workflow')}`];
 	if (stats.passRate != null) parts.push(`${Math.round(stats.passRate * 100)}% pass rate`);
 	if (stats.avgRuntimeSec != null) parts.push(formatDuration(stats.avgRuntimeSec) + ' avg');
 	return parts.join(' · ');
@@ -53,7 +59,7 @@ export function supplyChainSummary(sc: Pick<SupplyChain, 'summary'>): string {
 	if (!s.total) return 'No dependency data';
 	const parts = [`${compactNumber(s.total)} dependencies`, `${compactNumber(s.direct)} direct`];
 	if (s.vulnerabilities) parts.push(`${compactNumber(s.vulnerabilities)} advisories`);
-	else parts.push(`${s.ecosystems} ecosystem${s.ecosystems === 1 ? '' : 's'}`);
+	else parts.push(`${s.ecosystems} ${plural(s.ecosystems, 'ecosystem')}`);
 	return parts.join(' · ');
 }
 
@@ -69,8 +75,8 @@ export function filesSummary(tree: RepoTree): string {
 
 export function statsSummary(repo: Repo): string {
 	const parts = [
-		`${compactNumber(repo.stars)} star${repo.stars === 1 ? '' : 's'}`,
-		`${compactNumber(repo.forks)} fork${repo.forks === 1 ? '' : 's'}`
+		`${compactNumber(repo.stars)} ${plural(repo.stars, 'star')}`,
+		`${compactNumber(repo.forks)} ${plural(repo.forks, 'fork')}`
 	];
 	if (repo.openIssues) parts.push(`${compactNumber(repo.openIssues)} open issues`);
 	return parts.join(' · ');

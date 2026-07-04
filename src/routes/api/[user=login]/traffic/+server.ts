@@ -2,7 +2,8 @@ import { json } from '@sveltejs/kit';
 import { getUserOverview } from '$lib/server/github/user';
 import { canSeeTraffic, getRepoTrafficSummary } from '$lib/server/github/traffic';
 import { mapLimit } from '$lib/server/concurrency';
-import { logError } from '$lib/errors';
+import { apiError } from '$lib/server/response';
+import { logError } from '$lib/utils/errors';
 import type { RequestHandler } from './$types';
 
 const MAX_REPOS = 150;
@@ -39,7 +40,6 @@ export const GET: RequestHandler = async ({ params, setHeaders, locals }) => {
 
 		return json({ available: true, repos });
 	} catch (caught) {
-		logError('traffic-endpoint', caught);
-		return json({ available: false, repos: {} as TrafficMap });
+		return apiError('traffic-endpoint', caught);
 	}
 };

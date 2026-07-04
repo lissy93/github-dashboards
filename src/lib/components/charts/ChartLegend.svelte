@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
-	import { formatNumber } from '$lib/format';
-	import type { LegendItem } from '$lib/views/stats';
+	import { formatNumber } from '$lib/utils/format';
+	import type { LegendItem } from '$lib/types/charts';
 	import type { LegendState } from './legend.svelte';
 
 	let {

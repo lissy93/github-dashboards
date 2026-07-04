@@ -1,52 +1,26 @@
-import { graphql, rest, restResponse } from '$lib/server/github/client';
+import type {
+	BranchRules,
+	CheckStatus,
+	GradeLetter,
+	RepoSecurity,
+	SecurityAdvisory,
+	SecurityAlerts,
+	SecurityCheck,
+	SecurityGrade,
+	Vulnerability,
+	VulnSeverity
+} from '$lib/types';
+import { graphql, rest, restResponse, type AuthMode } from '$lib/server/github/client';
 import { cached, isCached } from '$lib/server/cache';
-import { formatDateTime } from '$lib/format';
-import {
-	fetchVulns,
-	severityOf,
-	type Vulnerability,
-	type VulnSeverity
-} from '$lib/server/github/supply-chain';
-import { AppError, logError } from '$lib/errors';
+import { formatDateTime, plural } from '$lib/utils/format';
+import { fetchVulns, severityOf } from '$lib/server/github/supply-chain';
+import { AppError, logError } from '$lib/utils/errors';
 
 // Security posture moves slowly, refresh on visit like the rest of the board
 const TTL = 900;
 // A repo counts as maintained if it had a push within this many days
 const MAINTAINED_DAYS = 90;
 const DAY_MS = 86400000;
-
-export type CheckStatus = 'pass' | 'warn' | 'fail' | 'na';
-export type SecurityCheck = {
-	name: string;
-	status: CheckStatus;
-	detail: string;
-	hint?: string;
-	url: string | null;
-	weight: number;
-};
-export type BranchRules = { labels: string[]; approvals: number | null };
-export type SecurityAlerts = {
-	counts: Record<VulnSeverity, number>;
-	total: number;
-	top: Vulnerability[];
-};
-export type SecurityAdvisory = {
-	id: string;
-	summary: string;
-	severity: VulnSeverity;
-	publishedAt: string | null;
-	url: string;
-};
-export type GradeLetter = 'A' | 'B' | 'C' | 'D' | 'F';
-export type SecurityGrade = { score: number; letter: GradeLetter };
-export type RepoSecurity = {
-	checks: SecurityCheck[];
-	passed: number;
-	applicable: number;
-	grade: SecurityGrade;
-	alerts: SecurityAlerts | null;
-	advisories: SecurityAdvisory[];
-};
 
 // Help links so a failing check tells the owner how to fix it
 const DOCS = {
@@ -199,7 +173,7 @@ function protectionInfo(signals: SecuritySignals): { detail: string; hint?: stri
 		hint:
 			approvals === null
 				? undefined
-				: `${approvals} approving review${approvals === 1 ? '' : 's'} required`
+				: `${approvals} approving ${plural(approvals, 'review')} required`
 	};
 }
 
@@ -393,13 +367,14 @@ async function guarded(label: string, read: () => Promise<CheckStatus>): Promise
 	}
 }
 
-const probe = (path: string, evaluate: (data: unknown) => CheckStatus) =>
-	guarded(path, async () => evaluate(await rest(path)));
+// Admin-gated probes pass 'app' to keep the shared cache viewer-independent
+const probe = (path: string, evaluate: (data: unknown) => CheckStatus, auth?: AuthMode) =>
+	guarded(path, async () => evaluate(await rest(path, undefined, auth)));
 
 // The alerts toggle answers 204 when on, 404 when off and 403 without admin access
 const probeAlertsEnabled = (base: string) =>
 	guarded('vulnerability-alerts', async () => {
-		const res = await restResponse(`${base}/vulnerability-alerts`);
+		const res = await restResponse(`${base}/vulnerability-alerts`, undefined, 'app');
 		await res?.body?.cancel();
 		return res ? 'pass' : 'warn';
 	});
@@ -502,10 +477,14 @@ async function fetchSecurity(owner: string, name: string): Promise<RepoSecurity>
 			Array.isArray(data) && data.length ? 'pass' : 'warn'
 		),
 		// security_and_analysis only appears on the repo object for admins
-		probe(base, (data) => {
-			const scanning = (data as RawRepoSettings | null)?.security_and_analysis?.secret_scanning;
-			return scanning ? (scanning.status === 'enabled' ? 'pass' : 'warn') : 'na';
-		}),
+		probe(
+			base,
+			(data) => {
+				const scanning = (data as RawRepoSettings | null)?.security_and_analysis?.secret_scanning;
+				return scanning ? (scanning.status === 'enabled' ? 'pass' : 'warn') : 'na';
+			},
+			'app'
+		),
 		probeAlertsEnabled(base),
 		// A 404 here means a private repo where the feature does not exist, not disabled
 		probe(`${base}/private-vulnerability-reporting`, (data) =>

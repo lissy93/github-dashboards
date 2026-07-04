@@ -1,4 +1,4 @@
-import type { FilterDef, SortDef, SortFilterConfig } from '$lib/components/filter/sort-filter';
+import type { FilterDef, SortDef, SortFilterConfig } from '$lib/utils/sort-filter';
 import type { TaskItem } from '$lib/types';
 
 const CHECK_OPTIONS = [

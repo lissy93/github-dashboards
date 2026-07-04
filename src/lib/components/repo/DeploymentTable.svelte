@@ -1,25 +1,23 @@
 <script lang="ts">
-	import { ExternalLink, GitCommitHorizontal, ChevronDown } from '@lucide/svelte';
+	import { GitCommitHorizontal } from '@lucide/svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import Hint from '$lib/components/common/Hint.svelte';
-	import { Button } from '$lib/components/ui/button';
+	import ExtLink from '$lib/components/common/ExtLink.svelte';
+	import TimeAgo from '$lib/components/common/TimeAgo.svelte';
+	import LoadMore from '$lib/components/common/LoadMore.svelte';
 	import { STATUS_GLYPH } from '$lib/components/repo/status-glyph';
 	import { deployState } from '$lib/views/repo-deployments';
-	import { relativeTime, formatDateTime } from '$lib/format';
-	import type { DeployRecord } from '$lib/server/github/deployments';
+	import type { DeployRecord } from '$lib/types';
 
-	// Rows shown before the first Load more, and the count each click reveals
-	const INITIAL = 10;
 	const STEP = 10;
 
 	// repoUrl is the repo's GitHub page, used to link a deploy back to its commit
 	let { deployments, repoUrl }: { deployments: DeployRecord[]; repoUrl: string } = $props();
 
-	let shown = $state(INITIAL);
+	let shown = $state(STEP);
 	const rows = $derived(
 		deployments.slice(0, shown).map((record) => ({ record, status: deployState(record.state) }))
 	);
-	const remaining = $derived(deployments.length - shown);
 </script>
 
 <div class="overflow-x-auto">
@@ -41,18 +39,7 @@
 					<td class="max-w-[9rem] px-2 py-2 font-medium first:pl-0 sm:max-w-[12rem]">
 						<div class="truncate">
 							{#if record.url}
-								<a
-									href={record.url}
-									target="_blank"
-									rel="noopener noreferrer"
-									class="inline-flex items-center gap-1 hover:underline"
-								>
-									{record.environment}<Icon
-										icon={ExternalLink}
-										size={12}
-										class="text-muted-foreground"
-									/>
-								</a>
+								<ExtLink href={record.url}>{record.environment}</ExtLink>
 							{:else}{record.environment}{/if}
 						</div>
 					</td>
@@ -67,8 +54,8 @@
 									href={record.logUrl}
 									target="_blank"
 									rel="noopener noreferrer"
-									class="max-sm:hidden hover:underline"
-								>{status.label}</a>
+									class="max-sm:hidden hover:underline">{status.label}</a
+								>
 							{:else}
 								<span class="max-sm:hidden">{status.label}</span>
 							{/if}
@@ -91,7 +78,7 @@
 						{record.creator ?? '-'}
 					</td>
 					<td class="text-muted-foreground px-2 py-2 text-right whitespace-nowrap last:pr-0">
-						<Hint text={formatDateTime(record.createdAt)}>{relativeTime(record.createdAt)}</Hint>
+						<TimeAgo date={record.createdAt} />
 					</td>
 				</tr>
 			{/each}
@@ -99,10 +86,4 @@
 	</table>
 </div>
 
-{#if remaining > 0}
-	<div class="mt-3 flex justify-center">
-		<Button variant="outline" size="sm" onclick={() => (shown += STEP)}>
-			<Icon icon={ChevronDown} size={14} />Load more ({remaining})
-		</Button>
-	</div>
-{/if}
+<LoadMore total={deployments.length} step={STEP} bind:shown resetKey={deployments} />

@@ -2,8 +2,8 @@
 	import { ChevronDown, ChevronUp } from '@lucide/svelte';
 	import HBarList from '$lib/components/charts/HBarList.svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
-	import { compactNumber, formatNumber } from '$lib/format';
-	import type { Slice } from '$lib/views/stats';
+	import { compactNumber, formatNumber } from '$lib/utils/format';
+	import type { Slice } from '$lib/types/charts';
 
 	// HBarList that starts collapsed and reveals more rows on demand
 	// align places the toggle at the start or end of the row below the bars
@@ -39,8 +39,8 @@
 <HBarList data={shown} {valueLabel} {color} {colored} {format} {animate} />
 
 {#if more > 0 || current > collapsed}
-  <div></div>
-  <div class="flex" class:justify-center={align === 'center'} class:justify-end={align === 'end'}>
+	<div></div>
+	<div class="flex" class:justify-center={align === 'center'} class:justify-end={align === 'end'}>
 		<button
 			type="button"
 			onclick={() => (limit = more > 0 ? current + step : null)}

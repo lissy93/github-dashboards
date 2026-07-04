@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { plural } from '$lib/utils/format';
 	import Treemap from '$lib/components/charts/Treemap.svelte';
 	import BarChart from '$lib/components/charts/BarChart.svelte';
 	import {
@@ -8,7 +9,7 @@
 		DIRECT_COLOR,
 		TRANSITIVE_COLOR
 	} from '$lib/views/supply-chain';
-	import type { Dependency } from '$lib/server/github/supply-chain';
+	import type { Dependency } from '$lib/types';
 
 	let { packages }: { packages: Dependency[] } = $props();
 
@@ -42,7 +43,8 @@
 		<BarChart data={depth} height={10} valueLabel="Packages" colored />
 		{#if unreached}
 			<p class="text-muted-foreground text-xs">
-				{unreached} package{unreached === 1 ? '' : 's'} not linked back to the root
+				{unreached}
+				{plural(unreached, 'package')} not linked back to the root
 			</p>
 		{/if}
 	</div>

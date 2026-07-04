@@ -1,6 +1,6 @@
 import { restResponse } from '$lib/server/github/client';
-import { AppError } from '$lib/errors';
-import { createLogger } from '$lib/logger';
+import { AppError } from '$lib/utils/errors';
+import { createLogger } from '$lib/utils/logger';
 
 const log = createLogger('stats-endpoint');
 

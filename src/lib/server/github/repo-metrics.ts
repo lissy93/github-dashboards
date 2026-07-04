@@ -1,7 +1,7 @@
+import { buildPunchCard } from '$lib/utils/punch-card';
 import { graphql } from '$lib/server/github/client';
 import { fetchStatsEndpoint, statsPending } from '$lib/server/github/stats-endpoint';
 import { cached, isCached } from '$lib/server/cache';
-import { toMondayFirst } from '$lib/datetime';
 import type { ActivityRhythm } from '$lib/types';
 
 // Stats move slowly and the /stats endpoints are costly to warm, so cache them a day
@@ -76,20 +76,7 @@ export function getRepoPunchCard(owner: string, name: string): Promise<ActivityR
 			);
 			if (raw === null)
 				statsPending(key, () => getRepoPunchCard(owner, name), `punch card for ${repo}`);
-			const punch = Array.from({ length: 7 }, () => new Array<number>(24).fill(0));
-			let total = 0;
-			// GitHub's weekday is Sunday-first, shift so Monday leads to match the chart
-			for (const [day, hour, commits] of raw) {
-				punch[toMondayFirst(day)][hour] += commits;
-				total += commits;
-			}
-			let peak: ActivityRhythm['peak'] = null;
-			punch.forEach((row, weekday) =>
-				row.forEach((count, hour) => {
-					if (count > 0 && (!peak || count > peak.count)) peak = { weekday, hour, count };
-				})
-			);
-			return { total, punch, peak };
+			return buildPunchCard(raw);
 		},
 		TTL
 	);

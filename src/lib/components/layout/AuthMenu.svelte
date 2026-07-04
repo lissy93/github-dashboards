@@ -13,6 +13,7 @@
 	<div class="flex items-center gap-2">
 		<a
 			href={paths.user(user.login)}
+			aria-label="Your board"
 			class="hover:text-foreground flex items-center gap-2 text-sm font-medium"
 		>
 			<img src={user.avatarUrl} alt="" class="size-7 rounded-full" />

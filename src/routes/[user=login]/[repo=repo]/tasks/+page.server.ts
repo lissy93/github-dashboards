@@ -5,7 +5,9 @@ import type { PageServerLoad } from './$types';
 
 // The open lists and the total charts stream independently, each awaited inline only when
 // it is already cached so the first paint carries whatever is ready
-export const load: PageServerLoad = async ({ params }) => {
+export const load: PageServerLoad = async ({ params, parent }) => {
+	// the layout 404s hidden repos, so gate on it before fanning out
+	await parent();
 	const tasks = settle('repo-tasks', getRepoTasks(params.user, params.repo));
 	const timeline = settle('repo-timeline', getRepoIssuePrTimeline(params.user, params.repo));
 	const [tasksReady, timelineReady] = await Promise.all([

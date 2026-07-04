@@ -4,7 +4,7 @@
 	import { slide } from 'svelte/transition';
 	import { Separator } from '$lib/components/ui/separator';
 	import Icon from '$lib/components/common/Icon.svelte';
-	import { readStored, writeStored } from '$lib/storage';
+	import { readStored, writeStored } from '$lib/utils/storage';
 
 	// A collapsible section of grouped panels, open by default, with a slug id for deep links
 	let {

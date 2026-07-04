@@ -6,7 +6,9 @@ import type { PageServerLoad } from './$types';
 
 // Panel summaries for the Info landing page. Each source streams so a slow one never
 // blocks the others, and cached hits render inline
-export const load: PageServerLoad = async ({ params, locals }) => {
+export const load: PageServerLoad = async ({ params, locals, parent }) => {
+	// the layout 404s hidden repos, so gate on it before fanning out
+	await parent();
 	const { user, repo } = params;
 
 	const security = settle('repo-security', getRepoSecurity(user, repo));

@@ -1,7 +1,7 @@
-import { loadOwnedMap } from '$lib/owned-maps';
-import { createLogger } from '$lib/logger';
-import type { Repo, RepoExtras, RepoStats } from '$lib/types';
-import type { RepoTrafficData } from '$lib/views/repos';
+import { fetchApi } from '$lib/state/api';
+import { loadOwnedMap } from '$lib/state/api';
+import { createLogger } from '$lib/utils/logger';
+import type { Repo, RepoExtras, RepoStats, RepoTrafficData } from '$lib/types';
 
 const log = createLogger('repo-extras');
 
@@ -46,8 +46,7 @@ export function createRepoExtras(
 
 	async function loadTraffic(login: string, isActive: () => boolean) {
 		try {
-			const response = await fetch(`/api/${login}/traffic`);
-			const body = (await response.json()) as TrafficBody;
+			const body = await fetchApi<TrafficBody>(`/api/${login}/traffic`);
 			if (!isActive()) return;
 			const entries = Object.entries(body.repos);
 			const pick = (key: 'views' | 'uniques' | 'clones') =>

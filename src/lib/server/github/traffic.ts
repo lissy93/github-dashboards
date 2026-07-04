@@ -1,17 +1,10 @@
+import type { TrafficCount, RepoTrafficSummary, RepoTraffic } from '$lib/types';
 import { inArray, sql } from 'drizzle-orm';
-import { rest } from '$lib/server/github/client';
+import { restTolerant } from '$lib/server/github/client';
 import { cached } from '$lib/server/cache';
 import { db } from '$lib/server/db';
 import { repoTrafficDaily } from '$lib/server/db/schema';
-import { AppError } from '$lib/errors';
-import type { TrafficItem, TrafficDay } from '$lib/types';
-
-export type TrafficCount = { count: number; uniques: number };
-export type RepoTrafficSummary = { available: boolean; views: TrafficCount; clones: TrafficCount };
-export type RepoTraffic = RepoTrafficSummary & {
-	topPaths: TrafficItem[];
-	topReferrers: TrafficItem[];
-};
+import type { TrafficDay } from '$lib/types';
 
 type DailyPoint = { timestamp: string; count: number; uniques: number };
 type ViewsResponse = TrafficCount & { views: DailyPoint[] };
@@ -29,16 +22,6 @@ const EMPTY: RepoTrafficSummary = {
 // own board may see it. viewerLogin comes from the session, null when logged out
 export function canSeeTraffic(owner: string, viewerLogin: string | null | undefined): boolean {
 	return !!viewerLogin && viewerLogin.toLowerCase() === owner.toLowerCase();
-}
-
-// REST call that treats a permission 403 as "no access" rather than an error
-async function tryRest<T>(path: string): Promise<T | null> {
-	try {
-		return await rest<T>(path);
-	} catch (error) {
-		if (error instanceof AppError && error.code === 'forbidden') return null;
-		throw error;
-	}
 }
 
 // Combine the 14 day view and clone series into one row per day
@@ -84,8 +67,8 @@ async function snapshot(repo: string, views: ViewsResponse, clones: ClonesRespon
 async function fetchSummary(owner: string, repo: string): Promise<RepoTrafficSummary> {
 	const base = `/repos/${owner}/${repo}/traffic`;
 	const [views, clones] = await Promise.all([
-		tryRest<ViewsResponse>(`${base}/views`),
-		tryRest<ClonesResponse>(`${base}/clones`)
+		restTolerant<ViewsResponse>(`${base}/views`),
+		restTolerant<ClonesResponse>(`${base}/clones`)
 	]);
 	if (!views) return EMPTY;
 	await snapshot(`${owner}/${repo}`.toLowerCase(), views, clones);
@@ -98,7 +81,7 @@ async function fetchSummary(owner: string, repo: string): Promise<RepoTrafficSum
 
 // Views and clones for a repo, cached and snapshotted. Used for list sorting
 export function getRepoTrafficSummary(owner: string, repo: string): Promise<RepoTrafficSummary> {
-	return cached(`repo:traffic-summary:${owner}/${repo}`.toLowerCase(), () =>
+	return cached(`repo:traffic-summary:v1:${owner}/${repo}`.toLowerCase(), () =>
 		fetchSummary(owner, repo)
 	);
 }
@@ -124,14 +107,14 @@ export async function getTrafficHistory(names: string[]): Promise<TrafficDay[]> 
 
 // Full insights for one repo: summary plus top paths and referrers
 export function getRepoTraffic(owner: string, repo: string): Promise<RepoTraffic> {
-	return cached(`repo:traffic:${owner}/${repo}`.toLowerCase(), async () => {
+	return cached(`repo:traffic:v1:${owner}/${repo}`.toLowerCase(), async () => {
 		const summary = await getRepoTrafficSummary(owner, repo);
 		if (!summary.available) return { ...summary, topPaths: [], topReferrers: [] };
 
 		const base = `/repos/${owner}/${repo}/traffic/popular`;
 		const [paths, referrers] = await Promise.all([
-			tryRest<PathResponse[]>(`${base}/paths`),
-			tryRest<ReferrerResponse[]>(`${base}/referrers`)
+			restTolerant<PathResponse[]>(`${base}/paths`),
+			restTolerant<ReferrerResponse[]>(`${base}/referrers`)
 		]);
 		return {
 			...summary,

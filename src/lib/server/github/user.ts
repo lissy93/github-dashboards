@@ -1,8 +1,8 @@
-import { graphql, rest } from '$lib/server/github/client';
+import { batchedGraphql, graphql, rest } from '$lib/server/github/client';
 import { snapshotStars } from '$lib/server/github/stars';
-import { isCached, readCached, writeCached } from '$lib/server/cache';
-import { AppError, toAppError } from '$lib/errors';
-import { createLogger } from '$lib/logger';
+import { cached, isCached, readCached, writeCached } from '$lib/server/cache';
+import { AppError, toAppError } from '$lib/utils/errors';
+import { createLogger } from '$lib/utils/logger';
 import type { Org, Repo, UserOverview, UserProfile } from '$lib/types';
 
 const log = createLogger('user-overview');
@@ -237,15 +237,12 @@ export function mapRepo(raw: RawRepo): Repo {
 
 // Display names for orgs in one batched query, since the REST list only carries logins
 async function fetchOrgNames(logins: string[]): Promise<Map<string, string>> {
-	if (!logins.length) return new Map();
-	const params = logins.map((_, index) => `$o${index}: String!`).join(', ');
-	const fields = logins
-		.map((_, index) => `o${index}: organization(login: $o${index}) { login name }`)
-		.join(' ');
-	const variables = Object.fromEntries(logins.map((login, index) => [`o${index}`, login]));
-	const data = await graphql<Record<string, { login: string; name: string | null } | null>>(
-		`query OrgNames(${params}) { ${fields} }`,
-		variables
+	const data = await batchedGraphql<string, { login: string; name: string | null } | null>(
+		'OrgNames',
+		logins,
+		(index) => `$o${index}: String!`,
+		(index) => `o${index}: organization(login: $o${index}) { login name }`,
+		(login, index) => ({ [`o${index}`]: login })
 	).catch((caught) => {
 		log.warn('org name hydration failed', { code: toAppError(caught).code });
 		return {};
@@ -413,6 +410,35 @@ async function syncOverview(login: string, current?: OverviewState): Promise<Ove
 
 	syncing.set(cacheKey, task);
 	return task;
+}
+
+// Cheap account-type lookup for layouts, so they never wait on a full overview sync
+export async function isOrgAccount(login: string): Promise<boolean> {
+	const { isOrg } = await cached(
+		`user:kind:v1:${login.toLowerCase()}`,
+		async () => {
+			const stored = await readCached<OverviewState>(overviewKey(login)).catch(() => null);
+			if (stored) return { isOrg: stored.value.owner.__typename === 'Organization' };
+			const { repositoryOwner } = await graphql<{
+				repositoryOwner: { __typename: string } | null;
+			}>(
+				`
+					query Kind($login: String!) {
+						repositoryOwner(login: $login) {
+							__typename
+						}
+					}
+				`,
+				{
+					login
+				}
+			);
+			if (!repositoryOwner) throw new AppError('not_found', `No user or org named ${login}`);
+			return { isOrg: repositoryOwner.__typename === 'Organization' };
+		},
+		7 * 86400
+	);
+	return isOrg;
 }
 
 // Serve the last complete checkpoint, refreshing metadata and resuming pagination

@@ -1,8 +1,9 @@
-import { rest } from '$lib/server/github/client';
-import { cached, isCached, readCached, writeCached } from '$lib/server/cache';
+import type { RepoWorkflows, WorkflowSummary, RepoRunActivity } from '$lib/types';
+import { restTolerant } from '$lib/server/github/client';
+import { checkpointed, cached, isCached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
-import { bucketOutcomes, type OutcomeBucket, type OutcomeKind } from '$lib/views/outcomes';
-import { AppError, logError } from '$lib/errors';
+import { bucketOutcomes, type OutcomeKind } from '$lib/utils/outcomes';
+import { logError } from '$lib/utils/errors';
 
 // Runs change but not second to second, refresh on visit like the rest of the board
 const TTL = 900;
@@ -11,30 +12,6 @@ const WORKFLOWS_PER_SYNC = 20;
 const LIST_PAGE = 100;
 const RUN_SAMPLE = 20;
 const CONCURRENCY = 6;
-
-export type WorkflowSummary = {
-	id: number;
-	name: string;
-	state: string;
-	path: string;
-	latest: {
-		status: string | null;
-		conclusion: string | null;
-		runUrl: string | null;
-		createdAt: string | null;
-		event: string | null;
-	} | null;
-	passRate: number | null;
-	avgRuntimeSec: number | null;
-	runsSampled: number;
-	retryRate: number | null;
-};
-export type RepoWorkflows = {
-	workflows: WorkflowSummary[];
-	totalRuns: number | null;
-	totalWorkflows: number;
-	sampled: boolean;
-};
 
 type RawWorkflow = { id: number; name: string; state: string; path: string };
 type RawRun = {
@@ -61,16 +38,6 @@ type WorkflowState = {
 	totalWorkflows: number;
 	nextIndex: number;
 };
-
-// A restricted repo or one with Actions off has no visible workflows, not an error
-async function tryRest<T>(path: string): Promise<T | null> {
-	try {
-		return await rest<T>(path);
-	} catch (error) {
-		if (error instanceof AppError && error.code === 'forbidden') return null;
-		throw error;
-	}
-}
 
 // Pass rate over decisive runs and mean runtime over completed runs, with the sampled
 // count tracking the decisive runs so it matches the pass-rate denominator on screen
@@ -116,7 +83,7 @@ function mergeMetadata(...groups: RawWorkflow[][]): RawWorkflow[] {
 }
 
 async function sync(owner: string, name: string, current?: WorkflowState): Promise<WorkflowState> {
-	const first = await tryRest<{ total_count: number; workflows: RawWorkflow[] }>(
+	const first = await restTolerant<{ total_count: number; workflows: RawWorkflow[] }>(
 		`/repos/${owner}/${name}/actions/workflows?per_page=${LIST_PAGE}&page=1`
 	);
 	if (!first)
@@ -125,7 +92,7 @@ async function sync(owner: string, name: string, current?: WorkflowState): Promi
 	let metadata = mergeMetadata(current?.metadata ?? [], first.workflows);
 	if (metadata.length < first.total_count) {
 		const page = Math.floor(metadata.length / LIST_PAGE) + 1;
-		const more = await tryRest<{ workflows: RawWorkflow[] }>(
+		const more = await restTolerant<{ workflows: RawWorkflow[] }>(
 			`/repos/${owner}/${name}/actions/workflows?per_page=${LIST_PAGE}&page=${page}`
 		);
 		metadata = mergeMetadata(metadata, more?.workflows ?? []);
@@ -138,7 +105,7 @@ async function sync(owner: string, name: string, current?: WorkflowState): Promi
 	const runTotals = { ...(current?.runTotals ?? {}) };
 	await mapLimit(targets, CONCURRENCY, async (workflow) => {
 		try {
-			const runs = await tryRest<{ total_count: number; workflow_runs: RawRun[] }>(
+			const runs = await restTolerant<{ total_count: number; workflow_runs: RawRun[] }>(
 				`/repos/${owner}/${name}/actions/workflows/${workflow.id}/runs?per_page=${RUN_SAMPLE}`
 			);
 			runTotals[workflow.id] = runs?.total_count ?? 0;
@@ -162,23 +129,7 @@ async function sync(owner: string, name: string, current?: WorkflowState): Promi
 
 const key = (owner: string, name: string) =>
 	`repo:workflows-state:v2:${owner}/${name}`.toLowerCase();
-const syncing = new Map<string, Promise<WorkflowState>>();
-
 export const isRepoWorkflowsCached = (owner: string, name: string) => isCached(key(owner, name));
-
-async function refresh(owner: string, name: string, current?: WorkflowState) {
-	const cacheKey = key(owner, name);
-	const running = syncing.get(cacheKey);
-	if (running) return running;
-	const task = sync(owner, name, current)
-		.then(async (state) => {
-			await writeCached(cacheKey, state, TTL);
-			return state;
-		})
-		.finally(() => syncing.delete(cacheKey));
-	syncing.set(cacheKey, task);
-	return task;
-}
 
 function toResult(state: WorkflowState): RepoWorkflows {
 	const complete =
@@ -195,18 +146,13 @@ function toResult(state: WorkflowState): RepoWorkflows {
 
 // Per-workflow status accumulated in bounded batches, serving prior summaries during refresh
 export async function getRepoWorkflows(owner: string, name: string): Promise<RepoWorkflows> {
-	const cacheKey = key(owner, name);
-	const stored = await readCached<WorkflowState>(cacheKey).catch(() => null);
-	if (!stored) {
-		const state = await refresh(owner, name);
-		return state.totalWorkflows ? toResult(state) : EMPTY;
-	}
-	if (Date.now() - stored.fetchedAt.getTime() >= TTL * 1000) {
-		void refresh(owner, name, stored.value).catch((caught) =>
-			logError('repo-workflows-refresh', caught)
-		);
-	}
-	return toResult(stored.value);
+	const state = await checkpointed<WorkflowState>(
+		'repo-workflows',
+		key(owner, name),
+		TTL,
+		(current) => sync(owner, name, current)
+	);
+	return state.totalWorkflows ? toResult(state) : EMPTY;
 }
 
 // Recent runs across all workflows, for the repo-wide outcome trend. Bounded to a few
@@ -214,7 +160,6 @@ export async function getRepoWorkflows(owner: string, name: string): Promise<Rep
 const RUN_ACTIVITY_PAGES = 3;
 const RUN_ACTIVITY_PAGE = 100;
 
-export type RepoRunActivity = { buckets: OutcomeBucket[]; total: number; sampled: boolean };
 const EMPTY_RUN_ACTIVITY: RepoRunActivity = { buckets: [], total: 0, sampled: false };
 
 type RunFeedItem = { created_at: string; conclusion: string | null };
@@ -230,7 +175,7 @@ async function fetchRunActivity(owner: string, name: string): Promise<RepoRunAct
 	const runs: RunFeedItem[] = [];
 	let total = 0;
 	for (let page = 1; page <= RUN_ACTIVITY_PAGES; page++) {
-		const batch = await tryRest<{ total_count: number; workflow_runs: RunFeedItem[] }>(
+		const batch = await restTolerant<{ total_count: number; workflow_runs: RunFeedItem[] }>(
 			`/repos/${owner}/${name}/actions/runs?per_page=${RUN_ACTIVITY_PAGE}&page=${page}`
 		);
 		if (!batch) break;
@@ -247,9 +192,6 @@ async function fetchRunActivity(owner: string, name: string): Promise<RepoRunAct
 
 const runActivityKey = (owner: string, name: string) =>
 	`repo:run-activity:v1:${owner}/${name}`.toLowerCase();
-
-export const isRepoRunActivityCached = (owner: string, name: string) =>
-	isCached(runActivityKey(owner, name));
 
 export function getRepoRunActivity(owner: string, name: string): Promise<RepoRunActivity> {
 	return cached(runActivityKey(owner, name), () => fetchRunActivity(owner, name), TTL);

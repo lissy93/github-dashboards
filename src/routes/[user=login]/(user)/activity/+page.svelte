@@ -2,15 +2,17 @@
 	import { Building2 } from '@lucide/svelte';
 	import SortFilterBar from '$lib/components/filter/SortFilterBar.svelte';
 	import Feed from '$lib/components/common/Feed.svelte';
+	import FeedSkeleton from '$lib/components/common/FeedSkeleton.svelte';
 	import ActivityItem from '$lib/components/activity/ActivityItem.svelte';
 	import Notice from '$lib/components/common/Notice.svelte';
 	import ErrorState from '$lib/components/common/ErrorState.svelte';
-	import { Skeleton } from '$lib/components/ui/skeleton';
-	import { defaultView, type View } from '$lib/components/filter/sort-filter';
+	import { defaultView, type View } from '$lib/utils/sort-filter';
 	import { activityFilterConfig, activityQuery, activityUrl } from '$lib/views/activity';
+	import { fetchApi } from '$lib/state/api';
 	import { APP_NAME } from '$lib/config';
 	import type { ActivityEvent, ActivityPage } from '$lib/types';
 	import type { PageData } from './$types';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -23,16 +25,15 @@
 	async function fetchPage(
 		cursor: string | null
 	): Promise<{ items: ActivityEvent[]; nextCursor: string | null }> {
-		const response = await fetch(activityUrl(data.user, view, cursor));
-		const body: ActivityPage = await response.json();
+		const body = await fetchApi<ActivityPage>(activityUrl(data.user, view, cursor));
 		return { items: body.events, nextCursor: body.nextCursor };
 	}
 </script>
 
-<svelte:head>
-	<title>{data.user} activity · {APP_NAME}</title>
-	<meta name="description" content="Recent activity from {data.user} on {APP_NAME}" />
-</svelte:head>
+<PageMeta
+	title={`${data.user} activity`}
+	description={`Recent activity from ${data.user} on ${APP_NAME}`}
+/>
 
 {#if data.isOrg}
 	<Notice
@@ -42,14 +43,7 @@
 	/>
 {:else}
 	{#await data.result}
-		<div class="space-y-3">
-			<Skeleton class="h-9 w-full" />
-			<div class="bg-card space-y-3 rounded-md border p-4">
-				{#each [0, 1, 2, 3, 4, 5] as index (index)}
-					<Skeleton class="h-10 w-full" />
-				{/each}
-			</div>
-		</div>
+		<FeedSkeleton />
 	{:then result}
 		{#if result.ok}
 			<div class="space-y-3">
