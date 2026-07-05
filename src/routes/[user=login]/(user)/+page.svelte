@@ -46,6 +46,7 @@
 				user={data.user}
 				canSeeTraffic={data.canSeeTraffic}
 				repos={result.data.ownedRepos}
+				capped={result.data.ownedReposCapped}
 			/>
 			{#if data.activity}
 				<ActivityPreview user={data.user} result={data.activity} />

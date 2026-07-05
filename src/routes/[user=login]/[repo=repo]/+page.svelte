@@ -34,7 +34,13 @@
 	import HBarList from '$lib/components/charts/HBarList.svelte';
 	import SecurityChecks from '$lib/components/repo/SecurityChecks.svelte';
 	import AnalyticsDashboard from '$lib/components/analytics/AnalyticsDashboard.svelte';
-	import { starChart, lifecycleBars, lifecycleSeries, cumulativeTicks } from '$lib/views/repo';
+	import {
+		starChart,
+		lifecycleBars,
+		lifecycleSeries,
+		cumulativeTicks,
+		TIMELINE_SAMPLED_NOTE
+	} from '$lib/views/repo';
 	import {
 		workflowSummary,
 		deploymentSummary,
@@ -78,6 +84,8 @@
 		result={data.timeline}
 		empty={(tl) => tl.points.length === 0}
 		emptyText="No history yet"
+		cause={(tl) => (tl.sampled ? 'partial' : undefined)}
+		detail={(tl) => (tl.sampled ? TIMELINE_SAMPLED_NOTE : undefined)}
 		class="hidden lg:block"
 	>
 		{#snippet children(tl)}
@@ -149,17 +157,19 @@
 
 	<SectionHeading title="Code" icon={Code}>
 		<div class="grid items-start gap-5 lg:grid-cols-2">
-			<Panel title="Activity" icon={Activity} href={code('activity')}>
-				<RepoActivityFeed
-					user={data.user}
-					repo={data.repo.name}
-					result={data.activity}
-					showFilters={false}
-					showToggle={false}
-					framed={false}
-					limit={10}
-				/>
-			</Panel>
+			<AsyncPanel title="Activity" icon={Activity} href={code('activity')} result={data.activity}>
+				{#snippet children(page)}
+					<RepoActivityFeed
+						user={data.user}
+						repo={data.repo.name}
+						result={{ ok: true, data: page }}
+						showFilters={false}
+						showToggle={false}
+						framed={false}
+						limit={10}
+					/>
+				{/snippet}
+			</AsyncPanel>
 
 			<AsyncPanel
 				title="History"
@@ -187,6 +197,9 @@
 				result={data.tree}
 				empty={(tree) => tree.totalFiles === 0}
 				emptyText="No files in this repo"
+				cause={(tree) => (tree.truncated ? 'partial' : undefined)}
+				detail={(tree) =>
+					tree.truncated ? 'This repo is too large for the full tree, showing a subset' : undefined}
 			>
 				{#snippet children(tree)}
 					<div class="space-y-3">
@@ -231,7 +244,13 @@
 
 	<SectionHeading title="CI/CD" icon={Workflow}>
 		<div class="grid items-start gap-5 sm:grid-cols-2">
-			<AsyncPanel title="Workflows" icon={Workflow} href={ops('workflows')} result={data.workflows}>
+			<AsyncPanel
+				title="Workflows"
+				icon={Workflow}
+				href={ops('workflows')}
+				result={data.workflows}
+				cause={(wf) => (wf.sampled ? 'partial' : undefined)}
+			>
 				{#snippet children(wf)}
 					{@const gauge = workflowGauge(wf)}
 					<div class="space-y-3">
@@ -253,6 +272,7 @@
 				icon={Rocket}
 				href={ops('deployments')}
 				result={data.deployments}
+				cause={(d) => (d.sampled ? 'partial' : undefined)}
 			>
 				{#snippet children(d)}
 					{@const freq = deploymentMiniChart(d)}
@@ -293,7 +313,13 @@
 					</div>
 				{/snippet}
 			</AsyncPanel>
-			<AsyncPanel title="Releases" icon={Tag} href={ops('releases')} result={data.releases}>
+			<AsyncPanel
+				title="Releases"
+				icon={Tag}
+				href={ops('releases')}
+				result={data.releases}
+				cause={(r) => (r.sampled ? 'partial' : undefined)}
+			>
 				{#snippet children(r)}
 					<div class="space-y-3">
 						<p class="text-muted-foreground text-sm">{releasesSummary(r)}</p>
@@ -322,6 +348,9 @@
 				result={data.stars}
 				empty={(history) => history.days.length === 0}
 				emptyText="No stars yet"
+				cause={(history) => (history.sampled ? 'partial' : undefined)}
+				detail={(history) =>
+					history.sampled ? 'GitHub only lists the first 40k stargazers' : undefined}
 			>
 				{#snippet children(history)}
 					<MetricTimeChart data={starChart(history)} label="Star history" height={13} />

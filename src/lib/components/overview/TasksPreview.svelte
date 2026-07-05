@@ -23,6 +23,7 @@
 				title={meta.title}
 				icon={meta.icon}
 				href={paths.userTaskList(user, meta.section)}
+				error={res.ok ? undefined : res.error}
 				count={list?.total}
 				capped={list?.capped}
 				empty={list?.items.length === 0}
@@ -34,8 +35,6 @@
 							<li><ItemRow {item} /></li>
 						{/each}
 					</ul>
-				{:else if !res.ok}
-					<p class="text-danger text-sm">{res.error.message}</p>
 				{/if}
 			</Panel>
 		{/await}

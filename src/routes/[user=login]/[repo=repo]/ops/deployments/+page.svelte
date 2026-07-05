@@ -84,7 +84,12 @@
 
 			<DeploymentFilters bind:view environments={environmentOptions(d)} />
 
-			<Panel title="Deployment frequency" icon={TrendingUp}>
+			<Panel
+				title="Deployment frequency"
+				icon={TrendingUp}
+				cause={d.sampled ? 'partial' : undefined}
+				detail={d.sampled ? 'Built from the most recent deployments only' : undefined}
+			>
 				{#if freq.bars.length}
 					<StackedBarChart
 						bars={freq.bars}
@@ -106,6 +111,7 @@
 			<Panel
 				title="Recent deployments"
 				icon={History}
+				capped={d.sampled}
 				empty={recent.length === 0}
 				emptyText="No deployments to this environment"
 			>

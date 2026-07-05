@@ -1,6 +1,6 @@
 import type { RepoWorkflows, WorkflowSummary, RepoRunActivity } from '$lib/types';
 import { restTolerant } from '$lib/server/github/client';
-import { checkpointed, cached, isCached } from '$lib/server/cache';
+import { advanceCheckpointed, checkpointed, cached, isCached, readCached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
 import { bucketOutcomes, type OutcomeKind } from '$lib/utils/outcomes';
 import { logError } from '$lib/utils/errors';
@@ -153,6 +153,18 @@ export async function getRepoWorkflows(owner: string, name: string): Promise<Rep
 		(current) => sync(owner, name, current)
 	);
 	return state.totalWorkflows ? toResult(state) : EMPTY;
+}
+
+// Crawl one more batch of workflow summaries on demand and persist it, so a signed-in
+// viewer can fill the table past the background bound, cached for later viewers
+export async function advanceRepoWorkflows(owner: string, name: string): Promise<RepoWorkflows> {
+	const stored = await readCached<WorkflowState>(key(owner, name));
+	const current = stored?.value;
+	if (current && !toResult(current).sampled) return toResult(current);
+	const next = await advanceCheckpointed<WorkflowState>(key(owner, name), TTL, (state) =>
+		sync(owner, name, state)
+	);
+	return next.totalWorkflows ? toResult(next) : EMPTY;
 }
 
 // Recent runs across all workflows, for the repo-wide outcome trend. Bounded to a few

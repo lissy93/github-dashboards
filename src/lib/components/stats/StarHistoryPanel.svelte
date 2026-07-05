@@ -13,6 +13,7 @@
 	let error = $state<DisplayError>();
 	let loaded = $state(false);
 	const stack = $derived(raw ? starHistory(raw) : null);
+	const covering = $derived(!!raw?.totalRepos && raw.coveredRepos !== raw.totalRepos);
 
 	// Reload when client-side navigation changes the viewed user
 	$effect(() => {
@@ -38,6 +39,10 @@
 	{error}
 	empty={!stack || stack.days.length < 2}
 	emptyText="Not enough history yet"
+	cause={covering ? 'partial' : undefined}
+	detail={covering
+		? `Covers ${raw?.coveredRepos ?? 0} of ${raw?.totalRepos} repos, more build up over visits`
+		: undefined}
 >
 	{#snippet actions()}
 		{#if stack && stack.days.length >= 2}

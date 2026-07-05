@@ -5,6 +5,7 @@
 	import ItemRow from '$lib/components/tasks/ItemRow.svelte';
 	import { applyView, defaultView, type View } from '$lib/utils/sort-filter';
 	import { taskConfig } from '$lib/views/tasks';
+	import { compactNumber } from '$lib/utils/format';
 	import type { TaskList } from '$lib/types';
 
 	type Props = {
@@ -46,6 +47,12 @@
 {:else}
 	<div class="space-y-3">
 		<SortFilterBar {config} bind:view searchPlaceholder="Search {title.toLowerCase()}" />
+		{#if list.capped}
+			<p class="text-muted-foreground text-xs">
+				Showing the {compactNumber(list.items.length)} most recent of {compactNumber(list.total)}
+				{title}
+			</p>
+		{/if}
 		{#if visible.length}
 			<div class="bg-card overflow-hidden rounded-md border">
 				<ul class="divide-y">

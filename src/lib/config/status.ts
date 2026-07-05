@@ -7,11 +7,11 @@ export const STATUS_CAUSES: Record<
 	{ level: StatusLevel; label: string; hint: string }
 > = {
 	ok: { level: 'ok', label: 'Loaded', hint: 'Data loaded fine' },
-	loading: { level: 'info', label: 'Loading', hint: 'Still fetching data' },
+	loading: { level: 'loading', label: 'Loading', hint: 'Still fetching data' },
 	empty: { level: 'info', label: 'No data', hint: 'Nothing to show here yet' },
 	low_data: { level: 'warn', label: 'Low data', hint: 'Too little data to draw the chart' },
-	partial: { level: 'info', label: 'Partial', hint: 'Showing a capped subset of the data' },
-	pending: { level: 'info', label: 'Computing', hint: 'GitHub is still preparing this data' },
+	partial: { level: 'warn', label: 'Partial', hint: 'Only part of the data has loaded' },
+	pending: { level: 'warn', label: 'Computing', hint: 'GitHub is still preparing this data' },
 	forbidden: { level: 'warn', label: 'Restricted', hint: 'You cannot view this data' },
 	needs_auth: { level: 'warn', label: 'Sign in needed', hint: 'Sign in with GitHub to load this' },
 	rate_limited: {
@@ -28,8 +28,9 @@ export const STATUS_CAUSES: Record<
 export const LEVEL_META: Record<StatusLevel, { color: string; order: number }> = {
 	error: { color: 'text-danger', order: 0 },
 	warn: { color: 'text-warning', order: 1 },
-	info: { color: 'text-muted-foreground', order: 2 },
-	ok: { color: 'text-success', order: 3 }
+	loading: { color: 'text-info', order: 2 },
+	info: { color: 'text-muted-foreground', order: 3 },
+	ok: { color: 'text-success', order: 4 }
 };
 
 // Map an upstream error code to the matching panel cause

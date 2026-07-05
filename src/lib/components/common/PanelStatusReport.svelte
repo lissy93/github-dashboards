@@ -5,6 +5,7 @@
 		ChevronRight,
 		CircleCheck,
 		Hourglass,
+		LoaderCircle,
 		Inbox,
 		ChartColumnIncreasing,
 		Info,
@@ -25,7 +26,7 @@
 
 	const CAUSE_ICONS: Record<StatusCause, IconComponent> = {
 		ok: CircleCheck,
-		loading: Hourglass,
+		loading: LoaderCircle,
 		empty: Inbox,
 		low_data: ChartColumnIncreasing,
 		partial: Info,
@@ -37,10 +38,11 @@
 		unavailable: CloudOff,
 		error: TriangleAlert
 	};
-	const LEVELS: StatusLevel[] = ['error', 'warn', 'info', 'ok'];
+	const LEVELS: StatusLevel[] = ['error', 'warn', 'loading', 'info', 'ok'];
 	const LEVEL_LABELS: Record<StatusLevel, string> = {
 		error: 'errors',
 		warn: 'warnings',
+		loading: 'loading',
 		info: 'notices',
 		ok: 'loaded'
 	};
@@ -61,7 +63,13 @@
 		)
 	);
 	const counts = $derived.by(() => {
-		const tally: Record<StatusLevel, number> = { error: 0, warn: 0, info: 0, ok: 0 };
+		const tally: Record<StatusLevel, number> = {
+			error: 0,
+			warn: 0,
+			loading: 0,
+			info: 0,
+			ok: 0
+		};
 		for (const report of reports) tally[STATUS_CAUSES[report.cause].level] += 1;
 		return tally;
 	});
@@ -76,11 +84,13 @@
 {#snippet labelRow(report: PanelReport, tip: string, long: boolean)}
 	{@const meta = STATUS_CAUSES[report.cause]}
 	{@const color = LEVEL_META[meta.level].color}
-	<button  onclick={() => toggle(report.id)} class="flex gap-2 {long ? 'cursor-pointer' : ''}">
-  	<Icon icon={CAUSE_ICONS[report.cause]} size={14} class="{color} shrink-0" />
-  	<Hint text={tip} class="{color} shrink-0">{meta.label}</Hint>
-  	<span class="text-foreground shrink-0 font-medium">{report.title}</span>
-  	{#if long} <span class="text-foreground opacity-50">Click for details</span> {/if}
+	<button onclick={() => toggle(report.id)} class="flex gap-2 {long ? 'cursor-pointer' : ''}">
+		<Icon icon={CAUSE_ICONS[report.cause]} size={14} class="{color} shrink-0" />
+		<Hint text={tip} class="{color} shrink-0">{meta.label}</Hint>
+		<span class="text-foreground shrink-0 font-medium">{report.title}</span>
+		{#if long}
+			<span class="text-foreground opacity-50">Click for details</span>
+		{/if}
 	</button>
 {/snippet}
 

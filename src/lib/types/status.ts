@@ -1,5 +1,5 @@
 // Severity buckets a panel status rolls up into
-export type StatusLevel = 'ok' | 'info' | 'warn' | 'error';
+export type StatusLevel = 'ok' | 'info' | 'loading' | 'warn' | 'error';
 
 // Why a panel is in its current state, the shared vocabulary every panel reports
 export type StatusCause =

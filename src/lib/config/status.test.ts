@@ -36,7 +36,7 @@ describe('panelCause', () => {
 
 	it('assigns every cause a level so the report can always classify it', () => {
 		for (const cause of Object.values(STATUS_CAUSES)) {
-			expect(['ok', 'info', 'warn', 'error']).toContain(cause.level);
+			expect(['ok', 'info', 'loading', 'warn', 'error']).toContain(cause.level);
 		}
 	});
 });

@@ -47,6 +47,7 @@
 	} from '$lib/views/repo-stats';
 	import { compactNumber, formatSpanHours } from '$lib/utils/format';
 	import { readStored, writeStored } from '$lib/utils/storage';
+	import { progressiveResult } from '$lib/state/progressive.svelte';
 	import type { PageData } from './$types';
 	import StatTileGrid from '$lib/components/common/StatTileGrid.svelte';
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
@@ -54,6 +55,14 @@
 	const VIEW_KEY = 'repo:timeline-view';
 
 	let { data }: { data: PageData } = $props();
+
+	// Signed-in viewers deepen the timeline progressively, the charts fill as older data lands
+	const timeline = progressiveResult({
+		url: () => `/api/${data.user}/${data.repo.name}/timeline?advance=1`,
+		initial: () => data.timeline,
+		enabled: () => !!data.viewerLogin,
+		incomplete: (tl) => tl.sampled
+	});
 	let view = $state<TimelineView>(defaultTimelineView());
 
 	// Restore the last chosen chart view after mount, then keep it in sync. Rebuild from
@@ -123,9 +132,11 @@
 	<AsyncPanel
 		title="Issues & PRs over time"
 		icon={GitPullRequest}
-		result={data.timeline}
+		result={timeline.result}
 		empty={(tl) => tl.points.length === 0}
 		emptyText="No history yet"
+		cause={timeline.cause}
+		detail={timeline.detail}
 	>
 		{#snippet children(tl)}
 			<div class="space-y-4">
@@ -213,9 +224,11 @@
 		<AsyncPanel
 			title="Time to close issues"
 			icon={CircleDot}
-			result={data.timeline}
+			result={timeline.result}
 			empty={(tl) => tl.resolution.issues.count === 0}
 			emptyText="No closed issues yet"
+			cause={timeline.cause}
+			detail={timeline.detail}
 		>
 			{#snippet children(tl)}
 				{@render resolution(tl.resolution.issues, 'issues', tl.baseline.issues.open)}
@@ -225,9 +238,11 @@
 		<AsyncPanel
 			title="Time to merge PRs"
 			icon={GitPullRequest}
-			result={data.timeline}
+			result={timeline.result}
 			empty={(tl) => tl.resolution.prs.count === 0}
 			emptyText="No merged PRs yet"
+			cause={timeline.cause}
+			detail={timeline.detail}
 		>
 			{#snippet children(tl)}
 				{@render resolution(tl.resolution.prs, 'PRs', tl.baseline.prs.open)}
@@ -243,6 +258,9 @@
 			empty={(people) => contributionCurve(people.contributors) === null}
 			emptyText="Not enough contributors yet"
 			emptyCause="low_data"
+			cause={(people) => (people.sampled ? 'partial' : undefined)}
+			detail={(people) =>
+				people.sampled ? 'GitHub stats only cover the top 100 contributors' : undefined}
 		>
 			{#snippet children(people)}
 				{@const curve = contributionCurve(people.contributors)}
@@ -284,6 +302,9 @@
 		empty={(people) => people.weekly.length < 2}
 		emptyText="No churn data yet"
 		emptyCause="low_data"
+		cause={(people) => (people.sampled ? 'partial' : undefined)}
+		detail={(people) =>
+			people.sampled ? 'GitHub stats only cover the top 100 contributors' : undefined}
 	>
 		{#snippet children(people)}
 			<div class="space-y-3">
@@ -299,6 +320,9 @@
 		result={data.stars}
 		empty={(history) => history.days.length === 0}
 		emptyText="No stars yet"
+		cause={(history) => (history.sampled ? 'partial' : undefined)}
+		detail={(history) =>
+			history.sampled ? 'GitHub only lists the first 40k stargazers' : undefined}
 	>
 		{#snippet children(history)}
 			<div class="space-y-3">

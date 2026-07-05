@@ -19,6 +19,9 @@
 	result={data.tree}
 	empty={(tree) => tree.totalFiles === 0}
 	emptyText="No files in this repo"
+	cause={(tree) => (tree.truncated ? 'partial' : undefined)}
+	detail={(tree) =>
+		tree.truncated ? 'This repo is too large for the full tree, showing a subset' : undefined}
 >
 	{#snippet children(tree)}
 		<RepoTree {tree} repoUrl={data.repo.url} />

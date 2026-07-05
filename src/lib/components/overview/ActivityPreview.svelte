@@ -13,6 +13,7 @@
 	title="Activity"
 	icon={Activity}
 	href={paths.userActivity(user)}
+	error={result.ok ? undefined : result.error}
 	empty={result.ok && events.length === 0}
 	emptyText="No recent activity"
 >
@@ -22,7 +23,5 @@
 				<li><ActivityItem {event} /></li>
 			{/each}
 		</ul>
-	{:else}
-		<p class="text-danger text-sm">{result.error.message}</p>
 	{/if}
 </Panel>

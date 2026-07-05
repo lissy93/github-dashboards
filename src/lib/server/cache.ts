@@ -175,3 +175,22 @@ export async function checkpointed<T>(
 	}
 	return stored.value;
 }
+
+// One more sync round on demand, for the progressive advance endpoints. Joins any
+// round already in flight, so concurrent viewers never trigger duplicate crawls
+export async function advanceCheckpointed<T>(
+	key: string,
+	ttl: number,
+	sync: (current?: T) => Promise<T>
+): Promise<T> {
+	const running = checkpointSyncs.get(key);
+	if (running) return running as Promise<T>;
+	const stored = await readCached<T>(key).catch(() => null);
+	const task = (async () => {
+		const state = await sync(stored?.value);
+		await writeCached(key, state, ttl);
+		return state;
+	})().finally(() => checkpointSyncs.delete(key));
+	checkpointSyncs.set(key, task);
+	return task;
+}

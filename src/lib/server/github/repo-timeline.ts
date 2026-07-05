@@ -7,13 +7,15 @@ import type {
 } from '$lib/types';
 import { paginate } from '$lib/server/github/client';
 import { median, monthStartOf, weekStartOf } from '$lib/utils/datetime';
-import { checkpointed, isCached, readCached, writeCached } from '$lib/server/cache';
+import { advanceCheckpointed, checkpointed, isCached, readCached } from '$lib/server/cache';
 import { logError } from '$lib/utils/errors';
 
-// Refresh the newest data often, while each refresh resumes a bounded older backfill
+// Refresh changed and new items often, while each refresh resumes a bounded older backfill
 const TTL = 300;
 const PER_PAGE = 100;
 const BACKFILL_PAGES = 10;
+// Page cap on the changed-item sweep, plenty for the updates between two visits
+const SWEEP_PAGES = 3;
 
 // A created/closed item, resolved means merged (PR) or completed (issue), default true
 export type Lifecycle = { createdAt: string; closedAt: string | null; resolved?: boolean };
@@ -38,21 +40,28 @@ type TimelineResp<T> = {
 	} | null;
 };
 
-const query = (field: 'issues' | 'pullRequests', nodeFields: string) => `
+type Kind = 'issues' | 'pullRequests';
+type Order = 'CREATED_AT' | 'UPDATED_AT';
+// The sweep reads each node's updatedAt to know when it is back past the watermark
+type Updated = { updatedAt: string };
+
+const NODE_FIELDS: Record<Kind, string> = {
+	issues: 'id createdAt closedAt stateReason',
+	pullRequests: 'id createdAt closedAt merged'
+};
+
+const query = (field: Kind, order: Order) => `
 	query RepoTimeline($owner: String!, $name: String!, $cursor: String) {
 		repository(owner: $owner, name: $name) {
-			${field}(first: ${PER_PAGE}, after: $cursor, orderBy: { field: CREATED_AT, direction: DESC }) {
+			${field}(first: ${PER_PAGE}, after: $cursor, orderBy: { field: ${order}, direction: DESC }) {
 				totalCount
-				nodes { ${nodeFields} }
+				nodes { ${NODE_FIELDS[field]}${order === 'UPDATED_AT' ? ' updatedAt' : ''} }
 				pageInfo { hasNextPage endCursor }
 			}
 			open: ${field}(states: OPEN) { totalCount }
 		}
 	}
 `;
-
-const ISSUE_QUERY = query('issues', 'id createdAt closedAt stateReason');
-const PR_QUERY = query('pullRequests', 'id createdAt closedAt merged');
 
 const pad = (value: number) => String(value).padStart(2, '0');
 // Repos with under a year of history bucket by week, so the bars carry detail
@@ -136,21 +145,28 @@ type Crawl<T> = {
 	complete: boolean;
 	total: number;
 	openTotal: number;
+	syncedAt?: string;
 };
 type TimelineState = { issues: Crawl<IssueNode>; prs: Crawl<PrNode> };
 
+type BatchOptions<T> = {
+	pages: number;
+	cursor?: string | null;
+	order?: Order;
+	until?: (page: T[]) => boolean;
+};
+
 // Fetch one bounded batch, returning the cursor needed to resume older history
-async function fetchBatch<T extends Lifecycle & { id: string }>(
+async function fetchBatch<T extends { id: string }>(
 	owner: string,
 	name: string,
-	kind: 'issues' | 'pullRequests',
-	startCursor: string | null,
-	pages: number
+	kind: Kind,
+	options: BatchOptions<T>
 ): Promise<Crawl<T>> {
 	let openTotal = 0;
 	let total = 0;
 	const { nodes, cursor, complete } = await paginate<T, TimelineResp<T>>(
-		kind === 'issues' ? ISSUE_QUERY : PR_QUERY,
+		query(kind, options.order ?? 'CREATED_AT'),
 		{ owner, name },
 		(data) => {
 			const conn = data.repository?.[kind];
@@ -160,9 +176,29 @@ async function fetchBatch<T extends Lifecycle & { id: string }>(
 			}
 			return conn;
 		},
-		{ maxPages: pages, cursor: startCursor }
+		{ maxPages: options.pages, cursor: options.cursor, until: options.until }
 	);
 	return { nodes, cursor, complete, openTotal, total };
+}
+
+// Re-fetch items changed since the watermark, newest change first, so old items closed,
+// merged or reopened while cached get their stored lifecycle corrected. New items surface
+// here too, and one page usually covers the gap between visits. A state from before
+// watermarks existed gets one deeper catch-up sweep
+async function fetchUpdatedBatch<T extends { id: string }>(
+	owner: string,
+	name: string,
+	kind: Kind,
+	since?: string
+): Promise<Crawl<T>> {
+	const batch = await fetchBatch<T & Updated>(owner, name, kind, {
+		order: 'UPDATED_AT',
+		pages: since ? SWEEP_PAGES : BACKFILL_PAGES,
+		until: (page) => !!since && page.some((node) => node.updatedAt < since)
+	});
+	// updatedAt only drives the watermark check, drop it so stored nodes keep one shape
+	for (const node of batch.nodes) delete (node as Partial<Updated>).updatedAt;
+	return batch;
 }
 
 // Merge refreshed rows by GitHub id, preferring the newest state for reopened items
@@ -170,31 +206,41 @@ function merge<T extends { id: string }>(...groups: T[][]): T[] {
 	return [...new Map(groups.flat().map((node) => [node.id, node])).values()];
 }
 
+// Sweep changed items, then resume the older backfill from the checkpoint. The watermark
+// is taken before fetching, so updates landing mid-sync are swept again next time
 async function syncKind<T extends Lifecycle & { id: string }>(
 	owner: string,
 	name: string,
-	kind: 'issues' | 'pullRequests',
+	kind: Kind,
 	current?: Crawl<T>
 ): Promise<Crawl<T>> {
-	if (!current) return fetchBatch(owner, name, kind, null, BACKFILL_PAGES);
+	const syncedAt = new Date().toISOString();
+	if (!current) {
+		return { ...(await fetchBatch<T>(owner, name, kind, { pages: BACKFILL_PAGES })), syncedAt };
+	}
 
-	const latest = await fetchBatch<T>(owner, name, kind, null, 1);
+	const updated = await fetchUpdatedBatch<T>(owner, name, kind, current.syncedAt);
 	if (current.complete) {
 		return {
 			...current,
-			nodes: merge(current.nodes, latest.nodes),
-			total: latest.total,
-			openTotal: latest.openTotal
+			nodes: merge(current.nodes, updated.nodes),
+			total: updated.total,
+			openTotal: updated.openTotal,
+			syncedAt
 		};
 	}
 
-	const older = await fetchBatch<T>(owner, name, kind, current.cursor, BACKFILL_PAGES);
+	const older = await fetchBatch<T>(owner, name, kind, {
+		cursor: current.cursor,
+		pages: BACKFILL_PAGES
+	});
 	return {
-		nodes: merge(current.nodes, latest.nodes, older.nodes),
+		nodes: merge(current.nodes, older.nodes, updated.nodes),
 		cursor: older.cursor,
 		complete: older.complete,
-		total: latest.total,
-		openTotal: latest.openTotal
+		total: updated.total,
+		openTotal: updated.openTotal,
+		syncedAt
 	};
 }
 
@@ -370,7 +416,9 @@ export async function advanceRepoTimeline(owner: string, name: string): Promise<
 	const current = stored?.value;
 	// Fully crawled already, hand back what we have rather than refetch
 	if (current && current.issues.complete && current.prs.complete) return build(current);
-	const next = await syncState(owner, name, current);
-	await writeCached(key(owner, name), next, TTL);
-	return build(next);
+	return build(
+		await advanceCheckpointed<TimelineState>(key(owner, name), TTL, (state) =>
+			syncState(owner, name, state)
+		)
+	);
 }

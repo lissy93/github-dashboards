@@ -8,10 +8,19 @@
 	import { workflowKpiStats, runActivityChart } from '$lib/views/repo';
 	import { compactNumber, formatDuration, formatPercent, plural } from '$lib/utils/format';
 	import { ok } from '$lib/state/api';
+	import { progressiveResult } from '$lib/state/progressive.svelte';
 	import type { PageData } from './$types';
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
+
+	// Signed-in viewers deepen the workflow crawl progressively, the table fills in live
+	const workflows = progressiveResult({
+		url: () => `/api/${data.user}/${data.repo.name}/workflows?advance=1`,
+		initial: () => data.workflows,
+		enabled: () => !!data.viewerLogin,
+		incomplete: (wf) => wf.sampled
+	});
 
 	function tiles(stats: ReturnType<typeof workflowKpiStats>): Tile[] {
 		return [
@@ -58,7 +67,7 @@
 />
 
 <div class="space-y-5">
-	{#await data.workflows then res}
+	{#await workflows.result then res}
 		{@const wf = ok(res)}
 		{#if wf && wf.workflows.length}
 			<StatTileGrid tiles={tiles(workflowKpiStats(wf))} class="sm:grid-cols-3 lg:grid-cols-6" />
@@ -89,11 +98,13 @@
 	<AsyncPanel
 		title="Workflows"
 		icon={Workflow}
-		result={data.workflows}
+		result={workflows.result}
 		count={(wf) => wf.totalWorkflows}
 		capped={(wf) => wf.sampled}
 		empty={(wf) => wf.workflows.length === 0}
 		emptyText="No GitHub Actions workflows"
+		cause={workflows.cause}
+		detail={workflows.detail}
 	>
 		{#snippet children(wf)}
 			<WorkflowTable workflows={wf.workflows} />

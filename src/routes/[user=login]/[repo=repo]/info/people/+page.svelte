@@ -25,6 +25,8 @@
 			capped={(people) => people.sampled}
 			empty={(people) => people.contributors.length === 0}
 			emptyText="No contributors yet"
+			detail={(people) =>
+				people.sampled ? 'GitHub stats only cover the top 100 contributors' : undefined}
 		>
 			{#snippet children(people)}
 				<ContributorTable contributors={people.contributors} />

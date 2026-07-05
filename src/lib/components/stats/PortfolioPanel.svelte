@@ -66,6 +66,8 @@
 	icon={ScatterChart}
 	{result}
 	empty={(data) => !scatter(data.ownedRepos).length}
+	cause={() => (sampled ? 'partial' : undefined)}
+	detail={() => (sampled ? 'Some repos are not covered by this metric yet' : undefined)}
 >
 	{#snippet children(data)}
 		<div class="mb-3 flex flex-wrap items-center justify-between gap-2">

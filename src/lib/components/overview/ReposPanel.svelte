@@ -8,8 +8,12 @@
 	import { createRepoExtras } from '$lib/state/repo-extras.svelte';
 	import type { Repo } from '$lib/types';
 
-	let { user, canSeeTraffic, repos }: { user: string; canSeeTraffic: boolean; repos: Repo[] } =
-		$props();
+	let {
+		user,
+		canSeeTraffic,
+		repos,
+		capped = false
+	}: { user: string; canSeeTraffic: boolean; repos: Repo[]; capped?: boolean } = $props();
 
 	let starWindow = $state(STAR_WINDOW_DEFAULT);
 	const lazy = createRepoExtras(
@@ -24,6 +28,7 @@
 	title="Repositories"
 	icon={BookMarked}
 	href={paths.userRepos(user)}
+	{capped}
 	empty={repos.length === 0}
 >
 	{#snippet actions()}

@@ -201,12 +201,13 @@ export type Conn<T> = {
 };
 
 // Walk a cursored connection page by page, up to maxPages. Each page's connection
-// passes through pick, so callers can read totals off it as pages arrive
+// passes through pick, so callers can read totals off it as pages arrive. An optional
+// until predicate ends the walk once a page satisfies it, reporting complete
 export async function paginate<T, D>(
 	query: string,
 	variables: Record<string, unknown>,
 	pick: (data: D) => Conn<T> | null | undefined,
-	options: { maxPages: number; cursor?: string | null },
+	options: { maxPages: number; cursor?: string | null; until?: (page: T[]) => boolean },
 	auth: AuthMode = 'viewer'
 ): Promise<{ nodes: T[]; cursor: string | null; complete: boolean }> {
 	const nodes: T[] = [];
@@ -215,6 +216,7 @@ export async function paginate<T, D>(
 		const conn = pick(await graphql<D>(query, { ...variables, cursor }, auth));
 		if (!conn) return { nodes, cursor, complete: true };
 		nodes.push(...conn.nodes);
+		if (options.until?.(conn.nodes)) return { nodes, cursor: null, complete: true };
 		if (!conn.pageInfo.hasNextPage || !conn.pageInfo.endCursor)
 			return { nodes, cursor: null, complete: true };
 		cursor = conn.pageInfo.endCursor;

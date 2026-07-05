@@ -17,7 +17,7 @@
 />
 
 {#await data.result}
-	<Panel title="Repositories" icon={BookMarked}>
+	<Panel title="Repositories" icon={BookMarked} cause="loading">
 		<div class="grid gap-3 lg:grid-cols-2 3xl:grid-cols-3">
 			{#each [0, 1, 2, 3, 4, 5] as index (index)}
 				<RepoCardSkeleton />
@@ -27,7 +27,12 @@
 {:then result}
 	{#if result.ok}
 		{@const repos = result.data.ownedRepos}
-		<Panel title="Repositories" icon={BookMarked} empty={repos.length === 0}>
+		<Panel
+			title="Repositories"
+			icon={BookMarked}
+			capped={result.data.ownedReposCapped}
+			empty={repos.length === 0}
+		>
 			<OwnedReposGrid user={data.user} {repos} canSeeTraffic={data.canSeeTraffic} pageSize={24} />
 		</Panel>
 	{:else}

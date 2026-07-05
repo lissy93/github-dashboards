@@ -14,6 +14,8 @@
 		count?: (data: T) => number | undefined;
 		capped?: (data: T) => boolean;
 		empty?: (data: T) => boolean;
+		cause?: (data: T) => StatusCause | undefined;
+		detail?: (data: T) => string | undefined;
 		class?: string;
 		actions?: Snippet<[T]>;
 		children: Snippet<[T]>;
@@ -29,6 +31,8 @@
 		count,
 		capped,
 		empty,
+		cause,
+		detail,
 		class: className,
 		actions,
 		children
@@ -53,7 +57,8 @@
 		count={res.ok ? count?.(res.data) : undefined}
 		capped={res.ok ? (capped?.(res.data) ?? false) : false}
 		empty={isEmpty}
-		cause={isEmpty ? emptyCause : undefined}
+		cause={isEmpty ? emptyCause : res.ok ? cause?.(res.data) : undefined}
+		detail={res.ok && !isEmpty ? detail?.(res.data) : undefined}
 		actions={res.ok && actions ? loadedActions : undefined}
 	>
 		{#if res.ok}

@@ -13,10 +13,19 @@
 	} from '$lib/views/repo-stats';
 	import type { RepoReleases } from '$lib/types';
 	import { compactNumber, relativeTime, formatDateTime, plural } from '$lib/utils/format';
+	import { progressiveResult } from '$lib/state/progressive.svelte';
 	import type { PageData } from './$types';
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	let { data }: { data: PageData } = $props();
+
+	// Signed-in viewers deepen the release history progressively, the table fills in live
+	const releases = progressiveResult({
+		url: () => `/api/${data.user}/${data.repo.name}/releases?advance=1`,
+		initial: () => data.releases,
+		enabled: () => !!data.viewerLogin,
+		incomplete: (r) => r.sampled
+	});
 
 	function tiles(r: RepoReleases): Tile[] {
 		const totalDownloads = r.releases.reduce((sum, rel) => sum + rel.downloads, 0);
@@ -51,7 +60,7 @@
 />
 
 <div class="space-y-5">
-	{#await data.releases}
+	{#await releases.result}
 		<Panel title="Releases" icon={Tag} loading />
 	{:then res}
 		{#if !res.ok}
@@ -76,7 +85,14 @@
 				</p>
 			</Panel>
 
-			<Panel title="Releases" icon={Tag} count={r.total} capped={r.sampled}>
+			<Panel
+				title="Releases"
+				icon={Tag}
+				count={r.total}
+				capped={r.sampled}
+				cause={releases.cause(r)}
+				detail={releases.detail(r)}
+			>
 				<ReleaseTable releases={sorted} />
 			</Panel>
 

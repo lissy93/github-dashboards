@@ -26,7 +26,13 @@
 	);
 </script>
 
-<AsyncPanel title="Top repos" icon={Trophy} {result}>
+<AsyncPanel
+	title="Top repos"
+	icon={Trophy}
+	{result}
+	cause={() => (sampled ? 'partial' : undefined)}
+	detail={() => (sampled ? 'Some repos are not covered by this metric yet' : undefined)}
+>
 	{#snippet children(data)}
 		{@const leaders = topRepos(data.ownedRepos, metric, {
 			stats: metrics.stats,

@@ -1,6 +1,6 @@
 import type { ReleaseRow, RepoReleases } from '$lib/types';
 import { rest } from '$lib/server/github/client';
-import { checkpointed, isCached } from '$lib/server/cache';
+import { advanceCheckpointed, checkpointed, isCached, readCached } from '$lib/server/cache';
 import { logError } from '$lib/utils/errors';
 
 // Releases rarely change, so cache them for a day
@@ -78,6 +78,12 @@ async function sync(owner: string, name: string, current?: ReleaseState): Promis
 	return { rows, nextPage, complete };
 }
 
+const toReleases = (state: ReleaseState): RepoReleases => ({
+	releases: state.rows,
+	total: state.rows.length,
+	sampled: !state.complete
+});
+
 // Published releases accumulated across visits, with stale data served during refresh
 export async function getRepoReleases(owner: string, name: string): Promise<RepoReleases> {
 	const state = await checkpointed<ReleaseState>(
@@ -86,5 +92,18 @@ export async function getRepoReleases(owner: string, name: string): Promise<Repo
 		TTL,
 		(current) => sync(owner, name, current)
 	);
-	return { releases: state.rows, total: state.rows.length, sampled: !state.complete };
+	return toReleases(state);
+}
+
+// Walk one more chunk of older releases on demand and persist it, so a signed-in
+// viewer can fill the table past the background bound, cached for later viewers
+export async function advanceRepoReleases(owner: string, name: string): Promise<RepoReleases> {
+	const stored = await readCached<ReleaseState>(key(owner, name));
+	const current = stored?.value;
+	if (current?.complete) return toReleases(current);
+	return toReleases(
+		await advanceCheckpointed<ReleaseState>(key(owner, name), TTL, (state) =>
+			sync(owner, name, state)
+		)
+	);
 }

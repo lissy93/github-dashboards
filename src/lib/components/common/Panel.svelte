@@ -64,7 +64,7 @@
 		detail: detail ?? (display && !display.pending ? display.message : undefined)
 	});
 	$effect(() => {
-		if (status && !silent && !loading) status.set(report);
+		if (status && !silent) status.set(report);
 	});
 	$effect(() => () => status?.remove(uid));
 </script>
