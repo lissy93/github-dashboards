@@ -10,6 +10,7 @@
 		TIMELINE_SAMPLED_NOTE
 	} from '$lib/views/repo';
 	import { paths } from '$lib/config';
+	import { progressiveTimeline } from '$lib/state/repo-timeline.svelte';
 	import type { RepoTimeline } from '$lib/types';
 	import type { TaskList } from '$lib/types';
 	import type { PageData } from './$types';
@@ -18,6 +19,14 @@
 	let { data }: { data: PageData } = $props();
 
 	const section = (slug: string) => paths.repoTasksSection(data.user, data.repo.name, slug);
+
+	// Signed-in viewers deepen the timeline progressively, the charts fill as older data lands
+	const timeline = progressiveTimeline(
+		() => data.user,
+		() => data.repo.name,
+		() => data.timeline,
+		() => !!data.viewerLogin
+	);
 </script>
 
 <PageMeta
@@ -61,7 +70,7 @@
 		<AsyncPanel
 			title="Total issues"
 			icon={CircleDot}
-			result={data.timeline}
+			result={timeline.result}
 			empty={(tl) => tl.points.length === 0}
 			emptyText="No issues yet"
 		>
@@ -90,7 +99,7 @@
 		<AsyncPanel
 			title="Total PRs"
 			icon={GitPullRequest}
-			result={data.timeline}
+			result={timeline.result}
 			empty={(tl) => tl.points.length === 0}
 			emptyText="No pull requests yet"
 		>

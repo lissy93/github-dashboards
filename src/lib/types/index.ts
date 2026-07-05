@@ -5,6 +5,7 @@ export * from './ops';
 export * from './people';
 export * from './repo';
 export * from './security';
+export * from './status';
 export * from './supply-chain';
 export * from './tasks';
 export * from './timeline';

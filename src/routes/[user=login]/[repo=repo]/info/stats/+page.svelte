@@ -242,6 +242,7 @@
 			result={data.contributors}
 			empty={(people) => contributionCurve(people.contributors) === null}
 			emptyText="Not enough contributors yet"
+			emptyCause="low_data"
 		>
 			{#snippet children(people)}
 				{@const curve = contributionCurve(people.contributors)}
@@ -282,6 +283,7 @@
 		result={data.contributors}
 		empty={(people) => people.weekly.length < 2}
 		emptyText="No churn data yet"
+		emptyCause="low_data"
 	>
 		{#snippet children(people)}
 			<div class="space-y-3">
@@ -353,6 +355,7 @@
 		capped={(releases) => releases.sampled}
 		empty={(releases) => releaseCadence(releases.releases).markers.length < 2}
 		emptyText="Not enough releases yet"
+		emptyCause="low_data"
 	>
 		{#snippet children(releases)}
 			{@const cadence = releaseCadence(releases.releases)}

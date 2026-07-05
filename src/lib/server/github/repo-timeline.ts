@@ -7,7 +7,7 @@ import type {
 } from '$lib/types';
 import { paginate } from '$lib/server/github/client';
 import { median, monthStartOf, weekStartOf } from '$lib/utils/datetime';
-import { checkpointed, isCached } from '$lib/server/cache';
+import { checkpointed, isCached, readCached, writeCached } from '$lib/server/cache';
 import { logError } from '$lib/utils/errors';
 
 // Refresh the newest data often, while each refresh resumes a bounded older backfill
@@ -361,4 +361,16 @@ export async function getRepoIssuePrTimeline(owner: string, name: string): Promi
 		(current) => syncState(owner, name, current)
 	);
 	return build(state);
+}
+
+// Crawl one more batch of older history on demand and persist it, so a signed-in viewer
+// can progressively deepen the timeline past the background bound, cached for later viewers
+export async function advanceRepoTimeline(owner: string, name: string): Promise<RepoTimeline> {
+	const stored = await readCached<TimelineState>(key(owner, name));
+	const current = stored?.value;
+	// Fully crawled already, hand back what we have rather than refetch
+	if (current && current.issues.complete && current.prs.complete) return build(current);
+	const next = await syncState(owner, name, current);
+	await writeCached(key(owner, name), next, TTL);
+	return build(next);
 }

@@ -97,7 +97,7 @@ export function logError(scope: string, error: unknown): AppError {
 }
 
 // A user-safe error, the shape every panel and page renders
-export type DisplayError = { title: string; message: string; pending?: boolean };
+export type DisplayError = { title: string; message: string; code?: ErrorCode; pending?: boolean };
 
 // A parsed apiError response body is already display-shaped
 function isDisplayError(value: unknown): value is DisplayError {
@@ -114,6 +114,7 @@ export function toDisplayError(error: unknown): DisplayError {
 	return {
 		title: appError.code.replace(/_/g, ' '),
 		message: appError.expose ? appError.message : 'Something went wrong',
+		code: appError.code,
 		// A pending upstream is a soft, self-healing state, not a real failure
 		pending: appError.code === 'pending'
 	};

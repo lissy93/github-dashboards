@@ -9,6 +9,9 @@
 	import { cn } from '$lib/utils';
 	import { formatNumber } from '$lib/utils/format';
 	import { toDisplayError } from '$lib/utils/errors';
+	import { panelCause } from '$lib/config/status';
+	import { usePanelStatus } from '$lib/state/panel-status.svelte';
+	import type { StatusCause } from '$lib/types';
 
 	type Props = {
 		title: string;
@@ -22,6 +25,9 @@
 		empty?: boolean;
 		emptyText?: string;
 		emptyHint?: string;
+		cause?: StatusCause;
+		detail?: string;
+		silent?: boolean;
 		class?: string;
 		actions?: Snippet;
 		children?: Snippet;
@@ -38,10 +44,29 @@
 		empty = false,
 		emptyText = 'Nothing here yet',
 		emptyHint,
+		cause,
+		detail,
+		silent = false,
 		class: className,
 		actions,
 		children
 	}: Props = $props();
+
+	const display = $derived(error != null ? toDisplayError(error) : undefined);
+
+	// Report this panel's settled status into the page store, so the page can summarise it
+	const status = usePanelStatus();
+	const uid = $props.id();
+	const report = $derived({
+		id: uid,
+		title,
+		cause: panelCause({ loading, error: display, empty, capped, cause }),
+		detail: detail ?? (display && !display.pending ? display.message : undefined)
+	});
+	$effect(() => {
+		if (status && !silent && !loading) status.set(report);
+	});
+	$effect(() => () => status?.remove(uid));
 </script>
 
 <Card.Root class={cn('gap-0 overflow-hidden py-0 h-full', className)}>
@@ -78,8 +103,7 @@
 		</div>
 	</Card.Header>
 	<Card.Content class="p-4">
-		{#if error}
-			{@const display = toDisplayError(error)}
+		{#if display}
 			{#if display.pending}
 				<p class="text-muted-foreground flex items-center gap-2 text-sm">
 					<span class="bg-muted-foreground/60 size-2 shrink-0 animate-pulse rounded-full"></span>

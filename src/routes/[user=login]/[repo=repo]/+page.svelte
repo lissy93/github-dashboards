@@ -345,7 +345,12 @@
 				<AnalyticsDashboard user={data.user} repo={data.repo.name} compact />
 			</Panel>
 		{:else}
-			<Panel title="Traffic" icon={ChartArea}>
+			<Panel
+				title="Traffic"
+				icon={ChartArea}
+				cause="forbidden"
+				detail="Only {data.user} can view repo traffic"
+			>
 				<EmptyState
 					icon={Lock}
 					text="Traffic is private"

@@ -1,12 +1,16 @@
 export type PersonRow = { login: string; avatarUrl: string; at?: string };
+
+// A recent-faces list for one audience, flagging why faces are missing when they are:
+// 'restricted' when the token cannot read the list, 'capped' past GitHub's paging limit
+export type AudienceSection = {
+	people: PersonRow[];
+	total: number;
+	unavailable?: 'restricted' | 'capped';
+};
 export type RepoPeople = {
-	stargazers: PersonRow[];
-	stargazersTotal: number;
-	stargazersAvailable: boolean;
-	forks: PersonRow[];
-	forksTotal: number;
-	watchers: PersonRow[];
-	watchersTotal: number;
+	stargazers: AudienceSection;
+	forks: AudienceSection;
+	watchers: AudienceSection;
 };
 
 export type ContributorRow = {

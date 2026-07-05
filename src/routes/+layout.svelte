@@ -4,8 +4,12 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import TopBar from '$lib/components/layout/TopBar.svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
+	import PanelStatusReport from '$lib/components/common/PanelStatusReport.svelte';
+	import { providePanelStatus } from '$lib/state/panel-status.svelte';
 
 	let { children, data } = $props();
+
+	providePanelStatus();
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
@@ -34,4 +38,5 @@
 {/if}
 <main class="mx-auto max-w-7xl px-4 py-6">
 	{@render children()}
+	<PanelStatusReport />
 </main>
