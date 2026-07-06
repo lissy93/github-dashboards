@@ -1,6 +1,6 @@
 import { fetchApi } from '$lib/state/api';
 import { createLogger } from '$lib/utils/logger';
-import type { LoadResult, StatusCause } from '$lib/types';
+import type { LoadResult, RepoTimeline, StatusCause } from '$lib/types';
 
 const log = createLogger('progressive');
 // Safety ceiling on advances, huge repos finish over later background syncs
@@ -88,4 +88,21 @@ export function progressiveResult<T>(options: Options<T>) {
 		cause,
 		detail
 	};
+}
+
+type TimelinePageData = {
+	user: string;
+	repo: { name: string };
+	timeline: MaybeResult<RepoTimeline>;
+	viewerLogin: string | null;
+};
+
+// The repo timeline deepened progressively, shared by the overview and tasks views
+export function progressiveTimeline(data: () => TimelinePageData) {
+	return progressiveResult({
+		url: () => `/api/${data().user}/${data().repo.name}/timeline?advance=1`,
+		initial: () => data().timeline,
+		enabled: () => !!data().viewerLogin,
+		incomplete: (tl) => tl.sampled
+	});
 }

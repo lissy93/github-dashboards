@@ -39,7 +39,7 @@
 		lifecycleBars,
 		lifecycleSeries,
 		cumulativeTicks,
-		TIMELINE_SAMPLED_NOTE
+		STAR_SAMPLED_NOTE
 	} from '$lib/views/repo';
 	import {
 		workflowSummary,
@@ -55,11 +55,17 @@
 	import { deploymentMiniChart } from '$lib/views/repo-deployments';
 	import { releaseDownloadBars, hasReleaseDownloads } from '$lib/views/repo-stats';
 	import { paths, APP_NAME } from '$lib/config';
+	import { restrictedGate } from '$lib/config/status';
+	import { progressiveTimeline } from '$lib/state/progressive.svelte';
 	import { formatBytes, formatDuration } from '$lib/utils/format';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
+	const starGate = $derived(restrictedGate('star history', !!data.viewerLogin));
+
+	// Signed-in viewers deepen the timeline progressively
+	const timeline = progressiveTimeline(() => data);
 	const preview = $derived(data.preview);
 	const section = (slug: string) => paths.repoSection(data.user, data.repo.name, slug);
 	const code = (slug: string) => paths.repoCodeSection(data.user, data.repo.name, slug);
@@ -81,11 +87,11 @@
 		{title}
 		{icon}
 		href={section('tasks')}
-		result={data.timeline}
+		result={timeline.result}
 		empty={(tl) => tl.points.length === 0}
 		emptyText="No history yet"
-		cause={(tl) => (tl.sampled ? 'partial' : undefined)}
-		detail={(tl) => (tl.sampled ? TIMELINE_SAMPLED_NOTE : undefined)}
+		cause={timeline.cause}
+		detail={timeline.detail}
 		class="hidden lg:block"
 	>
 		{#snippet children(tl)}
@@ -346,11 +352,12 @@
 				icon={Star}
 				href={info('stats')}
 				result={data.stars}
-				empty={(history) => history.days.length === 0}
-				emptyText="No stars yet"
+				empty={(history) => history.restricted || history.days.length === 0}
+				emptyText={(history) => (history.restricted ? starGate.text : 'No stars yet')}
+				emptyHint={(history) => (history.restricted ? starGate.hint : undefined)}
+				emptyCause={(history) => (history.restricted ? starGate.cause : 'empty')}
 				cause={(history) => (history.sampled ? 'partial' : undefined)}
-				detail={(history) =>
-					history.sampled ? 'GitHub only lists the first 40k stargazers' : undefined}
+				detail={(history) => (history.sampled ? STAR_SAMPLED_NOTE : undefined)}
 			>
 				{#snippet children(history)}
 					<MetricTimeChart data={starChart(history)} label="Star history" height={13} />

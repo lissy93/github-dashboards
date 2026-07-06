@@ -1,68 +1,49 @@
-import type { AudienceSection, PersonRow, Repo, RepoPeople } from '$lib/types';
-import { rest } from '$lib/server/github/client';
-import { newestStarPage, STAR_PAGE_CAP, STAR_PER_PAGE } from '$lib/server/github/stargazer-page';
-import { getRepo } from '$lib/server/github/repo';
+import type { AudienceSection, PersonRow, RepoPeople } from '$lib/types';
+import { graphql, looksRestricted } from '$lib/server/github/client';
 import { cached, isCached } from '$lib/server/cache';
-import { AppError } from '$lib/utils/errors';
 
 const TTL = 6 * 3600;
 // Short side panels, so only a handful of faces each
 const KEEP = 10;
-// Past this many stars GitHub stops paginating, so the recent tail is unreachable
-const STAR_CAP = STAR_PAGE_CAP * STAR_PER_PAGE;
 
-type RawFork = { created_at: string; owner: { login: string; avatar_url: string } };
-type RawUser = { login: string; avatar_url: string };
+type RawUser = { login: string; avatarUrl: string };
+type PeopleData = {
+	repository: {
+		stargazers: { totalCount: number; edges: { starredAt: string; node: RawUser }[] };
+		watchers: { totalCount: number; nodes: RawUser[] };
+		forks: { totalCount: number; nodes: { createdAt: string; owner: RawUser }[] };
+	} | null;
+};
 
-// Newest stargazers come from the last reachable page, since the listing is oldest first
-async function newestStargazers(repo: Repo): Promise<PersonRow[]> {
-	const page = await newestStarPage(repo);
-	return page
-		.slice(-KEEP)
-		.reverse()
-		.map((star) => ({
-			login: star.user.login,
-			avatarUrl: star.user.avatar_url,
-			at: star.starred_at
-		}));
-}
-
-// Most recently created forks, newest first
-async function newestForks(owner: string, name: string): Promise<PersonRow[]> {
-	const list =
-		(await rest<RawFork[]>(`/repos/${owner}/${name}/forks?sort=newest&per_page=${KEEP}`)) ?? [];
-	return list.map((fork) => ({
-		login: fork.owner.login,
-		avatarUrl: fork.owner.avatar_url,
-		at: fork.created_at
-	}));
-}
-
-// People watching the repo, the subscribers list has no timestamp to sort by
-async function watcherList(owner: string, name: string): Promise<PersonRow[]> {
-	const list =
-		(await rest<RawUser[]>(`/repos/${owner}/${name}/subscribers?per_page=${KEEP}`)) ?? [];
-	return list.map((user) => ({ login: user.login, avatarUrl: user.avatar_url }));
-}
-
-// Fetch one audience list, flagging a permission block as restricted rather than throwing,
-// so a scope gap on one list does not blank the whole panel group. Real faults still throw
-async function section(
-	total: number,
-	fetchRows: () => Promise<PersonRow[]>
-): Promise<AudienceSection> {
-	try {
-		return { people: await fetchRows(), total };
-	} catch (error) {
-		if (error instanceof AppError && (error.code === 'forbidden' || error.code === 'unauthorized'))
-			return { people: [], total, unavailable: 'restricted' };
-		throw error;
+const PEOPLE_QUERY = `
+	query RepoPeople($owner: String!, $name: String!, $keep: Int!) {
+		repository(owner: $owner, name: $name) {
+			stargazers(first: $keep, orderBy: { field: STARRED_AT, direction: DESC }) {
+				totalCount
+				edges { starredAt node { login avatarUrl } }
+			}
+			watchers(first: $keep) {
+				totalCount
+				nodes { login avatarUrl }
+			}
+			forks(first: $keep, orderBy: { field: CREATED_AT, direction: DESC }) {
+				totalCount
+				nodes { createdAt owner { login avatarUrl } }
+			}
+		}
 	}
-}
+`;
 
 const blank: AudienceSection = { people: [], total: 0 };
 
-const key = (owner: string, name: string) => `repo:people:v4:${owner}/${name}`.toLowerCase();
+// An empty list against a real count means GitHub restricted it to repo admins, flag it
+// so the panel gates instead of showing a false "none yet"
+function toSection(total: number, people: PersonRow[]): AudienceSection {
+	if (looksRestricted(total, people.length)) return { total, people, unavailable: 'restricted' };
+	return { total, people };
+}
+
+const key = (owner: string, name: string) => `repo:people:v5:${owner}/${name}`.toLowerCase();
 
 export const isRepoPeopleCached = (owner: string, name: string) => isCached(key(owner, name));
 
@@ -71,16 +52,37 @@ export function getRepoPeople(owner: string, name: string): Promise<RepoPeople> 
 	return cached(
 		key(owner, name),
 		async () => {
-			const repo = await getRepo(owner, name);
-			if (!repo) return { stargazers: blank, forks: blank, watchers: blank };
-			const [stargazers, forks, watchers] = await Promise.all([
-				repo.stars > STAR_CAP
-					? { people: [], total: repo.stars, unavailable: 'capped' as const }
-					: section(repo.stars, () => newestStargazers(repo)),
-				section(repo.forks, () => newestForks(repo.owner, repo.name)),
-				section(repo.watchers, () => watcherList(repo.owner, repo.name))
-			]);
-			return { stargazers, forks, watchers };
+			const { repository } = await graphql<PeopleData>(
+				PEOPLE_QUERY,
+				{ owner, name, keep: KEEP },
+				'app'
+			);
+			if (!repository) return { stargazers: blank, forks: blank, watchers: blank };
+			return {
+				stargazers: toSection(
+					repository.stargazers.totalCount,
+					repository.stargazers.edges.map((edge) => ({
+						login: edge.node.login,
+						avatarUrl: edge.node.avatarUrl,
+						at: edge.starredAt
+					}))
+				),
+				forks: toSection(
+					repository.forks.totalCount,
+					repository.forks.nodes.map((fork) => ({
+						login: fork.owner.login,
+						avatarUrl: fork.owner.avatarUrl,
+						at: fork.createdAt
+					}))
+				),
+				watchers: toSection(
+					repository.watchers.totalCount,
+					repository.watchers.nodes.map((user) => ({
+						login: user.login,
+						avatarUrl: user.avatarUrl
+					}))
+				)
+			};
 		},
 		TTL
 	);

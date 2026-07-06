@@ -10,7 +10,7 @@
 		TIMELINE_SAMPLED_NOTE
 	} from '$lib/views/repo';
 	import { paths } from '$lib/config';
-	import { progressiveResult } from '$lib/state/progressive.svelte';
+	import { progressiveTimeline } from '$lib/state/progressive.svelte';
 	import type { RepoTimeline } from '$lib/types';
 	import type { TaskList } from '$lib/types';
 	import type { PageData } from './$types';
@@ -21,12 +21,7 @@
 	const section = (slug: string) => paths.repoTasksSection(data.user, data.repo.name, slug);
 
 	// Signed-in viewers deepen the timeline progressively, the charts fill as older data lands
-	const timeline = progressiveResult({
-		url: () => `/api/${data.user}/${data.repo.name}/timeline?advance=1`,
-		initial: () => data.timeline,
-		enabled: () => !!data.viewerLogin,
-		incomplete: (tl) => tl.sampled
-	});
+	const timeline = progressiveTimeline(() => data);
 </script>
 
 <PageMeta

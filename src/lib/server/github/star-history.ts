@@ -2,8 +2,7 @@ import type { Repo, RepoStarHistory } from '$lib/types';
 import { inArray, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { repoStarsDaily } from '$lib/server/db/schema';
-import { rest, restResponse } from '$lib/server/github/client';
-import { STAR_ACCEPT, STAR_PAGE_CAP, STAR_PER_PAGE } from '$lib/server/github/stargazer-page';
+import { graphql, looksRestricted } from '$lib/server/github/client';
 import { getUserOverview } from '$lib/server/github/user';
 import { getRepo } from '$lib/server/github/repo';
 import { cached, isCached, readCached, writeCached } from '$lib/server/cache';
@@ -14,29 +13,31 @@ import type { StarBreakdown } from '$lib/views/stats';
 
 const log = createLogger('star-history');
 
-const PER_PAGE = STAR_PER_PAGE;
-// Sparse page sample for huge repos, so a 50k-star repo still costs a handful of requests
-const SAMPLE_PAGES = 4;
-// GitHub only paginates the first 40k stargazers, so timestamps stop past this page
-const PAGE_CAP = STAR_PAGE_CAP;
+const PER_PAGE = 100;
+// Pages pulled from each end of the stargazer list before the middle is interpolated.
+// GraphQL cursors only walk forward from the oldest star, so the middle of a huge repo
+// cannot be sampled cheaply; we read both ends and let the draw-time ramp fill the gap
+const MID_END_PAGES = 10;
+const HUGE_END_PAGES = 4;
 const CONCURRENCY = 6;
 const MAX_REPOS = 150;
-const REFRESH_REPOS = 24;
+// Repos backfilled per call, top and uncached first. Each walks both ends, so keep this
+// modest to stay under the client timeout on cold cache; the rest fill in over visits
+const REFRESH_REPOS = 12;
 // Repos shown as their own band, the rest fold into a single Other band
 const TOP_REPOS = 8;
-// Keep reconstructed history long and use daily snapshots for the recent tail
+// The curve moves slowly, and each run also pins today's total as a fresh daily point
 const BACKFILL_TTL = 6 * 3600;
 const AGGREGATE_TTL = 6 * 3600;
 
-type Stargazer = { starred_at: string };
 type Point = { day: string; stars: number };
 type DayStars = Point & { repo: string };
-type BackfillState = { pages: number[]; lastPage: number };
+type BackfillState = { restricted: boolean };
 
 // Per-repo star history across a user's owned repos, reconstructed and cached
 export function getUserStarHistory(login: string): Promise<StarBreakdown> {
 	return cached(
-		`user:star-history:v5:${login.toLowerCase()}`,
+		`user:star-history:v6:${login.toLowerCase()}`,
 		async () => {
 			const { ownedRepos } = await getUserOverview(login);
 			const starred = ownedRepos.filter((repo) => repo.stars > 0).slice(0, MAX_REPOS);
@@ -63,7 +64,8 @@ export function getUserStarHistory(login: string): Promise<StarBreakdown> {
 			return {
 				...buildBreakdown(rows, starred, TOP_REPOS),
 				coveredRepos: covered,
-				totalRepos: starred.length
+				totalRepos: starred.length,
+				restricted: starred.length > 0 && covered === 0
 			};
 		},
 		AGGREGATE_TTL
@@ -72,103 +74,154 @@ export function getUserStarHistory(login: string): Promise<StarBreakdown> {
 
 // Whether this repo's star curve is already cached, for SSR-vs-stream gating
 export const isRepoStarHistoryCached = (owner: string, name: string) =>
-	isCached(`repo:star-history:v2:${owner}/${name}`.toLowerCase());
+	isCached(`repo:star-history:v3:${owner}/${name}`.toLowerCase());
 
 // One repo's reconstructed star curve, for the repo stars page and panel. Reuses
 // the per-repo backfill cache and the shared interpolation, as a single series
 export function getRepoStarHistory(owner: string, name: string): Promise<RepoStarHistory> {
 	return cached(
-		`repo:star-history:v2:${owner}/${name}`.toLowerCase(),
+		`repo:star-history:v3:${owner}/${name}`.toLowerCase(),
 		async () => {
 			const repo = await getRepo(owner, name);
-			if (!repo || repo.stars === 0) return { days: [], stars: [], sampled: false };
-			await backfillRepo(repo);
+			if (!repo || repo.stars === 0)
+				return { days: [], stars: [], sampled: false, restricted: false };
+			const restricted = await backfillRepo(repo);
+			if (restricted) return { days: [], stars: [], sampled: false, restricted: true };
 			const rows = await readRows([repo.nameWithOwner]);
 			const breakdown = buildBreakdown(rows, [repo], 1);
 			return {
 				days: breakdown.days,
 				stars: breakdown.series[0]?.values ?? [],
-				// GitHub only paginates the first 40k stargazers, so bigger repos are sampled
-				sampled: repo.stars > PAGE_CAP * PER_PAGE
+				sampled: isSampled(repo.stars),
+				restricted: false
 			};
 		},
 		AGGREGATE_TTL
 	);
 }
 
-// Add page samples over time, preserving all previously reconstructed points
-async function backfillRepo(repo: Repo): Promise<number> {
-	const repoKey = repo.nameWithOwner.toLowerCase();
-	const cacheKey = `star-backfill-state:v1:${repoKey}`;
-	const stored = await readCached<BackfillState>(cacheKey).catch(() => null);
-	if (stored && Date.now() - stored.fetchedAt.getTime() < BACKFILL_TTL * 1000) {
-		return stored.value.pages.length;
-	}
+type StarConn = {
+	totalCount: number;
+	pageInfo: { hasNextPage: boolean; endCursor: string | null };
+	edges: { starredAt: string }[];
+};
 
-	const first = await restResponse(pagePath(repo, 1), { headers: { Accept: STAR_ACCEPT } });
-	if (!first) return 0;
-	const firstPage = (await first.json()) as Stargazer[];
-	if (!firstPage.length) return 0;
-	const lastPage = lastPageOf(first.headers.get('link'));
-	const fetched = new Set(stored?.value.lastPage === lastPage ? stored.value.pages : []);
-	fetched.add(1);
-	const budget = stored ? 4 : pageBudget(lastPage);
-	const pages = progressPages(lastPage, fetched, budget);
-	const byPage = new Map<number, Stargazer[]>([[1, firstPage]]);
-	for (const page of pages) {
-		if (page === 1) continue;
-		try {
-			byPage.set(
-				page,
-				(await rest<Stargazer[]>(pagePath(repo, page), {
-					headers: { Accept: STAR_ACCEPT }
-				})) ?? []
-			);
-		} catch (error) {
-			log.warn(`star page ${page} failed for ${repo.nameWithOwner}`, error);
-		}
-	}
-	byPage.forEach((_list, page) => fetched.add(page));
-	await writePoints(repoKey, buildPoints(byPage, lastPage, repo.stars));
-	await writeCached(
-		cacheKey,
-		{ pages: [...fetched].sort((a, b) => a - b), lastPage },
-		BACKFILL_TTL
-	);
-	return fetched.size;
-}
-
-// Choose missing pages from the widest gaps first, so added samples improve evenly
-export function progressPages(lastPage: number, fetched: Set<number>, budget: number): number[] {
-	const selected: number[] = [];
-	if (!fetched.has(lastPage)) selected.push(lastPage);
-	while (selected.length < budget && fetched.size + selected.length < lastPage) {
-		const known = [...new Set([1, lastPage, ...fetched, ...selected])].sort((a, b) => a - b);
-		let best = 0;
-		let gap = 0;
-		for (let index = 1; index < known.length; index++) {
-			const size = known[index] - known[index - 1];
-			if (size > gap) {
-				gap = size;
-				best = Math.round((known[index] + known[index - 1]) / 2);
+// totalCount stays readable even when GitHub hides the edges, which is how we tell an
+// admin-only restriction from a genuinely unstarred repo
+const STAR_QUERY = `
+	query RepoStars($owner: String!, $name: String!, $cursor: String, $direction: OrderDirection!) {
+		repository(owner: $owner, name: $name) {
+			stargazers(first: ${PER_PAGE}, after: $cursor, orderBy: { field: STARRED_AT, direction: $direction }) {
+				totalCount
+				pageInfo { hasNextPage endCursor }
+				edges { starredAt }
 			}
 		}
-		if (gap <= 1 || fetched.has(best) || selected.includes(best)) break;
-		selected.push(best);
 	}
-	return selected;
+`;
+
+type Direction = 'ASC' | 'DESC';
+
+async function fetchStarPage(
+	repo: Repo,
+	direction: Direction,
+	cursor: string | null
+): Promise<StarConn | null> {
+	const data = await graphql<{ repository: { stargazers: StarConn } | null }>(
+		STAR_QUERY,
+		{ owner: repo.owner, name: repo.name, cursor, direction },
+		'app'
+	);
+	return data.repository?.stargazers ?? null;
 }
 
-// Pages to fetch, scaled by repo size: small repos pull every page for full detail,
-// mid repos sample more widely, huge repos stay sparse so they cost only a few requests
+// Walk stargazer pages in one direction up to maxPages, collecting star dates in fetch
+// order. total is GitHub's authoritative count, read even when the list itself is hidden;
+// responded is false only when no page came back at all, which marks a transient miss
+async function walkStars(
+	repo: Repo,
+	direction: Direction,
+	maxPages: number
+): Promise<{ days: string[]; total: number; responded: boolean }> {
+	const days: string[] = [];
+	let total = repo.stars;
+	let responded = false;
+	let cursor: string | null = null;
+	for (let page = 0; page < maxPages; page++) {
+		const conn = await fetchStarPage(repo, direction, cursor);
+		if (!conn) break;
+		responded = true;
+		total = conn.totalCount;
+		for (const edge of conn.edges) days.push(dayOf(edge.starredAt));
+		if (!conn.edges.length || !conn.pageInfo.hasNextPage || !conn.pageInfo.endCursor) break;
+		cursor = conn.pageInfo.endCursor;
+	}
+	return { days, total, responded };
+}
+
+// Reconstruct and store a repo's star curve, returning true when GitHub's admin-only
+// restriction leaves a starred repo with no visible stargazers. Small repos are read
+// whole for per-star detail; larger repos read both ends and interpolate the middle
+async function backfillRepo(repo: Repo): Promise<boolean> {
+	const repoKey = repo.nameWithOwner.toLowerCase();
+	const cacheKey = `star-backfill-state:v3:${repoKey}`;
+	const stored = await readCached<BackfillState>(cacheKey).catch(() => null);
+	if (stored && Date.now() - stored.fetchedAt.getTime() < BACKFILL_TTL * 1000)
+		return stored.value.restricted;
+
+	const lastPage = Math.max(1, Math.ceil(repo.stars / PER_PAGE));
+	let points: Point[];
+	let total: number;
+	let responded: boolean;
+	if (isFullWalk(lastPage)) {
+		const walk = await walkStars(repo, 'ASC', lastPage);
+		({ total, responded } = walk);
+		points = curvePoints(walk.days, [], total);
+	} else {
+		const budget = pageBudget(lastPage);
+		const [oldest, newest] = await Promise.all([
+			walkStars(repo, 'ASC', budget),
+			walkStars(repo, 'DESC', budget)
+		]);
+		total = newest.responded ? newest.total : oldest.total;
+		responded = oldest.responded || newest.responded;
+		points = curvePoints(oldest.days, newest.days, total);
+	}
+
+	// No page coming back at all is a transient upstream miss, not a restriction; throw
+	// uncached so the next visit retries instead of pinning a false gate for hours
+	if (!responded)
+		throw new AppError('upstream', `No stargazer response for ${repo.nameWithOwner}`, {
+			expose: false
+		});
+
+	const restricted = looksRestricted(total, points.length);
+	if (points.length) {
+		points.push({ day: today(), stars: total });
+		await writePoints(repoKey, points);
+	}
+	await writeCached(cacheKey, { restricted }, BACKFILL_TTL);
+	return restricted;
+}
+
+// Pages to read from each end, scaled by repo size. The largest repos stay sparse so a
+// 50k-star repo still costs only a handful of pages
 export function pageBudget(lastPage: number): number {
-	if (lastPage <= 10) return lastPage;
-	if (lastPage <= 100) return 10;
-	return SAMPLE_PAGES;
+	return lastPage <= 100 ? MID_END_PAGES : HUGE_END_PAGES;
 }
 
-// Plotted points to aim for once every stargazer is known, more for smaller repos where
-// each star is real detail, so a 30-star curve no longer collapses to a straight line
+// Whether both ends together already cover every page, so one ascending walk yields full
+// per-star detail. Otherwise the middle is sampled and the curve is flagged as such
+export function isFullWalk(lastPage: number): boolean {
+	return pageBudget(lastPage) * 2 >= lastPage;
+}
+
+// Whether a repo of this many stars gets a sampled rather than per-star curve
+export const isSampled = (stars: number): boolean =>
+	!isFullWalk(Math.max(1, Math.ceil(stars / PER_PAGE)));
+
+// Plotted points to aim for, more for smaller repos where each star is real detail, so a
+// 30-star curve no longer collapses to a straight line
 export function pointTarget(stars: number): number {
 	if (stars <= 12) return stars;
 	if (stars < 100) return 40;
@@ -176,61 +229,29 @@ export function pointTarget(stars: number): number {
 	return 80;
 }
 
-// Every fetched stargazer as a cumulative point, strided to the target count and pinned
-// to the real current total at the end
-export function perStarPoints(
-	pages: number[],
-	byPage: Map<number, Stargazer[]>,
-	stars: number
-): Point[] {
-	const flat: Point[] = [];
-	let cumulative = 0;
-	for (const page of pages) {
-		for (const star of byPage.get(page) ?? []) {
-			cumulative++;
-			flat.push({ day: dayOf(star.starred_at), stars: cumulative });
-		}
-	}
-	if (!flat.length) return [];
-	const stride = Math.max(1, Math.round(flat.length / pointTarget(stars)));
-	const points = flat.filter((_, index) => index % stride === 0);
-	points.push({ day: flat[flat.length - 1].day, stars });
-	return points;
+// Cumulative star points from the oldest and newest sampled ends. Each oldest star is the
+// (i+1)th overall, each newest star counts down from the total; counts rise with time so
+// the two clusters form one rising series, thinned to a target point count
+export function curvePoints(oldest: string[], newest: string[], total: number): Point[] {
+	const points: Point[] = oldest.map((day, index) => ({ day, stars: index + 1 }));
+	newest.forEach((day, index) => points.push({ day, stars: total - index }));
+	if (!points.length) return [];
+	points.sort((first, second) => first.stars - second.stars);
+	return stride(points, pointTarget(total));
 }
 
-// Per-star detail once every page is in hand, otherwise one cumulative point per
-// sampled page, anchored to the live total unless GitHub's 40k cap makes it stale
-export function buildPoints(
-	byPage: Map<number, Stargazer[]>,
-	lastPage: number,
-	stars: number
-): Point[] {
-	const pages = [...byPage.keys()].sort((first, second) => first - second);
-	if (pages.length === lastPage) return perStarPoints(pages, byPage, stars);
-	const points = pages
-		.map((page) => pointAt(page, byPage.get(page) ?? []))
-		.filter((point): point is Point => point !== null);
-	const newest = byPage.get(lastPage)?.at(-1);
-	if (newest && lastPage < PAGE_CAP) points.push({ day: dayOf(newest.starred_at), stars });
-	return points;
-}
-
-const pagePath = (repo: Repo, page: number) =>
-	`/repos/${repo.owner}/${repo.name}/stargazers?per_page=${PER_PAGE}&page=${page}`;
-
-// The first star on a page is the ((page-1)*100 + 1)th oldest, giving its running total
-function pointAt(page: number, list: Stargazer[]): Point | null {
-	const star = list[0];
-	return star ? { day: dayOf(star.starred_at), stars: (page - 1) * PER_PAGE + 1 } : null;
+// Thin a rising series down to about target points, always keeping the first and last
+export function stride(points: Point[], target: number): Point[] {
+	if (points.length <= target) return points;
+	const step = Math.ceil(points.length / target);
+	const out = points.filter((_, index) => index % step === 0);
+	const last = points[points.length - 1];
+	if (out[out.length - 1] !== last) out.push(last);
+	return out;
 }
 
 const dayOf = (iso: string) => iso.slice(0, 10);
-
-// Last page number from a Link header, or 1 when there is no next page
-function lastPageOf(link: string | null): number {
-	const match = link?.match(/[?&]page=(\d+)[^>]*>;\s*rel="last"/);
-	return match ? Number(match[1]) : 1;
-}
+const today = () => dayOf(new Date().toISOString());
 
 // Store the curve, keeping the highest count per day so re-runs only grow it
 async function writePoints(repo: string, points: Point[]): Promise<void> {

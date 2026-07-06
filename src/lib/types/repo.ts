@@ -116,4 +116,9 @@ export type LabelCount = {
 };
 
 // A repo's reconstructed star curve, sampled once GitHub stops paginating
-export type RepoStarHistory = { days: string[]; stars: number[]; sampled: boolean };
+export type RepoStarHistory = {
+	days: string[];
+	stars: number[];
+	sampled: boolean;
+	restricted: boolean;
+};

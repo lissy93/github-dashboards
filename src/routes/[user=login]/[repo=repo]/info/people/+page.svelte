@@ -42,7 +42,7 @@
 		</div>
 	{:then result}
 		{#if result.ok}
-			<AudiencePanels people={result.data} />
+			<AudiencePanels people={result.data} loggedIn={!!data.viewerLogin} />
 		{:else}
 			<div class="grid gap-5">
 				<Panel title="Stargazers" error={result.error} />

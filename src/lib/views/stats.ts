@@ -186,6 +186,7 @@ export type StarBreakdown = {
 	series: StarSeries[];
 	coveredRepos?: number;
 	totalRepos?: number;
+	restricted?: boolean;
 };
 // Trimmed to the visible range, with the running total per day
 export type StarStack = StarBreakdown & { total: number[] };

@@ -33,6 +33,8 @@
 
 	const legend = legendState();
 
+	const gap = $derived(bars.length > 100 ? barGap * 0.4 : barGap);
+
 	// Thin the x-axis labels so dense bar sets stay readable, bars still render in full
 	const labelStep = $derived(
 		maxLabels && bars.length > maxLabels ? Math.ceil(bars.length / maxLabels) : 1
@@ -125,7 +127,7 @@
 						style="bottom: {(value / max) * 100}%"
 					></div>
 				{/each}
-				<div class="relative flex items-end" style="height: {height}rem; gap: {barGap}rem">
+				<div class="relative flex items-end" style="height: {height}rem; gap: {gap}rem">
 					{#each bars as bar (bar.label)}
 						<div
 							class="h-full flex-1"
@@ -159,7 +161,7 @@
 		<!-- X-axis labels, offset to clear the y-axis gutter -->
 		<div class="flex gap-1.5">
 			<div class="{gutter} shrink-0" aria-hidden="true"></div>
-			<div class="text-muted-foreground flex flex-1 text-[0.65rem]" style="gap: {barGap}rem">
+			<div class="text-muted-foreground flex flex-1 text-[0.65rem]" style="gap: {gap}rem">
 				{#each bars as bar, index (bar.label)}
 					<span
 						class={ticks

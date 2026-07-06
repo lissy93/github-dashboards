@@ -576,6 +576,9 @@ export const lifecycleSeries = (kind: 'issue' | 'pr'): StackSeries[] =>
 export const TIMELINE_SAMPLED_NOTE =
 	'Older items are grouped as Earlier history, with detailed states shown for recent items';
 
+export const STAR_SAMPLED_NOTE =
+	'The middle of the curve is estimated for large repos, the ends and total are exact';
+
 // Compact bar label from a bucket-start date, in the grouping unit's own terms
 function bucketLabel(period: string, unit: GroupUnit): string {
 	const [year, monthNum, day] = period.split('-').map(Number);

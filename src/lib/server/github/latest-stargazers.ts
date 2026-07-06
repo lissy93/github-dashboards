@@ -1,4 +1,4 @@
-import { newestStarPage } from '$lib/server/github/stargazer-page';
+import { graphql } from '$lib/server/github/client';
 import { getUserOverview } from '$lib/server/github/user';
 import { cached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
@@ -25,25 +25,50 @@ export function getLatestStargazers(login: string): Promise<RecentStar[]> {
 				.sort((first, second) => second.stars - first.stars)
 				.slice(0, TOP_REPOS);
 			const perRepo = await mapLimit(targets, CONCURRENCY, (repo) => newestForRepo(repo));
-			// A flaky repo just drops out, but don't cache "no stars" when they all fall over
-			if (targets.length && perRepo.every((result) => result === null)) {
-				throw new AppError('upstream', 'Stargazers refresh failed', { expose: false });
+			const ok = perRepo.filter((result): result is RecentStar[] => result !== null);
+			// Every fetch failing is a transient upstream problem, not a real restriction,
+			// so throw uncached and let the next visit retry rather than pinning a false gate
+			if (targets.length && !ok.length) {
+				throw new AppError('upstream', 'Could not load recent stargazers', { expose: false });
 			}
-			return mergeNewest(perRepo.flatMap((result) => result ?? []));
+			const merged = mergeNewest(ok.flat());
+			// A successful but empty list on repos that have stars means GitHub restricted it
+			// to admins, surface that instead of caching a false "no recent stars"
+			if (ok.length && !merged.length) {
+				throw new AppError('forbidden', 'GitHub restricts stargazer lists to repo admins');
+			}
+			return merged;
 		},
 		TTL
 	);
 }
 
-// Newest stargazers for one repo from its last reachable page, null if the fetch fails
+type StarEdge = { starredAt: string; node: { login: string; avatarUrl: string } };
+
+// Newest stargazers for one repo, null if the fetch fails
+const NEWEST_QUERY = `
+	query NewestStargazers($owner: String!, $name: String!, $keep: Int!) {
+		repository(owner: $owner, name: $name) {
+			stargazers(first: $keep, orderBy: { field: STARRED_AT, direction: DESC }) {
+				edges { starredAt node { login avatarUrl } }
+			}
+		}
+	}
+`;
+
 async function newestForRepo(repo: Repo): Promise<RecentStar[] | null> {
 	try {
-		const page = await newestStarPage(repo);
-		return page.slice(-KEEP).map((star) => ({
-			login: star.user.login,
-			avatarUrl: star.user.avatar_url,
+		const data = await graphql<{ repository: { stargazers: { edges: StarEdge[] } } | null }>(
+			NEWEST_QUERY,
+			{ owner: repo.owner, name: repo.name, keep: KEEP },
+			'app'
+		);
+		const edges = data.repository?.stargazers.edges ?? [];
+		return edges.map((edge) => ({
+			login: edge.node.login,
+			avatarUrl: edge.node.avatarUrl,
 			repo: repo.name,
-			starredAt: star.starred_at
+			starredAt: edge.starredAt
 		}));
 	} catch (error) {
 		log.warn(`stargazers failed for ${repo.nameWithOwner}`, error);

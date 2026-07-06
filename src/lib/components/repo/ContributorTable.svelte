@@ -3,6 +3,7 @@
 	import LoadMore from '$lib/components/common/LoadMore.svelte';
 	import Sparkline from '$lib/components/charts/Sparkline.svelte';
 	import { formatNumber, compactNumber, formatDate, relativeTime } from '$lib/utils/format';
+	import { paths } from '$lib/config';
 	import type { ContributorRow } from '$lib/types';
 
 	const STEP = 25;
@@ -27,9 +28,7 @@
 			/>
 			<div class="min-w-0 grow">
 				<a
-					href={person.htmlUrl}
-					target="_blank"
-					rel="noopener noreferrer"
+					href={paths.user(person.login)}
 					class="block truncate text-sm font-medium hover:underline"
 				>
 					{person.login}

@@ -16,7 +16,7 @@
 		title="Contributions per year"
 		icon={History}
 		{result}
-		empty={(data) => contributionsPerYear(data.years).length < 2}
+		empty={(data) => data.total === 0 || contributionsPerYear(data.years).length < 2}
 	>
 		{#snippet children(data)}
 			<StackedBarChart

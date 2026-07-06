@@ -242,7 +242,8 @@ async function fetchOrgNames(logins: string[]): Promise<Map<string, string>> {
 		logins,
 		(index) => `$o${index}: String!`,
 		(index) => `o${index}: organization(login: $o${index}) { login name }`,
-		(login, index) => ({ [`o${index}`]: login })
+		(login, index) => ({ [`o${index}`]: login }),
+		'app'
 	).catch((caught) => {
 		log.warn('org name hydration failed', { code: toAppError(caught).code });
 		return {};

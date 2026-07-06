@@ -33,6 +33,19 @@ export const LEVEL_META: Record<StatusLevel, { color: string; order: number }> =
 	ok: { color: 'text-success', order: 4 }
 };
 
+// Gate shown when GitHub restricts a public list (stargazers/watchers) to repo admins,
+// nudging a sign-in for signed-out viewers and explaining the limit for the rest
+export function restrictedGate(
+	noun: string,
+	loggedIn: boolean
+): { text: string; hint: string; cause: StatusCause } {
+	return {
+		text: loggedIn ? `Only repo admins can view ${noun}` : `Sign in to view ${noun}`,
+		hint: 'GitHub now limits these public lists to repo admins',
+		cause: loggedIn ? 'forbidden' : 'needs_auth'
+	};
+}
+
 // Map an upstream error code to the matching panel cause
 const CAUSE_BY_CODE: Partial<Record<ErrorCode, StatusCause>> = {
 	forbidden: 'forbidden',

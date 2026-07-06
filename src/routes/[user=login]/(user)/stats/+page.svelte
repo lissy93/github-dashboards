@@ -27,7 +27,7 @@
 	<StatStrip result={data.summary} />
 
 	<div class="grid gap-5 lg:grid-cols-2 lg:items-start">
-		<StarHistoryPanel user={data.user} />
+		<StarHistoryPanel user={data.user} loggedIn={!!data.viewerLogin} />
 		<TopReposPanel user={data.user} result={data.overview} />
 	</div>
 

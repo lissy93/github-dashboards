@@ -4,6 +4,16 @@ import type { LoadResult } from '$lib/types';
 
 const log = createLogger('api');
 const TIMEOUT_MS = 20000;
+// A cold cache can time out the first load while the server keeps warming it in the
+// background, so retry transient failures a couple of times with a growing gap between
+const RETRY_DELAYS_MS = [1500, 5000];
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Worth a quick retry: an upstream gateway blip or a client-side timeout (tagged
+// unavailable below). Permanent failures (auth, not found, rate limited) the user sees
+export const isTransient = (error: DisplayError) =>
+	error.code === 'upstream' || error.code === 'unavailable';
 
 // Share one request per endpoint so panels mounting together never double-fetch
 const inflight = new Map<string, Promise<LoadResult<unknown>>>();
@@ -17,26 +27,35 @@ export async function fetchApi<T>(url: string, timeoutMs = TIMEOUT_MS): Promise<
 	return body as T;
 }
 
-// Fetch a lazy user endpoint with one consistent loading result and timeout
+// One fetch of a lazy endpoint, mapping the response to a loading result
+async function attempt<T>(key: string, endpoint: string): Promise<LoadResult<T>> {
+	try {
+		const response = await fetch(`/api/${key}`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+		const body = (await response.json()) as T | DisplayError;
+		if (response.ok) return { ok: true as const, data: body as T };
+		return { ok: false as const, error: body as DisplayError };
+	} catch (error) {
+		log.warn(`failed to load ${endpoint}`, error);
+		return {
+			ok: false as const,
+			error: { title: 'network error', message: 'Could not load this data', code: 'unavailable' }
+		};
+	}
+}
+
+// Fetch a lazy user endpoint with one consistent loading result, timeout and retry
 export function loadJson<T>(user: string, endpoint: string): Promise<LoadResult<T>> {
 	const key = `${user}/${endpoint}`;
 	const running = inflight.get(key);
 	if (running) return running as Promise<LoadResult<T>>;
 	const promise = (async () => {
-		try {
-			const response = await fetch(`/api/${key}`, {
-				signal: AbortSignal.timeout(TIMEOUT_MS)
-			});
-			const body = (await response.json()) as T | DisplayError;
-			if (response.ok) return { ok: true as const, data: body as T };
-			return { ok: false as const, error: body as DisplayError };
-		} catch (error) {
-			log.warn(`failed to load ${endpoint}`, error);
-			return {
-				ok: false as const,
-				error: { title: 'network error', message: 'Could not load this data' }
-			};
+		let result = await attempt<T>(key, endpoint);
+		for (const delay of RETRY_DELAYS_MS) {
+			if (result.ok || !isTransient(result.error)) break;
+			await wait(delay);
+			result = await attempt<T>(key, endpoint);
 		}
+		return result;
 	})().finally(() => inflight.delete(key));
 	inflight.set(key, promise as Promise<LoadResult<unknown>>);
 	return promise;

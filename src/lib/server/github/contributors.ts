@@ -68,7 +68,6 @@ export function summariseContributors(raw: RawStat[]): ContributorRow[] {
 			return {
 				login: stat.author!.login,
 				avatarUrl: stat.author!.avatar_url,
-				htmlUrl: stat.author!.html_url,
 				contributions: stat.total,
 				additions: weeks.reduce((sum, week) => sum + week.a, 0),
 				deletions: weeks.reduce((sum, week) => sum + week.d, 0),

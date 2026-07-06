@@ -5,7 +5,7 @@ export type PersonRow = { login: string; avatarUrl: string; at?: string };
 export type AudienceSection = {
 	people: PersonRow[];
 	total: number;
-	unavailable?: 'restricted' | 'capped';
+	unavailable?: 'restricted';
 };
 export type RepoPeople = {
 	stargazers: AudienceSection;
@@ -16,7 +16,6 @@ export type RepoPeople = {
 export type ContributorRow = {
 	login: string;
 	avatarUrl: string;
-	htmlUrl: string;
 	contributions: number;
 	additions: number;
 	deletions: number;

@@ -12,7 +12,7 @@
 	import { computeGraph, laneColor, mergeCommits, type Connector } from '$lib/views/commit-graph';
 	import { relativeTime } from '$lib/utils/format';
 	import { fetchApi } from '$lib/state/api';
-	import { GITHUB_WEB } from '$lib/config';
+	import { GITHUB_WEB, paths } from '$lib/config';
 	import { toDisplayError } from '$lib/utils/errors';
 	import { cn } from '$lib/utils';
 	import type { GraphRow } from '$lib/views/commit-graph';
@@ -288,9 +288,7 @@
 						{#if row.commit.author}
 							{#if row.commit.login}
 								<a
-									href="{GITHUB_WEB}/{row.commit.login}"
-									target="_blank"
-									rel="noreferrer"
+									href={paths.user(row.commit.login)}
 									class="hover:text-foreground hidden items-center gap-1.5 sm:flex"
 								>
 									<UserAvatar

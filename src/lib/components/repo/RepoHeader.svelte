@@ -27,6 +27,7 @@
 		formatDate,
 		formatDateTime
 	} from '$lib/utils/format';
+	import { paths } from '$lib/config';
 	import type { Repo, RepoStats } from '$lib/types';
 
 	let { repo, stats }: { repo: Repo; stats?: RepoStats } = $props();
@@ -105,7 +106,11 @@
 		<div class="flex min-w-0 grow flex-col gap-3">
 			<div class="flex flex-wrap items-center gap-2">
 				<h1 class="flex min-w-0 items-baseline gap-1.5 text-lg font-semibold">
-					<span class="text-muted-foreground font-normal">{repo.owner}/</span>
+					<span class="text-muted-foreground font-normal">
+						<a href={paths.user(repo.owner)} class="hover:text-foreground hover:underline"
+							>{repo.owner}</a
+						>/
+					</span>
 					<a
 						href={repo.url}
 						target="_blank"

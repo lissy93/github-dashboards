@@ -238,17 +238,22 @@ export async function restTolerant<T>(
 	}
 }
 
+// An empty list against a known non-zero count is GitHub's admin-only restriction on
+// stargazers/watchers, not a genuinely empty list
+export const looksRestricted = (knownCount: number, got: number) => knownCount > 0 && got === 0;
+
 // One aliased field per item, so a whole batch resolves in a single round trip
 export function batchedGraphql<T, D>(
 	name: string,
 	items: T[],
 	params: (index: number) => string,
 	field: (index: number) => string,
-	variables: (item: T, index: number) => Record<string, unknown>
+	variables: (item: T, index: number) => Record<string, unknown>,
+	auth: AuthMode = 'viewer'
 ): Promise<Record<string, D>> {
 	if (!items.length) return Promise.resolve({});
 	const paramList = items.map((_, index) => params(index)).join(', ');
 	const fields = items.map((_, index) => field(index)).join('\n');
 	const vars = Object.assign({}, ...items.map((item, index) => variables(item, index)));
-	return graphql<Record<string, D>>(`query ${name}(${paramList}) { ${fields} }`, vars);
+	return graphql<Record<string, D>>(`query ${name}(${paramList}) { ${fields} }`, vars, auth);
 }

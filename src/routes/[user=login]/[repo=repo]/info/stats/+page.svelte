@@ -35,6 +35,7 @@
 		defaultTimelineView,
 		resolutionBars,
 		TIMELINE_SAMPLED_NOTE,
+		STAR_SAMPLED_NOTE,
 		type TimelineView
 	} from '$lib/views/repo';
 	import type { ResolutionStats } from '$lib/types';
@@ -48,6 +49,7 @@
 	import { compactNumber, formatSpanHours } from '$lib/utils/format';
 	import { readStored, writeStored } from '$lib/utils/storage';
 	import { progressiveResult } from '$lib/state/progressive.svelte';
+	import { restrictedGate } from '$lib/config/status';
 	import type { PageData } from './$types';
 	import StatTileGrid from '$lib/components/common/StatTileGrid.svelte';
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
@@ -55,6 +57,8 @@
 	const VIEW_KEY = 'repo:timeline-view';
 
 	let { data }: { data: PageData } = $props();
+
+	const starGate = $derived(restrictedGate('star history', !!data.viewerLogin));
 
 	// Signed-in viewers deepen the timeline progressively, the charts fill as older data lands
 	const timeline = progressiveResult({
@@ -231,7 +235,7 @@
 			detail={timeline.detail}
 		>
 			{#snippet children(tl)}
-				{@render resolution(tl.resolution.issues, 'issues', tl.baseline.issues.open)}
+				{@render resolution(tl.resolution.issues, 'issues', data.repo.openIssues)}
 			{/snippet}
 		</AsyncPanel>
 
@@ -245,7 +249,7 @@
 			detail={timeline.detail}
 		>
 			{#snippet children(tl)}
-				{@render resolution(tl.resolution.prs, 'PRs', tl.baseline.prs.open)}
+				{@render resolution(tl.resolution.prs, 'PRs', data.repo.openPRs)}
 			{/snippet}
 		</AsyncPanel>
 	</div>
@@ -318,19 +322,18 @@
 		title="Star history"
 		icon={Star}
 		result={data.stars}
-		empty={(history) => history.days.length === 0}
-		emptyText="No stars yet"
+		empty={(history) => history.restricted || history.days.length === 0}
+		emptyText={(history) => (history.restricted ? starGate.text : 'No stars yet')}
+		emptyHint={(history) => (history.restricted ? starGate.hint : undefined)}
+		emptyCause={(history) => (history.restricted ? starGate.cause : 'empty')}
 		cause={(history) => (history.sampled ? 'partial' : undefined)}
-		detail={(history) =>
-			history.sampled ? 'GitHub only lists the first 40k stargazers' : undefined}
+		detail={(history) => (history.sampled ? STAR_SAMPLED_NOTE : undefined)}
 	>
 		{#snippet children(history)}
 			<div class="space-y-3">
 				<MetricTimeChart data={starChart(history)} label="Star history" height={16} />
 				{#if history.sampled}
-					<p class="text-muted-foreground text-xs">
-						Sampled across stargazer pages, GitHub only dates the first 40k stars
-					</p>
+					<p class="text-muted-foreground text-xs">{STAR_SAMPLED_NOTE}</p>
 				{/if}
 			</div>
 		{/snippet}

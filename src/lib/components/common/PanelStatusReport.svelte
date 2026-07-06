@@ -85,7 +85,11 @@
 	{@const meta = STATUS_CAUSES[report.cause]}
 	{@const color = LEVEL_META[meta.level].color}
 	<button onclick={() => toggle(report.id)} class="flex gap-2 {long ? 'cursor-pointer' : ''}">
-		<Icon icon={CAUSE_ICONS[report.cause]} size={14} class="{color} shrink-0" />
+		<Icon
+			icon={CAUSE_ICONS[report.cause]}
+			size={14}
+			class="{color} shrink-0 {report.cause === 'loading' ? 'animate-spin' : ''}"
+		/>
 		<Hint text={tip} class="{color} shrink-0">{meta.label}</Hint>
 		<span class="text-foreground shrink-0 font-medium">{report.title}</span>
 		{#if long}

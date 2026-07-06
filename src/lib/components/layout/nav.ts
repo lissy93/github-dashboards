@@ -42,6 +42,10 @@ export type NavViewer = { loggedIn: boolean; isOwner: boolean };
 // Order the four task lists share across the nav and the task overview
 const TASK_ORDER: TaskBucket[] = ['reviewPrs', 'reviewIssues', 'myPrs', 'myIssues'];
 
+function lockedTooltip(user: string, subject: string, viewer: NavViewer): string {
+	return viewer.loggedIn ? `Only ${user} can view ${subject}` : `Sign in to view ${subject}`;
+}
+
 // Analytics surfaces private traffic, so only the signed-in owner may open it
 function analyticsItem(user: string, viewer: NavViewer): NavItem {
 	if (viewer.isOwner)
@@ -50,7 +54,7 @@ function analyticsItem(user: string, viewer: NavViewer): NavItem {
 		label: 'Analytics',
 		icon: ChartArea,
 		disabled: true,
-		tooltip: viewer.loggedIn ? `Only ${user} can view these analytics` : 'Sign in to view analytics'
+		tooltip: lockedTooltip(user, 'analytics', viewer)
 	};
 }
 
@@ -65,20 +69,29 @@ export function userNav(user: string, isOrg: boolean, viewer: NavViewer): NavIte
 		items.push({ label: 'Activity', href: paths.userActivity(user), icon: Activity });
 	}
 	items.push(analyticsItem(user, viewer));
-	// Authored lists make no sense for an org, so drop them there, matching the task page
-	const taskBuckets = TASK_ORDER.filter(
-		(bucket) => !(isOrg && (bucket === 'myPrs' || bucket === 'myIssues'))
-	);
-	items.push({
-		label: 'Tasks',
-		href: paths.userTasks(user),
-		icon: ListTodo,
-		children: taskBuckets.map((bucket) => ({
-			label: TASK_BUCKETS[bucket].title,
-			href: paths.userTaskList(user, TASK_BUCKETS[bucket].section),
-			icon: TASK_BUCKETS[bucket].icon
-		}))
-	});
+	if (viewer.isOwner) {
+		// Authored lists make no sense for an org, so drop them there, matching the task page
+		const taskBuckets = TASK_ORDER.filter(
+			(bucket) => !(isOrg && (bucket === 'myPrs' || bucket === 'myIssues'))
+		);
+		items.push({
+			label: 'Tasks',
+			href: paths.userTasks(user),
+			icon: ListTodo,
+			children: taskBuckets.map((bucket) => ({
+				label: TASK_BUCKETS[bucket].title,
+				href: paths.userTaskList(user, TASK_BUCKETS[bucket].section),
+				icon: TASK_BUCKETS[bucket].icon
+			}))
+		});
+	} else {
+		items.push({
+			label: 'Tasks',
+			icon: ListTodo,
+			disabled: true,
+			tooltip: lockedTooltip(user, 'tasks', viewer)
+		});
+	}
 	return items;
 }
 
@@ -150,7 +163,7 @@ export function repoNav(user: string, repo: string, viewer: NavViewer): NavItem[
 						label: subLabel,
 						icon: sub.icons[subSection],
 						disabled: true,
-						tooltip: viewer.loggedIn ? `Only ${user} can view traffic` : 'Sign in to view traffic'
+						tooltip: lockedTooltip(user, 'traffic', viewer)
 					};
 				}
 				return {

@@ -6,6 +6,7 @@
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import EmptyState from '$lib/components/common/EmptyState.svelte';
+	import PanelError from '$lib/components/common/PanelError.svelte';
 	import { cn } from '$lib/utils';
 	import { formatNumber } from '$lib/utils/format';
 	import { toDisplayError } from '$lib/utils/errors';
@@ -110,7 +111,7 @@
 					{display.message}
 				</p>
 			{:else}
-				<p class="text-danger text-sm">{display.message}</p>
+				<PanelError error={display} />
 			{/if}
 		{:else if loading}
 			<div class="space-y-2">

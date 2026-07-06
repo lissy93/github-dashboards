@@ -8,7 +8,8 @@
 		Star,
 		Users,
 		UserPlus,
-		Activity
+		Activity,
+		ExternalLink
 	} from '@lucide/svelte';
 	import * as Card from '$lib/components/ui/card';
 	import UserAvatar from '$lib/components/common/UserAvatar.svelte';
@@ -17,7 +18,7 @@
 	import StatTile from '$lib/components/common/StatTile.svelte';
 	import Hint from '$lib/components/common/Hint.svelte';
 	import { compactNumber, formatDate, formatDateTime, safeHttpUrl } from '$lib/utils/format';
-	import { GITHUB_WEB } from '$lib/config';
+	import { GITHUB_WEB, paths } from '$lib/config';
 	import type { UserProfile } from '$lib/types';
 
 	let { profile }: { profile: UserProfile } = $props();
@@ -61,15 +62,19 @@
 				<div class="min-w-0 space-y-1.5">
 					<div class="flex flex-wrap items-center gap-2">
 						<h1 class="truncate text-lg font-semibold">
-							<a
-								href="{GITHUB_WEB}/{profile.login}"
-								target="_blank"
-								rel="noreferrer"
-								class="hover:underline"
-							>
+							<a href={paths.user(profile.login)} class="hover:underline">
 								{profile.name ?? profile.login}
 							</a>
 						</h1>
+						<a
+							href="{GITHUB_WEB}/{profile.login}"
+							target="_blank"
+							rel="noopener noreferrer"
+							aria-label="Open on GitHub"
+							class="text-muted-foreground hover:text-foreground"
+						>
+							<Icon icon={ExternalLink} size={14} />
+						</a>
 						<span class="text-muted-foreground text-sm">@{profile.login}</span>
 						{#if profile.isOrg}<Badge variant="secondary">Org</Badge>{/if}
 					</div>

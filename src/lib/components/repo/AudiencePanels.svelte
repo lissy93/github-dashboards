@@ -3,9 +3,10 @@
 	import Panel from '$lib/components/common/Panel.svelte';
 	import PeopleList from '$lib/components/stats/PeopleList.svelte';
 	import { compactNumber, relativeTime } from '$lib/utils/format';
-	import type { AudienceSection, RepoPeople, StatusCause } from '$lib/types';
+	import { restrictedGate } from '$lib/config/status';
+	import type { AudienceSection, RepoPeople } from '$lib/types';
 
-	let { people }: { people: RepoPeople } = $props();
+	let { people, loggedIn }: { people: RepoPeople; loggedIn: boolean } = $props();
 
 	const SECTIONS = [
 		{ key: 'stargazers', title: 'Stargazers', icon: Star, verb: 'Starred', noun: 'stars' },
@@ -21,37 +22,20 @@
 			tip: person.at ? `${verb} ${relativeTime(person.at)}` : undefined
 		}));
 	}
-
-	// A restricted list is a real access gap, a capped one is GitHub's paging limit
-	const cause = (section: AudienceSection): StatusCause | undefined =>
-		section.unavailable === 'restricted'
-			? 'forbidden'
-			: section.unavailable
-				? 'partial'
-				: undefined;
-
-	function emptyText(section: AudienceSection, title: string, noun: string): string {
-		if (section.unavailable === 'restricted') return `${title} not accessible`;
-		if (section.unavailable === 'capped') return `Recent ${noun} unavailable`;
-		return `No ${noun} yet`;
-	}
 </script>
 
 <div class="grid gap-5">
 	{#each SECTIONS as { key, title, icon, verb, noun } (key)}
 		{@const section = people[key]}
 		{@const list = rows(section, verb)}
+		{@const gate = section.unavailable === 'restricted' ? restrictedGate(noun, loggedIn) : null}
 		<Panel
 			{title}
 			{icon}
-			empty={list.length === 0}
-			cause={cause(section)}
-			emptyText={emptyText(section, title, noun)}
-			emptyHint={section.unavailable === 'restricted'
-				? 'The current GitHub token cannot list them'
-				: section.unavailable === 'capped'
-					? 'GitHub only pages through the first 40k stargazers'
-					: undefined}
+			empty={gate !== null || list.length === 0}
+			emptyText={gate ? gate.text : `No ${noun} yet`}
+			emptyHint={gate?.hint}
+			cause={gate?.cause}
 		>
 			{#snippet actions()}
 				<span class="text-muted-foreground text-xs tabular-nums">

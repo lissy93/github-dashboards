@@ -1,6 +1,10 @@
 import { batchedGraphql, graphql, rest, paginate } from '$lib/server/github/client';
 import { cached } from '$lib/server/cache';
+import { toAppError } from '$lib/utils/errors';
+import { createLogger } from '$lib/utils/logger';
 import type { NotableFollower, Org, UserSocial } from '$lib/types';
+
+const log = createLogger('social');
 
 const PER_PAGE = 100;
 // The followers connection has no influence order, so we sample a few pages and rank
@@ -73,7 +77,8 @@ async function fetchFollowers(login: string): Promise<{ all: RawFollower[]; tota
 			if (conn) total = conn.totalCount;
 			return conn;
 		},
-		{ maxPages: MAX_FOLLOWER_PAGES }
+		{ maxPages: MAX_FOLLOWER_PAGES },
+		'app'
 	);
 	return { all: nodes, total };
 }
@@ -84,10 +89,16 @@ type RestFollower = { login: string; avatar_url: string };
 async function fetchNewestFollowers(login: string, total: number): Promise<NotableFollower[]> {
 	if (total === 0) return [];
 	const lastPage = Math.ceil(total / PER_PAGE);
+	// GitHub 500s on very deep follower pages
 	const page =
 		(await rest<RestFollower[]>(
-			`/users/${login}/followers?per_page=${PER_PAGE}&page=${lastPage}`
-		)) ?? [];
+			`/users/${login}/followers?per_page=${PER_PAGE}&page=${lastPage}`,
+			undefined,
+			'app'
+		).catch((caught) => {
+			log.warn(`newest followers failed for ${login}`, { code: toAppError(caught).code });
+			return null;
+		})) ?? [];
 	const recent = page
 		.slice(-TOP_FOLLOWERS)
 		.reverse()
@@ -107,7 +118,8 @@ async function followerCounts(logins: string[]): Promise<Map<string, number>> {
 		logins,
 		(index) => `$l${index}: String!`,
 		(index) => `u${index}: user(login: $l${index}) { login followers { totalCount } }`,
-		(login, index) => ({ [`l${index}`]: login })
+		(login, index) => ({ [`l${index}`]: login }),
+		'app'
 	);
 	const counts = new Map<string, number>();
 	for (const node of Object.values(data))
@@ -117,7 +129,7 @@ async function followerCounts(logins: string[]): Promise<Map<string, number>> {
 
 // Visible sponsors and the true total, which can be higher when some stay private
 async function fetchSponsors(login: string): Promise<{ sponsorsTotal: number; sponsors: Org[] }> {
-	const data = await graphql<SponsorsResult>(SPONSORS_QUERY, { login });
+	const data = await graphql<SponsorsResult>(SPONSORS_QUERY, { login }, 'app');
 	const conn = data.user?.sponsors;
 	if (!conn) return { sponsorsTotal: 0, sponsors: [] };
 	const sponsors = conn.nodes.filter((node): node is Org => !!node?.login);
