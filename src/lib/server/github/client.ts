@@ -62,6 +62,8 @@ function codeFor(res: Response): ErrorCode {
 		res.headers.get('x-ratelimit-remaining') === '0' || res.headers.has('retry-after');
 	if (status === 429 || (status === 403 && rateLimited)) return 'rate_limited';
 	if (status === 403) return 'forbidden';
+	// A GitHub 5xx is a transient upstream outage, not our failure
+	if (status >= 500) return 'unavailable';
 	return 'upstream';
 }
 
