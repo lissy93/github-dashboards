@@ -2,7 +2,6 @@
 	import {
 		CircleDot,
 		GitPullRequest,
-		ListTodo,
 		Activity,
 		ShieldCheck,
 		Star,
@@ -11,9 +10,7 @@
 		Globe,
 		Tag,
 		ChartArea,
-		Info,
 		Lock,
-		Code,
 		GitGraph,
 		FolderTree,
 		Package
@@ -55,6 +52,8 @@
 	import { deploymentMiniChart } from '$lib/views/repo-deployments';
 	import { releaseDownloadBars, hasReleaseDownloads } from '$lib/views/repo-stats';
 	import { paths, APP_NAME } from '$lib/config';
+	import { findPage, REPO_PAGES } from '$lib/config/pages';
+	import { iconFor } from '$lib/components/layout/nav';
 	import { restrictedGate } from '$lib/config/status';
 	import { progressiveTimeline } from '$lib/state/progressive.svelte';
 	import { formatBytes, formatDuration } from '$lib/utils/format';
@@ -71,6 +70,12 @@
 	const code = (slug: string) => paths.repoCodeSection(data.user, data.repo.name, slug);
 	const ops = (slug: string) => paths.repoOpsSection(data.user, data.repo.name, slug);
 	const info = (slug: string) => paths.repoInfoSection(data.user, data.repo.name, slug);
+
+	// Overview group headings mirror the nav tabs, so labels and icons never drift
+	const heading = (slug: string) => ({
+		title: findPage(REPO_PAGES, slug)?.label ?? '',
+		icon: iconFor('repo', slug)
+	});
 </script>
 
 <svelte:head>
@@ -113,7 +118,7 @@
 {/snippet}
 
 <div class="space-y-6">
-	<SectionHeading title="Tasks" icon={ListTodo}>
+	<SectionHeading {...heading('tasks')}>
 		<div class="grid items-start gap-5 lg:grid-cols-2">
 			<div class="lg:space-y-5">
 				{@render totalMini('issue', 'issues', 'Total issues', CircleDot)}
@@ -161,7 +166,7 @@
 		</div>
 	</SectionHeading>
 
-	<SectionHeading title="Code" icon={Code}>
+	<SectionHeading {...heading('code')}>
 		<div class="grid items-start gap-5 lg:grid-cols-2">
 			<AsyncPanel title="Activity" icon={Activity} href={code('activity')} result={data.activity}>
 				{#snippet children(page)}
@@ -248,7 +253,7 @@
 		</div>
 	</SectionHeading>
 
-	<SectionHeading title="CI/CD" icon={Workflow}>
+	<SectionHeading {...heading('ops')}>
 		<div class="grid items-start gap-5 sm:grid-cols-2">
 			<AsyncPanel
 				title="Workflows"
@@ -345,7 +350,7 @@
 		</div>
 	</SectionHeading>
 
-	<SectionHeading title="Repo info" icon={Info}>
+	<SectionHeading {...heading('info')}>
 		<div class="grid items-start gap-5 lg:grid-cols-2">
 			<AsyncPanel
 				title="Star history"

@@ -6,11 +6,6 @@
 </script>
 
 <div class="space-y-5">
-	<RepoSubNav
-		section="ops"
-		user={data.user}
-		repo={data.repo.name}
-		canSeeTraffic={data.canSeeTraffic}
-	/>
+	<RepoSubNav section="ops" user={data.user} repo={data.repo.name} viewerLogin={data.viewerLogin} />
 	{@render children()}
 </div>

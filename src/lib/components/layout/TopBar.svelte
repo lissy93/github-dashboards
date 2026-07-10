@@ -5,11 +5,15 @@
 	import Icon from '$lib/components/common/Icon.svelte';
 	import ThemeToggle from '$lib/components/layout/ThemeToggle.svelte';
 	import AuthMenu from '$lib/components/layout/AuthMenu.svelte';
+	import NavDrawer from '$lib/components/layout/NavDrawer.svelte';
+	import { useNavTree } from '$lib/state/nav-tree.svelte';
 	import { APP_NAME, paths } from '$lib/config';
 	import type { SessionUser } from '$lib/types';
 
 	let { user, loginEnabled }: { user: SessionUser | null; loginEnabled: boolean } = $props();
 
+	// The current scope's nav tree, present on user and repo pages but not the home page
+	const nav = useNavTree();
 	let query = $state('');
 
 	// Jump to a user or org board on submit
@@ -22,6 +26,9 @@
 
 <header class="bg-background/80 sticky top-0 z-30 border-b backdrop-blur">
 	<div class="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4">
+		{#if nav?.tree}
+			<NavDrawer tree={nav.tree} />
+		{/if}
 		<a href="/" class="flex items-center gap-2 font-semibold">
 			<Icon icon={LayoutDashboard} class="text-primary" size={18} />
 			{APP_NAME}

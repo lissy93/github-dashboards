@@ -11,8 +11,12 @@
 		result: Promise<LoadResult<T | null>> | LoadResult<T | null>;
 		summary: (data: T) => string;
 		fallback?: string;
+		description?: string;
 	};
-	let { title, icon, href, result, summary, fallback = 'No data yet' }: Props = $props();
+	let { title, icon, href, result, summary, fallback, description }: Props = $props();
+
+	// Shown as the main line when no data is present yet
+	const emptyText = $derived(fallback ?? description ?? 'No data yet');
 </script>
 
 {#await result}
@@ -21,8 +25,11 @@
 	<Panel {title} {icon} {href} error={res.ok ? undefined : res.error}>
 		{#if res.ok}
 			<p class="text-muted-foreground text-sm">
-				{res.data != null ? summary(res.data) : fallback}
+				{res.data != null ? summary(res.data) : emptyText}
 			</p>
+			{#if description && res.data != null}
+				<p class="text-muted-foreground/70 mt-1 text-xs">{description}</p>
+			{/if}
 		{/if}
 	</Panel>
 {/await}

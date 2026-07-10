@@ -1,9 +1,8 @@
 <script lang="ts">
-	import { Menu, ChevronDown } from '@lucide/svelte';
+	import { ChevronDown } from '@lucide/svelte';
 	import { page } from '$app/state';
 	import * as NavigationMenu from '$lib/components/ui/navigation-menu';
 	import { navigationMenuTriggerStyle } from '$lib/components/ui/navigation-menu/navigation-menu-trigger.svelte';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import { cn } from '$lib/utils';
@@ -21,38 +20,9 @@
 	const isActive = (item: NavItem): boolean =>
 		item.href === activeHref || (item.children?.some(isActive) ?? false);
 
-	const activeLabel = $derived(items.find(isActive)?.label ?? items[0]?.label);
-
 	const itemStyle = (active: boolean) =>
 		cn(navigationMenuTriggerStyle(), 'gap-1.5', active && 'text-primary');
 </script>
-
-<!-- One burger row, child rows indented under their parent link -->
-{#snippet menuLink(navItem: NavItem, indent: boolean)}
-	<DropdownMenu.Item disabled={navItem.disabled}>
-		{#snippet child({ props }: { props: Record<string, unknown> })}
-			{#if navItem.disabled}
-				<span
-					{...props}
-					title={navItem.tooltip}
-					class={cn(props.class as string, indent && 'pl-8', 'text-muted-foreground/60')}
-				>
-					{#if navItem.icon}<Icon icon={navItem.icon} />{/if}
-					{navItem.label}
-				</span>
-			{:else}
-				<a
-					{...props}
-					href={navItem.href}
-					class={cn(props.class as string, indent && 'pl-8', isActive(navItem) && 'text-primary')}
-				>
-					{#if navItem.icon}<Icon icon={navItem.icon} />{/if}
-					{navItem.label}
-				</a>
-			{/if}
-		{/snippet}
-	</DropdownMenu.Item>
-{/snippet}
 
 <!-- Desktop, hover-open dropdowns whose triggers link to their parent page -->
 <NavigationMenu.Root
@@ -69,6 +39,7 @@
 							<a
 								{...props}
 								href={item.href}
+								aria-current={isActive(item) ? 'page' : undefined}
 								class={cn(props.class as string, 'gap-1.5', isActive(item) && 'text-primary')}
 							>
 								{#if item.icon}<Icon icon={item.icon} />{/if}
@@ -119,6 +90,7 @@
 					<NavigationMenu.Link
 						href={item.href}
 						active={isActive(item)}
+						aria-current={isActive(item) ? 'page' : undefined}
 						class={itemStyle(isActive(item))}
 					>
 						{#if item.icon}<Icon icon={item.icon} />{/if}
@@ -130,23 +102,4 @@
 	</NavigationMenu.List>
 </NavigationMenu.Root>
 
-<!-- Mobile, burger menu showing the current section -->
-<div class="flex items-center border-b py-2 md:hidden">
-	<DropdownMenu.Root>
-		<DropdownMenu.Trigger
-			aria-label="Open navigation"
-			class="hover:bg-muted inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium"
-		>
-			<Icon icon={Menu} />
-			{activeLabel}
-		</DropdownMenu.Trigger>
-		<DropdownMenu.Content class="min-w-48">
-			{#each items as item (item.label)}
-				{@render menuLink(item, false)}
-				{#each item.children ?? [] as sub (sub.label)}
-					{@render menuLink(sub, true)}
-				{/each}
-			{/each}
-		</DropdownMenu.Content>
-	</DropdownMenu.Root>
-</div>
+<!-- Mobile nav lives in the collapsible drawer (burger in TopBar), so nothing renders here -->

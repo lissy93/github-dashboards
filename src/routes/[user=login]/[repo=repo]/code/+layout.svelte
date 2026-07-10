@@ -10,7 +10,7 @@
 		section="code"
 		user={data.user}
 		repo={data.repo.name}
-		canSeeTraffic={data.canSeeTraffic}
+		viewerLogin={data.viewerLogin}
 	/>
 	{@render children()}
 </div>

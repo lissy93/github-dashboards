@@ -1,17 +1,27 @@
 <script lang="ts">
 	import MainNav from '$lib/components/layout/MainNav.svelte';
 	import RepoHeader from '$lib/components/repo/RepoHeader.svelte';
-	import { repoNav } from '$lib/components/layout/nav';
+	import { repoNav, navViewer } from '$lib/components/layout/nav';
+	import { useNavTree } from '$lib/state/nav-tree.svelte';
+	import { paths } from '$lib/config';
 	import type { RepoStats } from '$lib/types';
 	import type { LayoutData } from './$types';
 
 	let { data, children }: { data: LayoutData; children: import('svelte').Snippet } = $props();
 
-	const viewer = $derived({
-		loggedIn: !!data.viewerLogin,
-		isOwner: !!data.viewerLogin && data.viewerLogin.toLowerCase() === data.user.toLowerCase()
-	});
+	const viewer = $derived(navViewer(data.user, data.viewerLogin));
 	const items = $derived(repoNav(data.user, data.repo.name, viewer));
+
+	// Feed the mobile drawer the repo tree plus a link back up to the owner
+	const navTree = useNavTree();
+	$effect(() => {
+		navTree?.set({
+			label: data.repo.nameWithOwner,
+			backLink: { label: `Back to ${data.user}`, href: paths.user(data.user) },
+			items
+		});
+		return () => navTree?.clear();
+	});
 
 	// Header renders at once from the loaded repo, heavier counts fill in when settled
 	let stats = $state<RepoStats>();
