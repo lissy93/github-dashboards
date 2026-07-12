@@ -45,14 +45,14 @@ npm run dev
 
 ## Other useful commands
 
-| Command | What it does |
-|---|---|
-| `npm run db:studio` | Opens Drizzle Studio (database GUI) |
+| Command               | What it does                                  |
+| --------------------- | --------------------------------------------- |
+| `npm run db:studio`   | Opens Drizzle Studio (database GUI)           |
 | `npm run db:generate` | Generates migration files from schema changes |
-| `npm run db:migrate` | Runs migrations |
-| `npm run test` | Runs unit tests |
-| `npm run lint` | Checks formatting and linting |
-| `npm run format` | Auto-formats everything |
+| `npm run db:migrate`  | Runs migrations                               |
+| `npm run test`        | Runs unit tests                               |
+| `npm run lint`        | Checks formatting and linting                 |
+| `npm run format`      | Auto-formats everything                       |
 
 ## Tearing down
 

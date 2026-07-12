@@ -1,6 +1,4 @@
 import type { ParamMatcher } from '@sveltejs/kit';
+import { REPO_RE } from '$lib/utils/github-input';
 
-// GitHub repo name: up to 100 chars of word chars, dot and hyphen, never . or ..
-const REPO = /^(?!\.{1,2}$)[\w.-]{1,100}$/;
-
-export const match: ParamMatcher = (param) => REPO.test(param);
+export const match: ParamMatcher = (param) => REPO_RE.test(param);
