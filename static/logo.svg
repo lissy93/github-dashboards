@@ -1,0 +1,242 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 228 208"
+  role="img"
+  aria-labelledby="robot-title robot-desc"
+  class="dot-robot dot-robot--favicon"
+>
+  <title id="robot-title">Low-resolution dot-matrix robot face</title>
+  <desc id="robot-desc">A simplified friendly robot face built from large aligned circles for favicon use.</desc>
+
+  <style>
+    .dot-robot {
+      --robot-shell: #d8dadd;
+      --robot-dark: #2f3440;
+      --robot-screen: #20242b;
+      --robot-accent: #ffd21f;
+    }
+
+    .shell  { fill: var(--robot-shell); }
+    .dark   { fill: var(--robot-dark); }
+    .screen { fill: var(--robot-screen); }
+    .accent { fill: var(--robot-accent); }
+  </style>
+
+  <defs>
+    <circle id="dot" r="4.2" />
+  </defs>
+
+  <g aria-hidden="true">
+    <use href="#dot" x="44" y="14" class="dark" />
+    <use href="#dot" x="184" y="14" class="dark" />
+    <use href="#dot" x="34" y="24" class="dark" />
+    <use href="#dot" x="44" y="24" class="dark" />
+    <use href="#dot" x="54" y="24" class="dark" />
+    <use href="#dot" x="174" y="24" class="dark" />
+    <use href="#dot" x="184" y="24" class="dark" />
+    <use href="#dot" x="194" y="24" class="dark" />
+    <use href="#dot" x="44" y="34" class="dark" />
+    <use href="#dot" x="184" y="34" class="dark" />
+    <use href="#dot" x="44" y="44" class="shell" />
+    <use href="#dot" x="184" y="44" class="shell" />
+    <use href="#dot" x="44" y="54" class="shell" />
+    <use href="#dot" x="64" y="54" class="shell" />
+    <use href="#dot" x="74" y="54" class="shell" />
+    <use href="#dot" x="84" y="54" class="shell" />
+    <use href="#dot" x="94" y="54" class="shell" />
+    <use href="#dot" x="104" y="54" class="shell" />
+    <use href="#dot" x="114" y="54" class="shell" />
+    <use href="#dot" x="124" y="54" class="shell" />
+    <use href="#dot" x="134" y="54" class="shell" />
+    <use href="#dot" x="144" y="54" class="shell" />
+    <use href="#dot" x="154" y="54" class="shell" />
+    <use href="#dot" x="164" y="54" class="shell" />
+    <use href="#dot" x="184" y="54" class="shell" />
+    <use href="#dot" x="44" y="64" class="shell" />
+    <use href="#dot" x="54" y="64" class="shell" />
+    <use href="#dot" x="64" y="64" class="shell" />
+    <use href="#dot" x="74" y="64" class="shell" />
+    <use href="#dot" x="84" y="64" class="shell" />
+    <use href="#dot" x="94" y="64" class="shell" />
+    <use href="#dot" x="104" y="64" class="shell" />
+    <use href="#dot" x="114" y="64" class="shell" />
+    <use href="#dot" x="124" y="64" class="shell" />
+    <use href="#dot" x="134" y="64" class="shell" />
+    <use href="#dot" x="144" y="64" class="shell" />
+    <use href="#dot" x="154" y="64" class="shell" />
+    <use href="#dot" x="164" y="64" class="shell" />
+    <use href="#dot" x="174" y="64" class="shell" />
+    <use href="#dot" x="184" y="64" class="shell" />
+    <use href="#dot" x="44" y="74" class="shell" />
+    <use href="#dot" x="54" y="74" class="shell" />
+    <use href="#dot" x="64" y="74" class="shell" />
+    <use href="#dot" x="74" y="74" class="shell" />
+    <use href="#dot" x="84" y="74" class="shell" />
+    <use href="#dot" x="94" y="74" class="shell" />
+    <use href="#dot" x="104" y="74" class="shell" />
+    <use href="#dot" x="114" y="74" class="shell" />
+    <use href="#dot" x="124" y="74" class="shell" />
+    <use href="#dot" x="134" y="74" class="shell" />
+    <use href="#dot" x="144" y="74" class="shell" />
+    <use href="#dot" x="154" y="74" class="shell" />
+    <use href="#dot" x="164" y="74" class="shell" />
+    <use href="#dot" x="174" y="74" class="shell" />
+    <use href="#dot" x="184" y="74" class="shell" />
+    <use href="#dot" x="24" y="84" class="shell" />
+    <use href="#dot" x="34" y="84" class="shell" />
+    <use href="#dot" x="44" y="84" class="shell" />
+    <use href="#dot" x="54" y="84" class="shell" />
+    <use href="#dot" x="64" y="84" class="screen" />
+    <use href="#dot" x="74" y="84" class="screen" />
+    <use href="#dot" x="84" y="84" class="screen" />
+    <use href="#dot" x="94" y="84" class="screen" />
+    <use href="#dot" x="104" y="84" class="screen" />
+    <use href="#dot" x="114" y="84" class="screen" />
+    <use href="#dot" x="124" y="84" class="screen" />
+    <use href="#dot" x="134" y="84" class="screen" />
+    <use href="#dot" x="144" y="84" class="screen" />
+    <use href="#dot" x="154" y="84" class="screen" />
+    <use href="#dot" x="164" y="84" class="screen" />
+    <use href="#dot" x="174" y="84" class="shell" />
+    <use href="#dot" x="184" y="84" class="shell" />
+    <use href="#dot" x="194" y="84" class="shell" />
+    <use href="#dot" x="204" y="84" class="shell" />
+    <use href="#dot" x="24" y="94" class="shell" />
+    <use href="#dot" x="34" y="94" class="shell" />
+    <use href="#dot" x="44" y="94" class="shell" />
+    <use href="#dot" x="54" y="94" class="shell" />
+    <use href="#dot" x="64" y="94" class="screen" />
+    <use href="#dot" x="74" y="94" class="screen" />
+    <use href="#dot" x="84" y="94" class="screen" />
+    <use href="#dot" x="94" y="94" class="screen" />
+    <use href="#dot" x="104" y="94" class="screen" />
+    <use href="#dot" x="114" y="94" class="screen" />
+    <use href="#dot" x="124" y="94" class="screen" />
+    <use href="#dot" x="134" y="94" class="screen" />
+    <use href="#dot" x="144" y="94" class="screen" />
+    <use href="#dot" x="154" y="94" class="screen" />
+    <use href="#dot" x="164" y="94" class="screen" />
+    <use href="#dot" x="174" y="94" class="shell" />
+    <use href="#dot" x="184" y="94" class="shell" />
+    <use href="#dot" x="194" y="94" class="shell" />
+    <use href="#dot" x="204" y="94" class="shell" />
+    <use href="#dot" x="14" y="104" class="dark" />
+    <use href="#dot" x="24" y="104" class="shell" />
+    <use href="#dot" x="34" y="104" class="shell" />
+    <use href="#dot" x="44" y="104" class="shell" />
+    <use href="#dot" x="54" y="104" class="shell" />
+    <use href="#dot" x="64" y="104" class="screen" />
+    <use href="#dot" x="74" y="104" class="screen" />
+    <use href="#dot" x="84" y="104" class="accent" />
+    <use href="#dot" x="94" y="104" class="accent" />
+    <use href="#dot" x="104" y="104" class="screen" />
+    <use href="#dot" x="114" y="104" class="screen" />
+    <use href="#dot" x="124" y="104" class="screen" />
+    <use href="#dot" x="134" y="104" class="screen" />
+    <use href="#dot" x="144" y="104" class="accent" />
+    <use href="#dot" x="154" y="104" class="accent" />
+    <use href="#dot" x="164" y="104" class="screen" />
+    <use href="#dot" x="174" y="104" class="shell" />
+    <use href="#dot" x="184" y="104" class="shell" />
+    <use href="#dot" x="194" y="104" class="shell" />
+    <use href="#dot" x="204" y="104" class="shell" />
+    <use href="#dot" x="214" y="104" class="dark" />
+    <use href="#dot" x="14" y="114" class="dark" />
+    <use href="#dot" x="24" y="114" class="shell" />
+    <use href="#dot" x="34" y="114" class="shell" />
+    <use href="#dot" x="44" y="114" class="shell" />
+    <use href="#dot" x="54" y="114" class="shell" />
+    <use href="#dot" x="64" y="114" class="screen" />
+    <use href="#dot" x="74" y="114" class="screen" />
+    <use href="#dot" x="84" y="114" class="accent" />
+    <use href="#dot" x="94" y="114" class="accent" />
+    <use href="#dot" x="104" y="114" class="screen" />
+    <use href="#dot" x="114" y="114" class="screen" />
+    <use href="#dot" x="124" y="114" class="screen" />
+    <use href="#dot" x="134" y="114" class="screen" />
+    <use href="#dot" x="144" y="114" class="accent" />
+    <use href="#dot" x="154" y="114" class="accent" />
+    <use href="#dot" x="164" y="114" class="screen" />
+    <use href="#dot" x="174" y="114" class="shell" />
+    <use href="#dot" x="184" y="114" class="shell" />
+    <use href="#dot" x="194" y="114" class="shell" />
+    <use href="#dot" x="204" y="114" class="shell" />
+    <use href="#dot" x="214" y="114" class="dark" />
+    <use href="#dot" x="24" y="124" class="shell" />
+    <use href="#dot" x="34" y="124" class="shell" />
+    <use href="#dot" x="44" y="124" class="shell" />
+    <use href="#dot" x="54" y="124" class="shell" />
+    <use href="#dot" x="64" y="124" class="screen" />
+    <use href="#dot" x="74" y="124" class="screen" />
+    <use href="#dot" x="84" y="124" class="screen" />
+    <use href="#dot" x="94" y="124" class="screen" />
+    <use href="#dot" x="104" y="124" class="screen" />
+    <use href="#dot" x="114" y="124" class="screen" />
+    <use href="#dot" x="124" y="124" class="screen" />
+    <use href="#dot" x="134" y="124" class="screen" />
+    <use href="#dot" x="144" y="124" class="screen" />
+    <use href="#dot" x="154" y="124" class="screen" />
+    <use href="#dot" x="164" y="124" class="screen" />
+    <use href="#dot" x="174" y="124" class="shell" />
+    <use href="#dot" x="184" y="124" class="shell" />
+    <use href="#dot" x="194" y="124" class="shell" />
+    <use href="#dot" x="204" y="124" class="shell" />
+    <use href="#dot" x="24" y="134" class="shell" />
+    <use href="#dot" x="34" y="134" class="shell" />
+    <use href="#dot" x="44" y="134" class="shell" />
+    <use href="#dot" x="54" y="134" class="shell" />
+    <use href="#dot" x="64" y="134" class="screen" />
+    <use href="#dot" x="74" y="134" class="screen" />
+    <use href="#dot" x="84" y="134" class="screen" />
+    <use href="#dot" x="94" y="134" class="screen" />
+    <use href="#dot" x="104" y="134" class="accent" />
+    <use href="#dot" x="114" y="134" class="screen" />
+    <use href="#dot" x="124" y="134" class="screen" />
+    <use href="#dot" x="134" y="134" class="screen" />
+    <use href="#dot" x="144" y="134" class="accent" />
+    <use href="#dot" x="154" y="134" class="screen" />
+    <use href="#dot" x="164" y="134" class="screen" />
+    <use href="#dot" x="174" y="134" class="shell" />
+    <use href="#dot" x="184" y="134" class="shell" />
+    <use href="#dot" x="194" y="134" class="shell" />
+    <use href="#dot" x="204" y="134" class="shell" />
+    <use href="#dot" x="54" y="144" class="shell" />
+    <use href="#dot" x="64" y="144" class="shell" />
+    <use href="#dot" x="74" y="144" class="screen" />
+    <use href="#dot" x="84" y="144" class="screen" />
+    <use href="#dot" x="94" y="144" class="screen" />
+    <use href="#dot" x="104" y="144" class="screen" />
+    <use href="#dot" x="114" y="144" class="accent" />
+    <use href="#dot" x="124" y="144" class="accent" />
+    <use href="#dot" x="134" y="144" class="accent" />
+    <use href="#dot" x="144" y="144" class="screen" />
+    <use href="#dot" x="154" y="144" class="screen" />
+    <use href="#dot" x="164" y="144" class="screen" />
+    <use href="#dot" x="174" y="144" class="shell" />
+    <use href="#dot" x="184" y="144" class="shell" />
+    <use href="#dot" x="54" y="154" class="shell" />
+    <use href="#dot" x="64" y="154" class="shell" />
+    <use href="#dot" x="74" y="154" class="shell" />
+    <use href="#dot" x="84" y="154" class="shell" />
+    <use href="#dot" x="94" y="154" class="shell" />
+    <use href="#dot" x="104" y="154" class="shell" />
+    <use href="#dot" x="114" y="154" class="shell" />
+    <use href="#dot" x="124" y="154" class="shell" />
+    <use href="#dot" x="134" y="154" class="shell" />
+    <use href="#dot" x="144" y="154" class="shell" />
+    <use href="#dot" x="154" y="154" class="shell" />
+    <use href="#dot" x="164" y="154" class="shell" />
+    <use href="#dot" x="174" y="154" class="shell" />
+    <use href="#dot" x="64" y="164" class="shell" />
+    <use href="#dot" x="74" y="164" class="shell" />
+    <use href="#dot" x="84" y="164" class="shell" />
+    <use href="#dot" x="94" y="164" class="shell" />
+    <use href="#dot" x="104" y="164" class="shell" />
+    <use href="#dot" x="114" y="164" class="shell" />
+    <use href="#dot" x="124" y="164" class="shell" />
+    <use href="#dot" x="134" y="164" class="shell" />
+    <use href="#dot" x="144" y="164" class="shell" />
+    <use href="#dot" x="154" y="164" class="shell" />
+    <use href="#dot" x="164" y="164" class="shell" />
+  </g>
+</svg>

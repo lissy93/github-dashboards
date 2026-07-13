@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { LayoutDashboard } from '@lucide/svelte';
 	import SearchInput from '$lib/components/common/SearchInput.svelte';
 	import { goto } from '$app/navigation';
-	import Icon from '$lib/components/common/Icon.svelte';
+	import Logo from '$lib/components/common/Logo.svelte';
 	import ThemeToggle from '$lib/components/layout/ThemeToggle.svelte';
 	import AuthMenu from '$lib/components/layout/AuthMenu.svelte';
 	import NavDrawer from '$lib/components/layout/NavDrawer.svelte';
@@ -30,7 +29,7 @@
 			<NavDrawer tree={nav.tree} />
 		{/if}
 		<a href="/" class="flex items-center gap-2 font-semibold">
-			<Icon icon={LayoutDashboard} class="text-primary" size={18} />
+			<Logo size={22} />
 			{APP_NAME}
 		</a>
 		<form class="ml-auto w-full max-w-xs" onsubmit={submit}>

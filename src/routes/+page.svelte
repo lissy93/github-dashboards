@@ -13,7 +13,7 @@
 <HomeMeta />
 <Hero />
 
-<section aria-label="Get started" class="mx-auto grid max-w-4xl gap-4 md:grid-cols-2">
+<section aria-label="Get started" class="mx-auto grid max-w-5xl gap-4 md:grid-cols-2">
 	{#if showLogin}
 		<LoginPanel user={data.user} />
 		<JumpBox />

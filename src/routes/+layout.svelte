@@ -1,7 +1,6 @@
 <script lang="ts">
 	import './layout.css';
 	import { TriangleAlert } from '@lucide/svelte';
-	import favicon from '$lib/assets/favicon.svg';
 	import TopBar from '$lib/components/layout/TopBar.svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import PanelStatusReport from '$lib/components/common/PanelStatusReport.svelte';
@@ -14,7 +13,7 @@
 	provideNavTree();
 </script>
 
-<svelte:head><link rel="icon" href={favicon} /></svelte:head>
+<svelte:head><link rel="icon" href="/logo.svg" type="image/svg+xml" /></svelte:head>
 
 <a
 	href="#main"

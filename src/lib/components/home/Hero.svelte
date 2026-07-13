@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { ChartColumn, LayoutDashboard, ListTodo, TrendingUp, Workflow } from '@lucide/svelte';
+	import { ChartColumn, ListTodo, TrendingUp, Workflow } from '@lucide/svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import Icon from '$lib/components/common/Icon.svelte';
+	import Logo from '$lib/components/common/Logo.svelte';
 	import { APP_NAME, APP_DESCRIPTION } from '$lib/config';
 
 	// Feature hints shown as chips under the tagline
@@ -27,7 +28,7 @@
 	<h1
 		class="flex items-center justify-center gap-3 text-4xl font-semibold tracking-tight sm:text-5xl"
 	>
-		<Icon icon={LayoutDashboard} size={40} class="text-primary" />{APP_NAME}
+		<Logo size={64} />{APP_NAME}
 	</h1>
 	<p class="text-muted-foreground mx-auto max-w-xl text-lg text-balance">{APP_DESCRIPTION}</p>
 

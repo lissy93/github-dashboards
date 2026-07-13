@@ -6,7 +6,9 @@
 	import Icon from '$lib/components/common/Icon.svelte';
 	import GithubMark from '$lib/components/common/GithubMark.svelte';
 	import UserAvatar from '$lib/components/common/UserAvatar.svelte';
+	import { iconFor } from '$lib/components/layout/nav';
 	import { paths } from '$lib/config';
+	import { findPage, pageHref, USER_PAGES } from '$lib/config/pages';
 	import { cn } from '$lib/utils';
 	import type { SessionUser } from '$lib/types';
 
@@ -19,6 +21,18 @@
 		'Monitor your repo health and metrics',
 		'Higher API rate limits'
 	];
+
+	// Quick links to the signed-in user's own pages, order tuned for the welcome card
+	const USER_PILL_SLUGS = ['stats', 'analytics', 'repos', 'activity', 'tasks'];
+	const pills = $derived(
+		user
+			? USER_PILL_SLUGS.map((slug) => ({
+					href: pageHref(paths.user(user.login), slug),
+					label: findPage(USER_PAGES, slug)?.label ?? slug,
+					icon: iconFor('user', slug)
+				}))
+			: []
+	);
 </script>
 
 <Card.Root class={cn('gap-4', className)}>
@@ -27,7 +41,7 @@
 			<h2 class="text-base leading-normal font-medium">Welcome back</h2>
 			<Card.Description>Pick up where you left off</Card.Description>
 		</Card.Header>
-		<Card.Content class="flex h-full flex-col justify-between gap-4">
+		<Card.Content class="flex h-full flex-col gap-4">
 			<div class="flex items-center gap-3 dark:bg-input/30 border-input rounded p-4">
 				<UserAvatar login={user.login} src={user.avatarUrl} size="lg" />
 				<div class="min-w-0">
@@ -35,7 +49,19 @@
 					<p class="text-muted-foreground truncate text-xs">@{user.login}</p>
 				</div>
 			</div>
-			<Button href={paths.user(user.login)} class="h-10 w-full">
+
+			<div class="text-muted-foreground flex flex-wrap gap-2 text-xs">
+				{#each pills as pill (pill.href)}
+					<a
+						href={pill.href}
+						class="hover:border-ring hover:text-foreground inline-flex items-center gap-1.5 rounded-md border px-2 py-1 transition-colors"
+					>
+						{#if pill.icon}<Icon icon={pill.icon} size={13} />{/if}{pill.label}
+					</a>
+				{/each}
+			</div>
+
+			<Button href={paths.user(user.login)} class="mt-auto h-10 w-full">
 				Open your board<Icon icon={ArrowRight} />
 			</Button>
 		</Card.Content>
