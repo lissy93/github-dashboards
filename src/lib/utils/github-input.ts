@@ -1,5 +1,5 @@
-import { paths } from '$lib/config';
-import { findPage, pageHref, REPO_PAGES, USER_PAGES } from '$lib/config/pages';
+import { GITHUB_WEB, paths } from '$lib/config';
+import { findPage, pageHref, REPO_PAGES, USER_PAGES, type PageDef } from '$lib/config/pages';
 
 // GitHub login: 1-39 chars, alphanumeric with non-repeating, non-edge hyphens
 export const LOGIN_RE = /^[a-zA-Z\d](?:[a-zA-Z\d]|-(?=[a-zA-Z\d])){0,38}$/;
@@ -121,6 +121,61 @@ const REPO_QUICK_SLUGS = [
 	['info', 'security'],
 	['info', 'stats']
 ];
+
+// A palette entry, children carry their section label for the crumb
+export type PaletteLink = QuickLink & { parent?: string; external?: boolean };
+
+// One palette group, scope picks the icon set
+export type PaletteSection = { heading: string; scope: 'user' | 'repo'; links: PaletteLink[] };
+
+// Flatten a page tree into links, sections before children, gated pages owner-only
+function scopeLinks(pages: PageDef[], base: string, isOwner: boolean): PaletteLink[] {
+	const allowed = (page: PageDef) => page.gate !== 'owner' || isOwner;
+	return pages.filter(allowed).flatMap((page) => [
+		{ label: page.label, href: pageHref(base, page.slug), slugs: [page.slug] },
+		...(page.children ?? []).filter(allowed).map((child) => ({
+			label: child.label,
+			parent: page.label,
+			href: pageHref(base, page.slug, child.slug),
+			slugs: [page.slug, child.slug]
+		}))
+	]);
+}
+
+// Outbound link to the matching github.com page
+const githubLink = (path: string): PaletteLink => ({
+	label: path,
+	href: `${GITHUB_WEB}/${path}`,
+	slugs: [],
+	external: true
+});
+
+// Palette groups for a target: every page in its scope with the parsed page first,
+// then the owner's pages for repos, then the matching github.com links
+export function paletteSections(target: JumpTarget, viewer?: string | null): PaletteSection[] {
+	const { owner, repo } = target;
+	const isOwner = !!viewer && viewer.toLowerCase() === owner.toLowerCase();
+	const ownerSection: PaletteSection = {
+		heading: owner,
+		scope: 'user',
+		links: scopeLinks(USER_PAGES, paths.user(owner), isOwner)
+	};
+	if (!repo) {
+		return [ownerSection, { heading: 'GitHub', scope: 'user', links: [githubLink(owner)] }];
+	}
+	const links = scopeLinks(REPO_PAGES, paths.repo(owner, repo), isOwner);
+	const primary = links.findIndex((link) => link.href === target.href);
+	if (primary > 0) links.unshift(...links.splice(primary, 1));
+	return [
+		{ heading: `${owner}/${repo}`, scope: 'repo', links },
+		ownerSection,
+		{
+			heading: 'GitHub',
+			scope: 'repo',
+			links: [githubLink(`${owner}/${repo}`), githubLink(owner)]
+		}
+	];
+}
 
 // Handy pages for a parsed target, labels stay in sync with the page registry
 export function quickLinks({ owner, repo }: JumpTarget): QuickLink[] {

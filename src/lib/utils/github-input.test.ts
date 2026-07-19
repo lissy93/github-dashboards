@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseGithubInput, quickLinks } from './github-input';
+import { paletteSections, parseGithubInput, quickLinks } from './github-input';
 
 describe('parseGithubInput', () => {
 	it('takes bare logins in any casing', () => {
@@ -133,5 +133,70 @@ describe('quickLinks', () => {
 	it('labels links from the page registry', () => {
 		const labels = quickLinks(parseGithubInput('sveltejs/svelte')!).map((link) => link.label);
 		expect(labels).toEqual(['Tasks', 'Supply chain', 'CI/CD', 'Security', 'Stats']);
+	});
+});
+
+describe('paletteSections', () => {
+	it('lists every repo page, then the owner pages, then github links', () => {
+		const [repo, owner, github] = paletteSections(parseGithubInput('sveltejs/svelte')!);
+		expect(repo.heading).toBe('sveltejs/svelte');
+		expect(repo.links[0]).toEqual({ label: 'Overview', href: '/sveltejs/svelte', slugs: [''] });
+		expect(repo.links.map((link) => link.href)).toContain('/sveltejs/svelte/code/supply-chain');
+		expect(repo.links.map((link) => link.href)).toContain('/sveltejs/svelte/ops');
+		expect(repo.links).toHaveLength(18);
+		expect(owner.heading).toBe('sveltejs');
+		expect(owner.links.map((link) => link.href)).toEqual([
+			'/sveltejs',
+			'/sveltejs/repos',
+			'/sveltejs/stats',
+			'/sveltejs/activity'
+		]);
+		expect(github.heading).toBe('GitHub');
+		expect(github.links.map((link) => link.href)).toEqual([
+			'https://github.com/sveltejs/svelte',
+			'https://github.com/sveltejs'
+		]);
+		expect(github.links.every((link) => link.external)).toBe(true);
+	});
+
+	it('appends a github link to user targets', () => {
+		const sections = paletteSections(parseGithubInput('torvalds')!);
+		expect(sections.map((section) => section.heading)).toEqual(['torvalds', 'GitHub']);
+		expect(sections[1].links).toEqual([
+			{ label: 'torvalds', href: 'https://github.com/torvalds', slugs: [], external: true }
+		]);
+	});
+
+	it('moves a parsed repo page to the front', () => {
+		const [repo] = paletteSections(parseGithubInput('github.com/sveltejs/svelte/actions')!);
+		expect(repo.links[0].href).toBe('/sveltejs/svelte/ops/workflows');
+		expect(repo.links[1].href).toBe('/sveltejs/svelte');
+	});
+
+	it('labels children with their section for the crumb', () => {
+		const [repo] = paletteSections(parseGithubInput('sveltejs/svelte')!);
+		const files = repo.links.find((link) => link.href === '/sveltejs/svelte/code/files');
+		expect(files).toMatchObject({ label: 'Files', parent: 'Code' });
+	});
+
+	it('hides gated pages from other viewers', () => {
+		const hrefs = (viewer?: string) =>
+			paletteSections(parseGithubInput('torvalds')!, viewer)[0].links.map((link) => link.href);
+		expect(hrefs()).toEqual([
+			'/torvalds',
+			'/torvalds/repos',
+			'/torvalds/stats',
+			'/torvalds/activity'
+		]);
+		expect(hrefs('Torvalds')).toContain('/torvalds/analytics');
+		expect(hrefs('Torvalds')).toContain('/torvalds/tasks/prs-review');
+		expect(hrefs('someone-else')).not.toContain('/torvalds/tasks');
+	});
+
+	it('gates repo traffic to the repo owner', () => {
+		const hrefs = (viewer?: string) =>
+			paletteSections(parseGithubInput('lissy93/dashy')!, viewer)[0].links.map((link) => link.href);
+		expect(hrefs('lissy93')).toContain('/lissy93/dashy/info/traffic');
+		expect(hrefs()).not.toContain('/lissy93/dashy/info/traffic');
 	});
 });

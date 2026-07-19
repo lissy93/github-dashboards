@@ -81,3 +81,6 @@ export type UserSocial = {
 
 // One recent stargazer, with the repo and time they starred for context
 export type RecentStar = { login: string; avatarUrl: string; repo: string; starredAt: string };
+
+// A most-starred repo, just enough for palette suggestions
+export type TopRepo = { name: string; stars: number };
