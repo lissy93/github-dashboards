@@ -1,7 +1,14 @@
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vitest/config';
-import adapter from '@sveltejs/adapter-node';
+import adapterNode from '@sveltejs/adapter-node';
+import adapterVercel from '@sveltejs/adapter-vercel';
 import { sveltekit } from '@sveltejs/kit/vite';
+
+// Vercel sets VERCEL during its build; use its serverless adapter there and the
+// Node adapter everywhere else (Docker, CI, local) so `node build` keeps working.
+const adapter = process.env.VERCEL
+	? adapterVercel({ maxDuration: 30 })
+	: adapterNode();
 
 export default defineConfig({
 	server: { port: 5273 },
@@ -13,7 +20,7 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			adapter: adapter(),
+			adapter,
 			typescript: {
 				config: (config) => ({
 					...config,
