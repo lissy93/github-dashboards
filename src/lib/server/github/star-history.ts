@@ -196,14 +196,12 @@ async function backfillRepo(repo: Repo): Promise<boolean> {
 	const cacheKey = `star-backfill-state:v3:${repoKey}`;
 	const stored = await readCached<BackfillState>(cacheKey).catch(() => null);
 	if (stored && Date.now() - stored.fetchedAt.getTime() < BACKFILL_TTL * 1000) {
-		// A restricted verdict only reflects the token that fetched it, so a viewer who may
-		// be admin gets to retry while a clean verdict short-circuits for everyone
+		// A restricted verdict only reflects the token that fetched it, let a viewer retry
 		if (!stored.value.restricted || usingAppToken()) return stored.value.restricted;
 	}
 
 	let walk = await walkCurve(repo);
-	// A gated list comes back empty after one cheap page, so retry once on the app
-	// token, which may be admin where the viewer is not
+	// A gated walk costs a page or two, so retry on the app token which may be admin here
 	if (walk.responded && looksRestricted(walk.total, walk.points.length) && !usingAppToken()) {
 		walk = await withAppToken(() => walkCurve(repo));
 	}

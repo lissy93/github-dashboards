@@ -1,3 +1,4 @@
+import { untrack } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
 import { fetchApi } from '$lib/state/api';
 import { usePanelStatus, type PanelStatusStore } from '$lib/state/panel-status.svelte';
@@ -20,10 +21,11 @@ type Options<T> = {
 // Live revalidations across the page, rolled into one freshness row in the status report
 const phases = new SvelteMap<symbol, Phase>();
 
-// Summarise every revalidating dataset on the page as a single status entry
+// Summarise every revalidating dataset on the page as one status entry. Runs inside
+// effects that also write the map, so the read must stay untracked or they loop
 function syncFreshness(status: PanelStatusStore | undefined): void {
 	if (!status) return;
-	const all = [...phases.values()];
+	const all = untrack(() => [...phases.values()]);
 	if (!all.length) return status.remove('freshness');
 	const refreshing = all.filter((phase) => phase === 'refreshing').length;
 	const stale = all.filter((phase) => phase === 'stale').length;

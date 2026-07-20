@@ -170,8 +170,15 @@ async function fetchBucket(
 	if (!queries.length) return { items: [], total: 0, capped: false };
 
 	const settled = await Promise.allSettled(queries.map(searchAll));
+	const failed = settled.filter(
+		(result): result is PromiseRejectedResult => result.status === 'rejected'
+	);
+	// Every source failing is a fetch failure, not an empty list, so it must not cache
+	if (failed.length === settled.length) throw failed[0].reason;
+
 	const byId = new Map<string, TaskItem>();
-	let capped = false;
+	// A failed source means items may be missing, flag the list as incomplete
+	let capped = failed.length > 0;
 	for (const result of settled) {
 		if (result.status === 'rejected') {
 			logError('task-search', result.reason);

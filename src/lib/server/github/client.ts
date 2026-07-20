@@ -64,20 +64,21 @@ function codeFor(res: Response): ErrorCode {
 	return 'upstream';
 }
 
-// When GitHub last reported zero budget (unix ms reset) so the UI can warn, cleared
-// once the reset passes and keeping whichever of REST or GraphQL frees up latest
-let rateLimitResetAt: number | null = null;
+// Reset time (unix ms) per drained token, so each request sees the limit state of the
+// token it actually uses and one viewer's limit never flags anyone else
+const rateLimitResets = new Map<string, number>();
 
-// Whether GitHub is currently rate limiting us, and when it frees up
+// Whether GitHub is rate limiting the current request's token, and when it frees up
 export function getRateLimitState(): { limited: boolean; resetAt: number | null } {
-	if (rateLimitResetAt !== null && Date.now() >= rateLimitResetAt) rateLimitResetAt = null;
-	return { limited: rateLimitResetAt !== null, resetAt: rateLimitResetAt };
+	const token = activeToken();
+	const until = rateLimitResets.get(token);
+	if (until !== undefined && Date.now() >= until) rateLimitResets.delete(token);
+	const resetAt = rateLimitResets.get(token) ?? null;
+	return { limited: resetAt !== null, resetAt };
 }
 
-// Remember when the limit frees up so the UI can warn. Only the shared token drives the
-// app-wide flag, a signed-in viewer draining their own budget affects nobody else
+// Remember when the current token's limit frees up, so the UI can warn
 function noteRateLimited(res: Response): void {
-	if (tokenSource() === 'viewer') return;
 	const retryAfter = Number(res.headers.get('retry-after'));
 	const reset = Number(res.headers.get('x-ratelimit-reset'));
 	// retry-after is relative seconds, reset is unix seconds, fall back to a minute out
@@ -87,7 +88,9 @@ function noteRateLimited(res: Response): void {
 			: reset > 0
 				? reset * 1000
 				: Date.now() + 60_000;
-	rateLimitResetAt = Math.max(rateLimitResetAt ?? 0, until);
+	const token = activeToken();
+	rateLimitResets.set(token, Math.max(rateLimitResets.get(token) ?? 0, until));
+	for (const [key, value] of rateLimitResets) if (Date.now() >= value) rateLimitResets.delete(key);
 }
 
 // Log remaining budget and remember the reset once it hits zero
@@ -181,8 +184,7 @@ export async function graphql<T>(
 		const message = body.errors.map((error) => error.message).join('; ');
 		const rateLimited =
 			types.has('RATE_LIMITED') || body.errors.some((error) => /rate limit/i.test(error.message));
-		// The points budget and secondary limits drain without the remaining header ever
-		// hitting zero, so flag them here too
+		// Points and secondary limits drain without the remaining header ever hitting zero
 		if (rateLimited) noteRateLimited(res);
 		const code = types.has('NOT_FOUND')
 			? 'not_found'

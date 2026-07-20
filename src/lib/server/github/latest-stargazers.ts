@@ -69,8 +69,7 @@ async function fetchNewest(repo: Repo): Promise<StarEdge[]> {
 async function newestForRepo(repo: Repo): Promise<RecentStar[] | null> {
 	try {
 		let edges = await fetchNewest(repo);
-		// An empty list on a starred repo is the admin-only gate, the app token may be
-		// admin where the viewer is not
+		// An empty list on a starred repo is the admin gate, the app token may be admin here
 		if (looksRestricted(repo.stars, edges.length) && !usingAppToken()) {
 			edges = await withAppToken(() => fetchNewest(repo));
 		}

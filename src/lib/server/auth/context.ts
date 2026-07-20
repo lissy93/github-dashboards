@@ -18,8 +18,7 @@ export function activeToken(): string {
 	return storage.getStore() ?? config.GITHUB_TOKEN;
 }
 
-// Whether the request is already on the shared token, so admin-gated fetches know a
-// retry under it would change nothing
+// Whether the current request is already on the shared app token
 export function usingAppToken(): boolean {
 	return activeToken() === config.GITHUB_TOKEN;
 }
