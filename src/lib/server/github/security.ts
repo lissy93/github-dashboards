@@ -10,11 +10,15 @@ import type {
 	Vulnerability,
 	VulnSeverity
 } from '$lib/types';
-import { graphql, rest, restResponse, type AuthMode } from '$lib/server/github/client';
+import { sql } from 'drizzle-orm';
+import { graphql, rest, restResponse } from '$lib/server/github/client';
+import { withAppToken } from '$lib/server/auth/context';
 import { cached, isCached } from '$lib/server/cache';
+import { db } from '$lib/server/db';
+import { repoSecurityDaily } from '$lib/server/db/schema';
 import { formatDateTime, plural } from '$lib/utils/format';
 import { fetchVulns, severityOf } from '$lib/server/github/supply-chain';
-import { AppError, logError } from '$lib/utils/errors';
+import { AppError, isConnectionError, logError } from '$lib/utils/errors';
 
 // Security posture moves slowly, refresh on visit like the rest of the board
 const TTL = 900;
@@ -367,14 +371,14 @@ async function guarded(label: string, read: () => Promise<CheckStatus>): Promise
 	}
 }
 
-// Admin-gated probes pass 'app' to keep the shared cache viewer-independent
-const probe = (path: string, evaluate: (data: unknown) => CheckStatus, auth?: AuthMode) =>
-	guarded(path, async () => evaluate(await rest(path, undefined, auth)));
+// Fetch a check endpoint and grade its response, treating a handled failure as na
+const probe = (path: string, evaluate: (data: unknown) => CheckStatus) =>
+	guarded(path, async () => evaluate(await rest(path)));
 
 // The alerts toggle answers 204 when on, 404 when off and 403 without admin access
 const probeAlertsEnabled = (base: string) =>
 	guarded('vulnerability-alerts', async () => {
-		const res = await restResponse(`${base}/vulnerability-alerts`, undefined, 'app');
+		const res = await restResponse(`${base}/vulnerability-alerts`);
 		await res?.body?.cancel();
 		return res ? 'pass' : 'warn';
 	});
@@ -477,14 +481,10 @@ async function fetchSecurity(owner: string, name: string): Promise<RepoSecurity>
 			Array.isArray(data) && data.length ? 'pass' : 'warn'
 		),
 		// security_and_analysis only appears on the repo object for admins
-		probe(
-			base,
-			(data) => {
-				const scanning = (data as RawRepoSettings | null)?.security_and_analysis?.secret_scanning;
-				return scanning ? (scanning.status === 'enabled' ? 'pass' : 'warn') : 'na';
-			},
-			'app'
-		),
+		probe(base, (data) => {
+			const scanning = (data as RawRepoSettings | null)?.security_and_analysis?.secret_scanning;
+			return scanning ? (scanning.status === 'enabled' ? 'pass' : 'warn') : 'na';
+		}),
 		probeAlertsEnabled(base),
 		// A 404 here means a private repo where the feature does not exist, not disabled
 		probe(`${base}/private-vulnerability-reporting`, (data) =>
@@ -527,20 +527,59 @@ async function fetchSecurity(owner: string, name: string): Promise<RepoSecurity>
 		dependabotAlerts,
 		privateVulnReporting
 	});
+	const finalGrade = grade(checks, alerts);
+	await snapshotSecurity(
+		`${owner}/${name}`,
+		finalGrade.score,
+		finalGrade.letter,
+		alerts?.total ?? 0
+	);
 	return {
 		checks,
 		...tally(checks),
-		grade: grade(checks, alerts),
+		grade: finalGrade,
 		alerts,
 		advisories: advisories ?? []
 	};
+}
+
+// Record today's security grade and open vulnerability count so the trend can be shown later
+async function snapshotSecurity(
+	repo: string,
+	score: number,
+	letter: string,
+	vulns: number
+): Promise<void> {
+	try {
+		await db
+			.insert(repoSecurityDaily)
+			.values({
+				repo: repo.toLowerCase(),
+				day: new Date().toISOString().slice(0, 10),
+				score,
+				letter,
+				vulns
+			})
+			.onConflictDoUpdate({
+				target: [repoSecurityDaily.repo, repoSecurityDaily.day],
+				set: {
+					score: sql`excluded.score`,
+					letter: sql`excluded.letter`,
+					vulns: sql`excluded.vulns`
+				}
+			});
+	} catch (error) {
+		if (!isConnectionError(error)) throw error;
+		logError('security-snapshot', error);
+	}
 }
 
 const key = (owner: string, name: string) => `repo:security:v5:${owner}/${name}`.toLowerCase();
 
 export const isRepoSecurityCached = (owner: string, name: string) => isCached(key(owner, name));
 
-// Security checks for a repo, computed from public GitHub signals
+// Most probes read maintainer-only settings, so fetch under the app token to keep this
+// shared-cached result the same for every viewer rather than leaking one owner's setup
 export function getRepoSecurity(owner: string, name: string): Promise<RepoSecurity> {
-	return cached(key(owner, name), () => fetchSecurity(owner, name), TTL);
+	return cached(key(owner, name), () => withAppToken(() => fetchSecurity(owner, name)), TTL);
 }

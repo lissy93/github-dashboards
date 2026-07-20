@@ -3,8 +3,10 @@ import { inArray, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { repoStarsDaily } from '$lib/server/db/schema';
 import { graphql, looksRestricted } from '$lib/server/github/client';
+import { usingAppToken, withAppToken } from '$lib/server/auth/context';
 import { getUserOverview } from '$lib/server/github/user';
 import { getRepo } from '$lib/server/github/repo';
+import { preferTotals } from '$lib/server/github/stars';
 import { cached, isCached, readCached, writeCached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
 import { createLogger } from '$lib/utils/logger';
@@ -86,8 +88,10 @@ export function getRepoStarHistory(owner: string, name: string): Promise<RepoSta
 			if (!repo || repo.stars === 0)
 				return { days: [], stars: [], sampled: false, restricted: false };
 			const restricted = await backfillRepo(repo);
-			if (restricted) return { days: [], stars: [], sampled: false, restricted: true };
 			const rows = await readRows([repo.nameWithOwner]);
+			// History stored by an earlier allowed walk beats hiding it behind the gate
+			if (restricted && !rows.length)
+				return { days: [], stars: [], sampled: false, restricted: true };
 			const breakdown = buildBreakdown(rows, [repo], 1);
 			return {
 				days: breakdown.days,
@@ -127,11 +131,12 @@ async function fetchStarPage(
 	direction: Direction,
 	cursor: string | null
 ): Promise<StarConn | null> {
-	const data = await graphql<{ repository: { stargazers: StarConn } | null }>(
-		STAR_QUERY,
-		{ owner: repo.owner, name: repo.name, cursor, direction },
-		'app'
-	);
+	const data = await graphql<{ repository: { stargazers: StarConn } | null }>(STAR_QUERY, {
+		owner: repo.owner,
+		name: repo.name,
+		cursor,
+		direction
+	});
 	return data.repository?.stargazers ?? null;
 }
 
@@ -159,46 +164,61 @@ async function walkStars(
 	return { days, total, responded };
 }
 
+// One walk of the stargazer list under the current token. Small repos are read whole
+// for per-star detail; larger repos read both ends and interpolate the middle
+async function walkCurve(repo: Repo): Promise<{
+	points: Point[];
+	total: number;
+	responded: boolean;
+}> {
+	const lastPage = Math.max(1, Math.ceil(repo.stars / PER_PAGE));
+	if (isFullWalk(lastPage)) {
+		const { days, total, responded } = await walkStars(repo, 'ASC', lastPage);
+		return { points: curvePoints(days, [], total), total, responded };
+	}
+	const budget = pageBudget(lastPage);
+	const [oldest, newest] = await Promise.all([
+		walkStars(repo, 'ASC', budget),
+		walkStars(repo, 'DESC', budget)
+	]);
+	const total = newest.responded ? newest.total : oldest.total;
+	return {
+		points: curvePoints(oldest.days, newest.days, total),
+		total,
+		responded: oldest.responded || newest.responded
+	};
+}
+
 // Reconstruct and store a repo's star curve, returning true when GitHub's admin-only
-// restriction leaves a starred repo with no visible stargazers. Small repos are read
-// whole for per-star detail; larger repos read both ends and interpolate the middle
+// restriction leaves a starred repo with no visible stargazers
 async function backfillRepo(repo: Repo): Promise<boolean> {
 	const repoKey = repo.nameWithOwner.toLowerCase();
 	const cacheKey = `star-backfill-state:v3:${repoKey}`;
 	const stored = await readCached<BackfillState>(cacheKey).catch(() => null);
-	if (stored && Date.now() - stored.fetchedAt.getTime() < BACKFILL_TTL * 1000)
-		return stored.value.restricted;
+	if (stored && Date.now() - stored.fetchedAt.getTime() < BACKFILL_TTL * 1000) {
+		// A restricted verdict only reflects the token that fetched it, so a viewer who may
+		// be admin gets to retry while a clean verdict short-circuits for everyone
+		if (!stored.value.restricted || usingAppToken()) return stored.value.restricted;
+	}
 
-	const lastPage = Math.max(1, Math.ceil(repo.stars / PER_PAGE));
-	let points: Point[];
-	let total: number;
-	let responded: boolean;
-	if (isFullWalk(lastPage)) {
-		const walk = await walkStars(repo, 'ASC', lastPage);
-		({ total, responded } = walk);
-		points = curvePoints(walk.days, [], total);
-	} else {
-		const budget = pageBudget(lastPage);
-		const [oldest, newest] = await Promise.all([
-			walkStars(repo, 'ASC', budget),
-			walkStars(repo, 'DESC', budget)
-		]);
-		total = newest.responded ? newest.total : oldest.total;
-		responded = oldest.responded || newest.responded;
-		points = curvePoints(oldest.days, newest.days, total);
+	let walk = await walkCurve(repo);
+	// A gated list comes back empty after one cheap page, so retry once on the app
+	// token, which may be admin where the viewer is not
+	if (walk.responded && looksRestricted(walk.total, walk.points.length) && !usingAppToken()) {
+		walk = await withAppToken(() => walkCurve(repo));
 	}
 
 	// No page coming back at all is a transient upstream miss, not a restriction; throw
 	// uncached so the next visit retries instead of pinning a false gate for hours
-	if (!responded)
+	if (!walk.responded)
 		throw new AppError('upstream', `No stargazer response for ${repo.nameWithOwner}`, {
 			expose: false
 		});
 
-	const restricted = looksRestricted(total, points.length);
-	if (points.length) {
-		points.push({ day: today(), stars: total });
-		await writePoints(repoKey, points);
+	const restricted = looksRestricted(walk.total, walk.points.length);
+	if (walk.points.length) {
+		walk.points.push({ day: today(), stars: walk.total });
+		await writePoints(repoKey, walk.points);
 	}
 	await writeCached(cacheKey, { restricted }, BACKFILL_TTL);
 	return restricted;
@@ -253,18 +273,19 @@ export function stride(points: Point[], target: number): Point[] {
 const dayOf = (iso: string) => iso.slice(0, 10);
 const today = () => dayOf(new Date().toISOString());
 
-// Store the curve, keeping the highest count per day so re-runs only grow it
+// Store the interpolated curve, highest count per day wins so re-runs only grow it. source
+// 'curve' keeps it from ever overwriting a genuine daily total in the same rows
 async function writePoints(repo: string, points: Point[]): Promise<void> {
 	const byDay = new Map<string, number>();
 	for (const point of points)
 		byDay.set(point.day, Math.max(byDay.get(point.day) ?? 0, point.stars));
 	if (!byDay.size) return;
-	const rows = [...byDay].map(([day, stars]) => ({ repo, day, stars }));
+	const rows = [...byDay].map(([day, stars]) => ({ repo, day, stars, source: 'curve' }));
 	await db
 		.insert(repoStarsDaily)
 		.values(rows)
 		.onConflictDoUpdate({
-			target: [repoStarsDaily.repo, repoStarsDaily.day],
+			target: [repoStarsDaily.repo, repoStarsDaily.day, repoStarsDaily.source],
 			set: { stars: sql`excluded.stars` }
 		});
 }
@@ -272,11 +293,19 @@ async function writePoints(repo: string, points: Point[]): Promise<void> {
 async function readRows(names: string[]): Promise<DayStars[]> {
 	if (!names.length) return [];
 	const keys = names.map((name) => name.toLowerCase());
-	return db
-		.select({ repo: repoStarsDaily.repo, day: repoStarsDaily.day, stars: repoStarsDaily.stars })
+	const rows = await db
+		.select({
+			repo: repoStarsDaily.repo,
+			day: repoStarsDaily.day,
+			stars: repoStarsDaily.stars,
+			source: repoStarsDaily.source
+		})
 		.from(repoStarsDaily)
-		.where(inArray(repoStarsDaily.repo, keys))
-		.orderBy(repoStarsDaily.day);
+		.where(inArray(repoStarsDaily.repo, keys));
+	// One point per repo+day, genuine totals winning over interpolated curve points
+	return preferTotals(rows)
+		.map(({ repo, day, stars }) => ({ repo, day, stars }))
+		.sort((first, second) => first.day.localeCompare(second.day));
 }
 
 type RepoMeta = { nameWithOwner: string; name: string; stars: number };

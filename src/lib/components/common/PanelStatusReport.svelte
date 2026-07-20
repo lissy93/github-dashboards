@@ -4,6 +4,7 @@
 	import {
 		ChevronRight,
 		CircleCheck,
+		Clock,
 		Hourglass,
 		LoaderCircle,
 		Inbox,
@@ -12,7 +13,9 @@
 		Lock,
 		LogIn,
 		Gauge,
+		RefreshCw,
 		SearchX,
+		Sparkles,
 		CloudOff,
 		TriangleAlert
 	} from '@lucide/svelte';
@@ -26,7 +29,10 @@
 
 	const CAUSE_ICONS: Record<StatusCause, IconComponent> = {
 		ok: CircleCheck,
+		fresh: Sparkles,
 		loading: LoaderCircle,
+		refreshing: RefreshCw,
+		stale: Clock,
 		empty: Inbox,
 		low_data: ChartColumnIncreasing,
 		partial: Info,
@@ -88,7 +94,9 @@
 		<Icon
 			icon={CAUSE_ICONS[report.cause]}
 			size={14}
-			class="{color} shrink-0 {report.cause === 'loading' ? 'animate-spin' : ''}"
+			class="{color} shrink-0 {report.cause === 'loading' || report.cause === 'refreshing'
+				? 'animate-spin'
+				: ''}"
 		/>
 		<Hint text={tip} class="{color} shrink-0">{meta.label}</Hint>
 		<span class="text-foreground shrink-0 font-medium">{report.title}</span>

@@ -56,7 +56,9 @@
 	import { iconFor } from '$lib/components/layout/nav';
 	import { restrictedGate } from '$lib/config/status';
 	import { progressiveTimeline } from '$lib/state/progressive.svelte';
+	import { revalidatingResult } from '$lib/state/revalidate.svelte';
 	import { formatBytes, formatDuration } from '$lib/utils/format';
+	import type { LoadResult } from '$lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -65,6 +67,19 @@
 
 	// Signed-in viewers deepen the timeline progressively
 	const timeline = progressiveTimeline(() => data);
+
+	// Freshen the SSR preview panels on land for a signed-in viewer
+	const repoBase = () => `/api/${data.user}/${data.repo.name}`;
+	const enabled = () => !!data.viewerLogin;
+	const revalidate = <T,>(path: string, initial: () => LoadResult<T> | Promise<LoadResult<T>>) =>
+		revalidatingResult({ url: () => `${repoBase()}/${path}?fresh=1`, initial, enabled });
+	const issues = revalidate('issues', () => data.issues);
+	const prs = revalidate('prs', () => data.prs);
+	const stars = revalidate('star-history', () => data.stars);
+	const workflows = revalidate('workflows', () => data.workflows);
+	const deployments = revalidate('deployments', () => data.deployments);
+	const pages = revalidate('pages', () => data.pages);
+	const releases = revalidate('releases', () => data.releases);
 	const preview = $derived(data.preview);
 	const section = (slug: string) => paths.repoSection(data.user, data.repo.name, slug);
 	const code = (slug: string) => paths.repoCodeSection(data.user, data.repo.name, slug);
@@ -126,7 +141,7 @@
 					title="Open issues"
 					icon={CircleDot}
 					href={section('tasks')}
-					result={data.issues}
+					result={issues.result}
 					count={(list) => list.total}
 					capped={(list) => list.capped}
 					empty={(list) => list.items.length === 0}
@@ -148,7 +163,7 @@
 					title="Open PRs"
 					icon={GitPullRequest}
 					href={section('tasks')}
-					result={data.prs}
+					result={prs.result}
 					count={(list) => list.total}
 					capped={(list) => list.capped}
 					empty={(list) => list.items.length === 0}
@@ -259,7 +274,7 @@
 				title="Workflows"
 				icon={Workflow}
 				href={ops('workflows')}
-				result={data.workflows}
+				result={workflows.result}
 				cause={(wf) => (wf.sampled ? 'partial' : undefined)}
 			>
 				{#snippet children(wf)}
@@ -282,7 +297,7 @@
 				title="Deployments"
 				icon={Rocket}
 				href={ops('deployments')}
-				result={data.deployments}
+				result={deployments.result}
 				cause={(d) => (d.sampled ? 'partial' : undefined)}
 			>
 				{#snippet children(d)}
@@ -303,7 +318,7 @@
 					</div>
 				{/snippet}
 			</AsyncPanel>
-			<AsyncPanel title="Pages" icon={Globe} href={ops('pages')} result={data.pages}>
+			<AsyncPanel title="Pages" icon={Globe} href={ops('pages')} result={pages.result}>
 				{#snippet children(p)}
 					{@const spark = pageBuildSpark(p)}
 					<div class="space-y-2">
@@ -328,7 +343,7 @@
 				title="Releases"
 				icon={Tag}
 				href={ops('releases')}
-				result={data.releases}
+				result={releases.result}
 				cause={(r) => (r.sampled ? 'partial' : undefined)}
 			>
 				{#snippet children(r)}
@@ -356,7 +371,7 @@
 				title="Star history"
 				icon={Star}
 				href={info('stats')}
-				result={data.stars}
+				result={stars.result}
 				empty={(history) => history.restricted || history.days.length === 0}
 				emptyText={(history) => (history.restricted ? starGate.text : 'No stars yet')}
 				emptyHint={(history) => (history.restricted ? starGate.hint : undefined)}

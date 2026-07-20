@@ -6,8 +6,22 @@
 	import AudiencePanels from '$lib/components/repo/AudiencePanels.svelte';
 	import type { PageData } from './$types';
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
+	import { revalidatingResult } from '$lib/state/revalidate.svelte';
 
 	let { data }: { data: PageData } = $props();
+
+	const base = () => `/api/${data.user}/${data.repo.name}`;
+	const enabled = () => !!data.viewerLogin;
+	const people = revalidatingResult({
+		url: () => `${base()}/contributors?fresh=1`,
+		initial: () => data.people,
+		enabled
+	});
+	const audience = revalidatingResult({
+		url: () => `${base()}/people?fresh=1`,
+		initial: () => data.audience,
+		enabled
+	});
 </script>
 
 <PageMeta
@@ -20,7 +34,7 @@
 		<AsyncPanel
 			title="Contributors"
 			icon={Users}
-			result={data.people}
+			result={people.result}
 			count={(people) => people.total}
 			capped={(people) => people.sampled}
 			empty={(people) => people.contributors.length === 0}
@@ -34,7 +48,7 @@
 		</AsyncPanel>
 	</div>
 
-	{#await data.audience}
+	{#await audience.result}
 		<div class="grid gap-5">
 			<Panel title="Stargazers" loading />
 			<Panel title="Forks" loading />

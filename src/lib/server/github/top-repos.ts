@@ -27,7 +27,7 @@ export function getTopRepos(login: string): Promise<TopRepo[]> {
 	return cached(
 		`user:top-repos:v1:${login.toLowerCase()}`,
 		async () => {
-			const data = await graphql<Result>(QUERY, { login }, 'app');
+			const data = await graphql<Result>(QUERY, { login });
 			const nodes = data.repositoryOwner?.repositories.nodes ?? [];
 			return nodes.map((node) => ({ name: node.name, stars: node.stargazerCount }));
 		},

@@ -4,10 +4,13 @@ export type StatusLevel = 'ok' | 'info' | 'loading' | 'warn' | 'error';
 // Why a panel is in its current state, the shared vocabulary every panel reports
 export type StatusCause =
 	| 'ok'
+	| 'fresh'
 	| 'loading'
+	| 'refreshing'
 	| 'empty'
 	| 'low_data'
 	| 'partial'
+	| 'stale'
 	| 'pending'
 	| 'forbidden'
 	| 'needs_auth'

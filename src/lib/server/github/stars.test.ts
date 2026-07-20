@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pickBaselines } from '$lib/server/github/stars';
+import { pickBaselines, preferTotals } from '$lib/server/github/stars';
 
 const rows = [
 	{ day: '2026-06-16', stars: 100 },
@@ -32,5 +32,32 @@ describe('pickBaselines', () => {
 	it('returns null for every window with no history', () => {
 		const out = pickBaselines([], '2026-06-16');
 		expect(out).toEqual({ 1: null, 7: null, 30: null, 90: null });
+	});
+});
+
+describe('preferTotals', () => {
+	it('lets a genuine total beat a curve point on the same day, in either order', () => {
+		const day = { repo: 'a/x', day: '2026-06-16' };
+		expect(
+			preferTotals([
+				{ ...day, stars: 90, source: 'curve' },
+				{ ...day, stars: 100, source: 'total' }
+			])
+		).toEqual([{ ...day, stars: 100, source: 'total' }]);
+		expect(
+			preferTotals([
+				{ ...day, stars: 100, source: 'total' },
+				{ ...day, stars: 90, source: 'curve' }
+			])
+		).toEqual([{ ...day, stars: 100, source: 'total' }]);
+	});
+
+	it('keeps rows for different repos or days separate', () => {
+		const rows = [
+			{ repo: 'a/x', day: '2026-06-16', stars: 10, source: 'curve' },
+			{ repo: 'a/y', day: '2026-06-16', stars: 20, source: 'curve' },
+			{ repo: 'a/x', day: '2026-06-17', stars: 11, source: 'curve' }
+		];
+		expect(preferTotals(rows)).toEqual(rows);
 	});
 });

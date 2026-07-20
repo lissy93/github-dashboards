@@ -7,6 +7,18 @@ import type { Repo } from '$lib/types';
 
 export type StarRow = { day: string; stars: number };
 export type StarBaselines = Record<string, number | null>;
+export type StarSnapshot = { repo: string; day: string; stars: number; source: string };
+
+// Collapse to one value per repo+day, preferring a genuine total over an interpolated point
+export function preferTotals(rows: StarSnapshot[]): StarSnapshot[] {
+	const byKey = new Map<string, StarSnapshot>();
+	for (const row of rows) {
+		const key = `${row.repo}|${row.day}`;
+		const current = byKey.get(key);
+		if (!current || (row.source === 'total' && current.source !== 'total')) byKey.set(key, row);
+	}
+	return [...byKey.values()];
+}
 
 const MAX_WINDOW = Math.max(...STAR_WINDOWS);
 
@@ -15,20 +27,21 @@ function dayString(offset = 0): string {
 	return new Date(Date.now() - offset * 86400000).toISOString().slice(0, 10);
 }
 
-// Store today's star count per repo so deltas can be derived later
+// Store today's genuine star count per repo so deltas can be derived later
 export async function snapshotStars(repos: Repo[]): Promise<void> {
 	if (!repos.length) return;
 	const day = dayString();
 	const rows = repos.map((repo) => ({
 		repo: repo.nameWithOwner.toLowerCase(),
 		day,
-		stars: repo.stars
+		stars: repo.stars,
+		source: 'total'
 	}));
 	await db
 		.insert(repoStarsDaily)
 		.values(rows)
 		.onConflictDoUpdate({
-			target: [repoStarsDaily.repo, repoStarsDaily.day],
+			target: [repoStarsDaily.repo, repoStarsDaily.day, repoStarsDaily.source],
 			set: { stars: sql`excluded.stars` }
 		});
 }
@@ -59,7 +72,12 @@ export async function getStarBaselines(names: string[]): Promise<Record<string, 
 	if (!names.length) return {};
 	const byKey = new Map(names.map((name) => [name.toLowerCase(), name]));
 	const rows = await db
-		.select({ repo: repoStarsDaily.repo, day: repoStarsDaily.day, stars: repoStarsDaily.stars })
+		.select({
+			repo: repoStarsDaily.repo,
+			day: repoStarsDaily.day,
+			stars: repoStarsDaily.stars,
+			source: repoStarsDaily.source
+		})
 		.from(repoStarsDaily)
 		.where(
 			and(
@@ -69,7 +87,7 @@ export async function getStarBaselines(names: string[]): Promise<Record<string, 
 		);
 
 	const grouped = new Map<string, StarRow[]>();
-	for (const row of rows) {
+	for (const row of preferTotals(rows)) {
 		const list = grouped.get(row.repo) ?? [];
 		list.push({ day: row.day, stars: row.stars });
 		grouped.set(row.repo, list);

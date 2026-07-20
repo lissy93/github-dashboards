@@ -11,8 +11,15 @@
 	import { ecosystemStats } from '$lib/views/supply-chain';
 	import type { PageData } from './$types';
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
+	import { revalidatingResult } from '$lib/state/revalidate.svelte';
 
 	let { data }: { data: PageData } = $props();
+
+	const supplyChain = revalidatingResult({
+		url: () => `/api/${data.user}/${data.repo.name}/supply-chain?fresh=1`,
+		initial: () => data.supplyChain,
+		enabled: () => !!data.viewerLogin
+	});
 </script>
 
 <PageMeta
@@ -20,7 +27,7 @@
 	description={`Dependencies, licences and supply-chain risk for ${data.repo.nameWithOwner}`}
 />
 
-{#await data.supplyChain}
+{#await supplyChain.result}
 	<div class="space-y-5">
 		<Panel title="Dependencies" icon={Boxes} loading />
 		<Panel title="Licences" icon={Scale} loading />

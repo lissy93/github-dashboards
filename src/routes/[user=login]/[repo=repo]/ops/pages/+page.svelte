@@ -21,11 +21,18 @@
 	import { formatDateTime, formatDuration } from '$lib/utils/format';
 	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
+	import { revalidatingResult } from '$lib/state/revalidate.svelte';
 
 	const STEP = 10;
 
 	let { data }: { data: PageData } = $props();
 	let shown = $state(STEP);
+
+	const pages = revalidatingResult({
+		url: () => `/api/${data.user}/${data.repo.name}/pages?fresh=1`,
+		initial: () => data.pages,
+		enabled: () => !!data.viewerLogin
+	});
 
 	function tiles(p: RepoPages): Tile[] {
 		return [
@@ -69,7 +76,7 @@
 </svelte:head>
 
 <div class="space-y-5">
-	{#await data.pages}
+	{#await pages.result}
 		<Panel title="GitHub Pages" icon={Globe} loading />
 	{:then res}
 		{#if !res.ok}

@@ -1,5 +1,5 @@
 import { config } from '$lib/server/env';
-import { activeToken } from '$lib/server/auth/context';
+import { activeToken, tokenSource } from '$lib/server/auth/context';
 import { AppError, type ErrorCode } from '$lib/utils/errors';
 import { createLogger } from '$lib/utils/logger';
 
@@ -39,13 +39,10 @@ function release(): void {
 	else active--;
 }
 
-// 'app' pins the shared token, for fetches that feed the shared cache
-export type AuthMode = 'viewer' | 'app';
-
-// headers sent with every GitHub request, using the logged-in token when present.
-// With no token at all we send none, falling back to GitHub's anonymous rate limit
-function baseHeaders(auth: AuthMode): Record<string, string> {
-	const token = auth === 'app' ? config.GITHUB_TOKEN : activeToken();
+// headers for each GitHub request, using the viewer's token when signed in and the
+// shared app token otherwise, or none at all for a fully anonymous request
+function baseHeaders(): Record<string, string> {
+	const token = activeToken();
 	return {
 		...(token ? { Authorization: `Bearer ${token}` } : {}),
 		'User-Agent': 'goard',
@@ -67,9 +64,38 @@ function codeFor(res: Response): ErrorCode {
 	return 'upstream';
 }
 
+// When GitHub last reported zero budget (unix ms reset) so the UI can warn, cleared
+// once the reset passes and keeping whichever of REST or GraphQL frees up latest
+let rateLimitResetAt: number | null = null;
+
+// Whether GitHub is currently rate limiting us, and when it frees up
+export function getRateLimitState(): { limited: boolean; resetAt: number | null } {
+	if (rateLimitResetAt !== null && Date.now() >= rateLimitResetAt) rateLimitResetAt = null;
+	return { limited: rateLimitResetAt !== null, resetAt: rateLimitResetAt };
+}
+
+// Remember when the limit frees up so the UI can warn. Only the shared token drives the
+// app-wide flag, a signed-in viewer draining their own budget affects nobody else
+function noteRateLimited(res: Response): void {
+	if (tokenSource() === 'viewer') return;
+	const retryAfter = Number(res.headers.get('retry-after'));
+	const reset = Number(res.headers.get('x-ratelimit-reset'));
+	// retry-after is relative seconds, reset is unix seconds, fall back to a minute out
+	const until =
+		retryAfter > 0
+			? Date.now() + retryAfter * 1000
+			: reset > 0
+				? reset * 1000
+				: Date.now() + 60_000;
+	rateLimitResetAt = Math.max(rateLimitResetAt ?? 0, until);
+}
+
+// Log remaining budget and remember the reset once it hits zero
 function logRate(res: Response) {
 	const remaining = res.headers.get('x-ratelimit-remaining');
-	if (remaining !== null) log.debug(`rate limit remaining ${remaining}`);
+	if (remaining === null) return;
+	log.debug(`rate limit remaining ${remaining} (${tokenSource()} token)`);
+	if (remaining === '0') noteRateLimited(res);
 }
 
 // Rate-limit and reset context for a failed response, so a 502 is diagnosable
@@ -86,12 +112,7 @@ function context(res: Response): string {
 }
 
 // Fetch through the concurrency gate with auth and a timeout, retrying gateway failures
-async function call(
-	url: string,
-	init: RequestInit = {},
-	label = 'request',
-	auth: AuthMode = 'viewer'
-): Promise<Response> {
+async function call(url: string, init: RequestInit = {}, label = 'request'): Promise<Response> {
 	await acquire();
 	try {
 		let lastError: unknown;
@@ -99,7 +120,7 @@ async function call(
 			try {
 				const res = await fetch(url, {
 					...init,
-					headers: { ...baseHeaders(auth), ...init.headers },
+					headers: { ...baseHeaders(), ...init.headers },
 					signal: AbortSignal.timeout(TIMEOUT_MS)
 				});
 				if (RETRYABLE_STATUS.has(res.status) && attempt < MAX_ATTEMPTS) {
@@ -131,8 +152,7 @@ async function call(
 // Run a GraphQL query and return its typed data payload
 export async function graphql<T>(
 	query: string,
-	variables: Record<string, unknown> = {},
-	auth: AuthMode = 'viewer'
+	variables: Record<string, unknown> = {}
 ): Promise<T> {
 	// Name the operation so failures point at the query that failed, not just "GraphQL"
 	const label = query.match(/\b(?:query|mutation)\s+(\w+)/)?.[1] ?? 'GraphQL';
@@ -143,23 +163,30 @@ export async function graphql<T>(
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ query, variables })
 		},
-		label,
-		auth
+		label
 	);
 	logRate(res);
 	if (!res.ok) {
+		const code = codeFor(res);
+		if (code === 'rate_limited') noteRateLimited(res);
 		log.warn(`GitHub GraphQL ${res.status} on ${label}${context(res)}`);
-		throw new AppError(codeFor(res), `GitHub GraphQL ${res.status}`);
+		throw new AppError(code, `GitHub GraphQL ${res.status}`);
 	}
 
 	const body = (await res.json()) as { data?: T; errors?: { message: string; type?: string }[] };
 	if (body.errors?.length) {
-		// GraphQL still says 200 when it rate-limits, so read the error type for the code
+		// GraphQL rate limits still return 200, and a drained budget arrives as a bare
+		// "rate limit" message with no type, so match the message text as well as the type
 		const types = new Set(body.errors.map((error) => error.type));
 		const message = body.errors.map((error) => error.message).join('; ');
+		const rateLimited =
+			types.has('RATE_LIMITED') || body.errors.some((error) => /rate limit/i.test(error.message));
+		// The points budget and secondary limits drain without the remaining header ever
+		// hitting zero, so flag them here too
+		if (rateLimited) noteRateLimited(res);
 		const code = types.has('NOT_FOUND')
 			? 'not_found'
-			: types.has('RATE_LIMITED')
+			: rateLimited
 				? 'rate_limited'
 				: types.has('FORBIDDEN')
 					? 'forbidden'
@@ -171,28 +198,22 @@ export async function graphql<T>(
 }
 
 // Call a REST endpoint and return the raw Response, null on 404, for header access
-export async function restResponse(
-	path: string,
-	init?: RequestInit,
-	auth: AuthMode = 'viewer'
-): Promise<Response | null> {
-	const res = await call(`${config.GITHUB_API}${path}`, init, path, auth);
+export async function restResponse(path: string, init?: RequestInit): Promise<Response | null> {
+	const res = await call(`${config.GITHUB_API}${path}`, init, path);
 	logRate(res);
 	if (res.status === 404) return null;
 	if (!res.ok) {
+		const code = codeFor(res);
+		if (code === 'rate_limited') noteRateLimited(res);
 		log.warn(`GitHub REST ${res.status} on ${path}${context(res)}`);
-		throw new AppError(codeFor(res), `GitHub REST ${res.status} for ${path}`);
+		throw new AppError(code, `GitHub REST ${res.status} for ${path}`);
 	}
 	return res;
 }
 
 // Call a GitHub REST endpoint, returning null on 404 so callers can fall back
-export async function rest<T>(
-	path: string,
-	init?: RequestInit,
-	auth: AuthMode = 'viewer'
-): Promise<T | null> {
-	const res = await restResponse(path, init, auth);
+export async function rest<T>(path: string, init?: RequestInit): Promise<T | null> {
+	const res = await restResponse(path, init);
 	return res ? ((await res.json()) as T) : null;
 }
 
@@ -209,13 +230,12 @@ export async function paginate<T, D>(
 	query: string,
 	variables: Record<string, unknown>,
 	pick: (data: D) => Conn<T> | null | undefined,
-	options: { maxPages: number; cursor?: string | null; until?: (page: T[]) => boolean },
-	auth: AuthMode = 'viewer'
+	options: { maxPages: number; cursor?: string | null; until?: (page: T[]) => boolean }
 ): Promise<{ nodes: T[]; cursor: string | null; complete: boolean }> {
 	const nodes: T[] = [];
 	let cursor = options.cursor ?? null;
 	for (let page = 0; page < options.maxPages; page++) {
-		const conn = pick(await graphql<D>(query, { ...variables, cursor }, auth));
+		const conn = pick(await graphql<D>(query, { ...variables, cursor }));
 		if (!conn) return { nodes, cursor, complete: true };
 		nodes.push(...conn.nodes);
 		if (options.until?.(conn.nodes)) return { nodes, cursor: null, complete: true };
@@ -229,11 +249,10 @@ export async function paginate<T, D>(
 // A REST call where some statuses are expected (no access, not enabled), not errors
 export async function restTolerant<T>(
 	path: string,
-	codes: ErrorCode[] = ['forbidden'],
-	auth?: AuthMode
+	codes: ErrorCode[] = ['forbidden']
 ): Promise<T | null> {
 	try {
-		return await rest<T>(path, undefined, auth);
+		return await rest<T>(path);
 	} catch (error) {
 		if (error instanceof AppError && codes.includes(error.code)) return null;
 		throw error;
@@ -250,12 +269,11 @@ export function batchedGraphql<T, D>(
 	items: T[],
 	params: (index: number) => string,
 	field: (index: number) => string,
-	variables: (item: T, index: number) => Record<string, unknown>,
-	auth: AuthMode = 'viewer'
+	variables: (item: T, index: number) => Record<string, unknown>
 ): Promise<Record<string, D>> {
 	if (!items.length) return Promise.resolve({});
 	const paramList = items.map((_, index) => params(index)).join(', ');
 	const fields = items.map((_, index) => field(index)).join('\n');
 	const vars = Object.assign({}, ...items.map((item, index) => variables(item, index)));
-	return graphql<Record<string, D>>(`query ${name}(${paramList}) { ${fields} }`, vars, auth);
+	return graphql<Record<string, D>>(`query ${name}(${paramList}) { ${fields} }`, vars);
 }

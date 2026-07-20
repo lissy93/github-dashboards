@@ -7,8 +7,15 @@
 	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
+	import { revalidatingResult } from '$lib/state/revalidate.svelte';
 
 	let { data }: { data: PageData } = $props();
+
+	const repos = revalidatingResult({
+		url: () => `/api/${data.user}/overview?fresh=1`,
+		initial: () => data.result,
+		enabled: () => !!data.viewerLogin
+	});
 </script>
 
 <PageMeta
@@ -16,7 +23,7 @@
 	description={`All repositories owned by ${data.user} on ${APP_NAME}`}
 />
 
-{#await data.result}
+{#await repos.result}
 	<Panel title="Repositories" icon={BookMarked} cause="loading">
 		<div class="grid gap-3 lg:grid-cols-2 3xl:grid-cols-3">
 			{#each [0, 1, 2, 3, 4, 5] as index (index)}

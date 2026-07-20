@@ -49,6 +49,7 @@
 	import { compactNumber, formatSpanHours } from '$lib/utils/format';
 	import { readStored, writeStored } from '$lib/utils/storage';
 	import { progressiveResult } from '$lib/state/progressive.svelte';
+	import { revalidatingResult } from '$lib/state/revalidate.svelte';
 	import { restrictedGate } from '$lib/config/status';
 	import type { PageData } from './$types';
 	import StatTileGrid from '$lib/components/common/StatTileGrid.svelte';
@@ -66,6 +67,40 @@
 		initial: () => data.timeline,
 		enabled: () => !!data.viewerLogin,
 		incomplete: (tl) => tl.sampled
+	});
+
+	// Freshen the SSR panels on land for a signed-in viewer
+	const repoBase = () => `/api/${data.user}/${data.repo.name}`;
+	const enabled = () => !!data.viewerLogin;
+	const stars = revalidatingResult({
+		url: () => `${repoBase()}/star-history?fresh=1`,
+		initial: () => data.stars,
+		enabled
+	});
+	const punchCard = revalidatingResult({
+		url: () => `${repoBase()}/punch-card?fresh=1`,
+		initial: () => data.punchCard,
+		enabled
+	});
+	const languages = revalidatingResult({
+		url: () => `${repoBase()}/languages?fresh=1`,
+		initial: () => data.languages,
+		enabled
+	});
+	const contributors = revalidatingResult({
+		url: () => `${repoBase()}/contributors?fresh=1`,
+		initial: () => data.contributors,
+		enabled
+	});
+	const labels = revalidatingResult({
+		url: () => `${repoBase()}/labels?fresh=1`,
+		initial: () => data.labels,
+		enabled
+	});
+	const recentCommits = revalidatingResult({
+		url: () => `${repoBase()}/recent-commits?fresh=1`,
+		initial: () => data.recentCommits,
+		enabled
 	});
 	let view = $state<TimelineView>(defaultTimelineView());
 
@@ -115,7 +150,7 @@
 {/snippet}
 
 <div class="space-y-5">
-	{#await Promise.all([data.stats, data.contributors, data.recentCommits])}
+	{#await Promise.all([data.stats, contributors.result, recentCommits.result])}
 		<StatTileGrid loading={5} class="sm:grid-cols-3 lg:grid-cols-5" />
 	{:then [statsResult, peopleResult, recentResult]}
 		{@const stats = ok(statsResult)}
@@ -258,7 +293,7 @@
 		<AsyncPanel
 			title="Contribution distribution"
 			icon={Scale}
-			result={data.contributors}
+			result={contributors.result}
 			empty={(people) => contributionCurve(people.contributors) === null}
 			emptyText="Not enough contributors yet"
 			emptyCause="low_data"
@@ -288,7 +323,7 @@
 		<AsyncPanel
 			title="Work mix"
 			icon={Tags}
-			result={data.labels}
+			result={labels.result}
 			capped={(labels) => labels.sampled}
 			empty={(labels) => labels.labels.length === 0}
 			emptyText="No labels in use"
@@ -302,7 +337,7 @@
 	<AsyncPanel
 		title="Code churn"
 		icon={FileDiff}
-		result={data.contributors}
+		result={contributors.result}
 		empty={(people) => people.weekly.length < 2}
 		emptyText="No churn data yet"
 		emptyCause="low_data"
@@ -321,7 +356,7 @@
 	<AsyncPanel
 		title="Star history"
 		icon={Star}
-		result={data.stars}
+		result={stars.result}
 		empty={(history) => history.restricted || history.days.length === 0}
 		emptyText={(history) => (history.restricted ? starGate.text : 'No stars yet')}
 		emptyHint={(history) => (history.restricted ? starGate.hint : undefined)}
@@ -343,7 +378,7 @@
 		<AsyncPanel
 			title="Commit punch card"
 			icon={Clock}
-			result={data.punchCard}
+			result={punchCard.result}
 			empty={(rhythm) => rhythm.total === 0}
 			emptyText="No commit data yet"
 		>
@@ -360,7 +395,7 @@
 		<AsyncPanel
 			title="Languages"
 			icon={Code}
-			result={data.languages}
+			result={languages.result}
 			empty={(usage) => usage.length === 0}
 			emptyText="No language data"
 		>

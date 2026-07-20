@@ -11,8 +11,15 @@
 	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
+	import { revalidatingResult } from '$lib/state/revalidate.svelte';
 
 	let { data }: { data: PageData } = $props();
+
+	const overview = revalidatingResult({
+		url: () => `/api/${data.user}/overview?fresh=1`,
+		initial: () => data.overview,
+		enabled: () => !!data.viewerLogin
+	});
 </script>
 
 <PageMeta
@@ -20,7 +27,7 @@
 	description={`${data.user} on ${APP_NAME}: repos, stats and activity`}
 />
 
-{#await data.overview}
+{#await overview.result}
 	<div class="space-y-5">
 		<Card.Root class="flex flex-row items-center gap-4 p-4 sm:p-5">
 			<Skeleton class="size-16 rounded-md sm:size-20" />

@@ -1,4 +1,5 @@
-import { graphql } from '$lib/server/github/client';
+import { graphql, looksRestricted } from '$lib/server/github/client';
+import { usingAppToken, withAppToken } from '$lib/server/auth/context';
 import { getUserOverview } from '$lib/server/github/user';
 import { cached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
@@ -56,14 +57,23 @@ const NEWEST_QUERY = `
 	}
 `;
 
+// One newest-stars query under the current token
+async function fetchNewest(repo: Repo): Promise<StarEdge[]> {
+	const data = await graphql<{ repository: { stargazers: { edges: StarEdge[] } } | null }>(
+		NEWEST_QUERY,
+		{ owner: repo.owner, name: repo.name, keep: KEEP }
+	);
+	return data.repository?.stargazers.edges ?? [];
+}
+
 async function newestForRepo(repo: Repo): Promise<RecentStar[] | null> {
 	try {
-		const data = await graphql<{ repository: { stargazers: { edges: StarEdge[] } } | null }>(
-			NEWEST_QUERY,
-			{ owner: repo.owner, name: repo.name, keep: KEEP },
-			'app'
-		);
-		const edges = data.repository?.stargazers.edges ?? [];
+		let edges = await fetchNewest(repo);
+		// An empty list on a starred repo is the admin-only gate, the app token may be
+		// admin where the viewer is not
+		if (looksRestricted(repo.stars, edges.length) && !usingAppToken()) {
+			edges = await withAppToken(() => fetchNewest(repo));
+		}
 		return edges.map((edge) => ({
 			login: edge.node.login,
 			avatarUrl: edge.node.avatarUrl,
