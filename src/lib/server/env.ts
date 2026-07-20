@@ -14,6 +14,8 @@ const schema = z.object({
 	GITHUB_CLIENT_SECRET: z.string().default(''),
 	// Secret used to encrypt the session cookie, required once OAuth is enabled
 	SESSION_SECRET: z.string().default(''),
+	// When set, the maintenance cron endpoint requires it as a bearer token
+	CRON_SECRET: z.string().default(''),
 	GITHUB_OAUTH_AUTHORIZE: z.string().url().default('https://github.com/login/oauth/authorize'),
 	GITHUB_OAUTH_TOKEN: z.string().url().default('https://github.com/login/oauth/access_token')
 });

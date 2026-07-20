@@ -2,14 +2,14 @@
 # a SHA256 checksum, and a SLSA build-provenance attestation
 #
 # Triggered by:
-# - Push of any X.Y.Z git tag (created by the Tag workflow)
+# - Push of a major/minor tag, i.e. X.Y.0 (created by the Tag workflow)
 # - Manual dispatch with any existing tag
 
 name: 🚀 Release
 
 on:
   push:
-    tags: ['*.*.*']
+    tags: ['*.*.0']
   workflow_dispatch:
     inputs:
       tag:
@@ -109,7 +109,6 @@ jobs:
           CURRENT_TAG: ${{ env.TAG }}
         run: |
           set -euo pipefail
-          git fetch --tags --force
           PREV=$({ echo "$CURRENT_TAG"; git tag | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; } \
             | sort -uV \
             | awk -v cur="$CURRENT_TAG" '$0 == cur { print prev; exit } { prev = $0 }')

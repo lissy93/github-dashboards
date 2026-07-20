@@ -163,8 +163,10 @@ async function fetchContributors(owner: string, name: string): Promise<RepoContr
 	return { contributors, total, sampled, weekly };
 }
 
+export const CONTRIBUTORS_KEY_PREFIX = 'repo:contributors:v3:';
+
 const repoKey = (owner: string, name: string) =>
-	`repo:contributors:v3:${owner}/${name}`.toLowerCase();
+	`${CONTRIBUTORS_KEY_PREFIX}${owner}/${name}`.toLowerCase();
 
 export const isRepoContributorsCached = (owner: string, name: string) =>
 	isCached(repoKey(owner, name));

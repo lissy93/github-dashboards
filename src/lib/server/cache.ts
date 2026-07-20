@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { eq, lt, sql } from 'drizzle-orm';
+import { gzipSync, gunzipSync } from 'node:zlib';
+import { and, eq, like, or, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { cacheEntry } from '$lib/server/db/schema';
 import { config } from '$lib/server/env';
@@ -24,18 +25,52 @@ function forceFreshRequested(): boolean {
 	return freshStore.getStore() === true;
 }
 
+// Values past this size gzip well (file trees, crawl states), smaller ones stay plain
+const PACK_MIN_BYTES = 4096;
+
+// Gzip a big value into a compact wrapper so bulky entries stop dominating storage
+export function packValue(value: unknown): unknown {
+	const json = JSON.stringify(value);
+	if (json.length < PACK_MIN_BYTES) return value;
+	return { __gz: gzipSync(json).toString('base64') };
+}
+
+// Expand a packed wrapper back into the original value, plain values pass through
+export function unpackValue<T>(value: unknown): T {
+	const packed = value as { __gz?: unknown } | null;
+	if (packed && typeof packed.__gz === 'string')
+		return JSON.parse(gunzipSync(Buffer.from(packed.__gz, 'base64')).toString('utf8')) as T;
+	return value as T;
+}
+
 const PURGE_EVERY_MS = 24 * 3600 * 1000;
 const PURGE_AFTER_DAYS = 14;
+// Full file trees are big and one call to refetch, so their stale copies go much sooner
+const PURGE_TREES_AFTER_DAYS = 3;
 let lastPurge = 0;
 
-// Sweep out entries that sat expired for weeks, so junk rows never pile up
+// Delete entries that sat expired past their retention, trees on the short fuse.
+// The cutoff goes over as an ISO string, drizzle cannot type a Date against a raw fragment
+export async function purgeExpiredNow(): Promise<void> {
+	const cutoff = (days: number) => new Date(Date.now() - days * 86400 * 1000).toISOString();
+	const expiredBefore = (when: string) =>
+		sql`${cacheEntry.fetchedAt} + ${cacheEntry.ttl} * interval '1 second' < ${when}::timestamptz`;
+	await db
+		.delete(cacheEntry)
+		.where(
+			or(
+				expiredBefore(cutoff(PURGE_AFTER_DAYS)),
+				and(like(cacheEntry.key, 'repo:tree:%'), expiredBefore(cutoff(PURGE_TREES_AFTER_DAYS)))
+			)
+		);
+}
+
+// Daily background sweep. Serverless can freeze before this lands, the maintenance cron
+// is the reliable path there
 function purgeExpired(): void {
 	if (Date.now() - lastPurge < PURGE_EVERY_MS) return;
 	lastPurge = Date.now();
-	const cutoff = new Date(Date.now() - PURGE_AFTER_DAYS * 86400 * 1000);
-	void db
-		.delete(cacheEntry)
-		.where(lt(sql`${cacheEntry.fetchedAt} + ${cacheEntry.ttl} * interval '1 second'`, cutoff))
+	void purgeExpiredNow()
 		.then(() => log.debug('purged long-expired cache rows'))
 		.catch((error) => log.warn('cache purge failed', { code: toAppError(error).code }));
 }
@@ -75,7 +110,7 @@ export async function readCached<T>(
 		const [existing] = await db.select().from(cacheEntry).where(eq(cacheEntry.key, key)).limit(1);
 		storageReachable = true;
 		return existing
-			? { value: existing.value as T, fetchedAt: existing.fetchedAt, ttl: existing.ttl }
+			? { value: unpackValue<T>(existing.value), fetchedAt: existing.fetchedAt, ttl: existing.ttl }
 			: null;
 	} catch (error) {
 		if (isConnectionError(error)) storageReachable = false;
@@ -86,12 +121,13 @@ export async function readCached<T>(
 // Replace a stored value, used by resumable sync jobs that checkpoint their progress
 export async function writeCached<T>(key: string, value: T, ttl: number): Promise<void> {
 	try {
+		const packed = packValue(value) as object;
 		await db
 			.insert(cacheEntry)
-			.values({ key, value: value as object, ttl })
+			.values({ key, value: packed, ttl })
 			.onConflictDoUpdate({
 				target: cacheEntry.key,
-				set: { value: value as object, ttl, fetchedAt: new Date() }
+				set: { value: packed, ttl, fetchedAt: new Date() }
 			});
 		storageReachable = true;
 	} catch (error) {
@@ -101,20 +137,34 @@ export async function writeCached<T>(key: string, value: T, ttl: number): Promis
 	}
 }
 
-// Fetch fresh data and store it, sharing one promise across concurrent callers
-function refresh<T>(key: string, fetcher: () => Promise<T>, ttl: number): Promise<T> {
+// Fetch fresh data and store it, sharing one promise across concurrent callers. An
+// unchanged payload only bumps fetchedAt, sparing the row a full value rewrite
+function refresh<T>(
+	key: string,
+	fetcher: () => Promise<T>,
+	ttl: number,
+	previous?: unknown
+): Promise<T> {
 	const running = inflight.get(key);
 	if (running) return running as Promise<T>;
 
 	const promise = (async () => {
 		const value = await fetcher();
-		await db
-			.insert(cacheEntry)
-			.values({ key, value: value as object, ttl })
-			.onConflictDoUpdate({
-				target: cacheEntry.key,
-				set: { value: value as object, ttl, fetchedAt: new Date() }
-			});
+		const packed = packValue(value) as object;
+		if (previous !== undefined && JSON.stringify(packed) === JSON.stringify(previous)) {
+			await db
+				.update(cacheEntry)
+				.set({ fetchedAt: new Date(), ttl })
+				.where(eq(cacheEntry.key, key));
+		} else {
+			await db
+				.insert(cacheEntry)
+				.values({ key, value: packed, ttl })
+				.onConflictDoUpdate({
+					target: cacheEntry.key,
+					set: { value: packed, ttl, fetchedAt: new Date() }
+				});
+		}
 		return value;
 	})().finally(() => inflight.delete(key));
 
@@ -142,22 +192,22 @@ export async function cached<T>(
 		return fetcher();
 	}
 
-	if (existing && isFresh(existing.fetchedAt, ttl)) return existing.value as T;
+	if (existing && isFresh(existing.fetchedAt, ttl)) return unpackValue<T>(existing.value);
 
 	if (existing) {
 		// A revalidation request waits for the fresh value, falling back to stale on failure
 		if (forceFreshRequested()) {
 			try {
-				return await refresh(key, fetcher, ttl);
+				return await refresh(key, fetcher, ttl, existing.value);
 			} catch (error) {
 				log.warn(`forced refresh failed for ${key}`, { code: toAppError(error).code });
-				return existing.value as T;
+				return unpackValue<T>(existing.value);
 			}
 		}
-		refresh(key, fetcher, ttl).catch((error) =>
+		refresh(key, fetcher, ttl, existing.value).catch((error) =>
 			log.warn(`background refresh failed for ${key}`, { code: toAppError(error).code })
 		);
-		return existing.value as T;
+		return unpackValue<T>(existing.value);
 	}
 
 	return refresh(key, fetcher, ttl);
