@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { eq, lt, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { cacheEntry } from '$lib/server/db/schema';
@@ -9,6 +10,19 @@ const log = createLogger('cache');
 
 // Dedupes concurrent fetches for the same key so we never fire duplicate work
 const inflight = new Map<string, Promise<unknown>>();
+
+// Request-scoped flag the freshen-on-land endpoints set, so a stale entry waits for its
+// refresh instead of serving stale. Fresh entries and cold misses are unaffected
+const freshStore = new AsyncLocalStorage<boolean>();
+
+// Run a block that revalidates stale cache entries inline rather than in the background
+export function withForceFresh<T>(run: () => T): T {
+	return freshStore.run(true, run);
+}
+
+function forceFreshRequested(): boolean {
+	return freshStore.getStore() === true;
+}
 
 const PURGE_EVERY_MS = 24 * 3600 * 1000;
 const PURGE_AFTER_DAYS = 14;
@@ -131,6 +145,15 @@ export async function cached<T>(
 	if (existing && isFresh(existing.fetchedAt, ttl)) return existing.value as T;
 
 	if (existing) {
+		// A revalidation request waits for the fresh value, falling back to stale on failure
+		if (forceFreshRequested()) {
+			try {
+				return await refresh(key, fetcher, ttl);
+			} catch (error) {
+				log.warn(`forced refresh failed for ${key}`, { code: toAppError(error).code });
+				return existing.value as T;
+			}
+		}
 		refresh(key, fetcher, ttl).catch((error) =>
 			log.warn(`background refresh failed for ${key}`, { code: toAppError(error).code })
 		);
@@ -171,6 +194,15 @@ export async function checkpointed<T>(
 	}
 	if (!stored) return run();
 	if (Date.now() - stored.fetchedAt.getTime() >= ttl * 1000) {
+		// A revalidation request waits for one more sync round, falling back to stored on failure
+		if (forceFreshRequested()) {
+			try {
+				return await run(stored.value);
+			} catch (caught) {
+				logError(scope, caught);
+				return stored.value;
+			}
+		}
 		void run(stored.value).catch((caught) => logError(scope, caught));
 	}
 	return stored.value;

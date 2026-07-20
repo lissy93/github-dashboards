@@ -2,6 +2,7 @@ import type { RepoWorkflows, WorkflowSummary, RepoRunActivity } from '$lib/types
 import { restTolerant } from '$lib/server/github/client';
 import { advanceCheckpointed, checkpointed, cached, isCached, readCached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
+import { accumulateOutcomes } from '$lib/server/github/outcome-history';
 import { bucketOutcomes, type OutcomeKind } from '$lib/utils/outcomes';
 import { logError } from '$lib/utils/errors';
 
@@ -196,8 +197,14 @@ async function fetchRunActivity(owner: string, name: string): Promise<RepoRunAct
 		if (batch.workflow_runs.length < RUN_ACTIVITY_PAGE) break;
 	}
 	if (!runs.length) return EMPTY_RUN_ACTIVITY;
-	const buckets = bucketOutcomes(
-		runs.map((run) => ({ at: run.created_at, outcome: runOutcome(run.conclusion) }))
+	// Accumulate the run trend across visits so it keeps history beyond the sampled window
+	const buckets = await accumulateOutcomes(
+		`${owner}/${name}`,
+		'run-activity',
+		bucketOutcomes(
+			runs.map((run) => ({ at: run.created_at, outcome: runOutcome(run.conclusion) }))
+		),
+		total > runs.length
 	);
 	return { buckets, total, sampled: total > runs.length };
 }

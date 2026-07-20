@@ -11,6 +11,7 @@
 	} from '$lib/views/repo';
 	import { paths } from '$lib/config';
 	import { progressiveTimeline } from '$lib/state/progressive.svelte';
+	import { revalidatingResult } from '$lib/state/revalidate.svelte';
 	import type { RepoTimeline } from '$lib/types';
 	import type { TaskList } from '$lib/types';
 	import type { PageData } from './$types';
@@ -22,6 +23,11 @@
 
 	// Signed-in viewers deepen the timeline progressively, the charts fill as older data lands
 	const timeline = progressiveTimeline(() => data);
+	const tasks = revalidatingResult({
+		url: () => `/api/${data.user}/${data.repo.name}/tasks?fresh=1`,
+		initial: () => data.tasks,
+		enabled: () => !!data.viewerLogin
+	});
 </script>
 
 <PageMeta
@@ -80,7 +86,7 @@
 			title="Open issues"
 			icon={CircleDot}
 			href={section('issues')}
-			result={data.tasks}
+			result={tasks.result}
 			count={(t) => t.issues.total}
 			capped={(t) => t.issues.capped}
 			empty={(t) => t.issues.items.length === 0}
@@ -111,7 +117,7 @@
 			title="Open PRs"
 			icon={GitPullRequest}
 			href={section('prs')}
-			result={data.tasks}
+			result={tasks.result}
 			count={(t) => t.prs.total}
 			capped={(t) => t.prs.capped}
 			empty={(t) => t.prs.items.length === 0}

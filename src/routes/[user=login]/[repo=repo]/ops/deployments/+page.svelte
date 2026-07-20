@@ -18,9 +18,16 @@
 	import { compactNumber, relativeTime, formatDateTime, formatPercent } from '$lib/utils/format';
 	import type { PageData } from './$types';
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
+	import { revalidatingResult } from '$lib/state/revalidate.svelte';
 
 	let { data }: { data: PageData } = $props();
 	let view = $state<DeploymentView>(defaultDeploymentView());
+
+	const deployments = revalidatingResult({
+		url: () => `/api/${data.user}/${data.repo.name}/deployments?fresh=1`,
+		initial: () => data.deployments,
+		enabled: () => !!data.viewerLogin
+	});
 
 	// Fresh filters when the route swaps to another repo
 	$effect(() => {
@@ -68,7 +75,7 @@
 />
 
 <div class="space-y-5">
-	{#await data.deployments}
+	{#await deployments.result}
 		<Panel title="Deployments" icon={Rocket} loading />
 	{:then result}
 		{#if !result.ok}

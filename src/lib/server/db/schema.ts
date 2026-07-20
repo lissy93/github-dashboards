@@ -33,15 +33,69 @@ export const repoTrafficDaily = pgTable(
 	(table) => [uniqueIndex('repo_traffic_day_idx').on(table.repo, table.day)]
 );
 
-// Daily star count snapshots, kept to draw long-run star history cheaply
+// Daily star snapshots for the long-run history. source splits a real daily total from an
+// interpolated backfill point so the two writers never clobber, readers prefer the total
 export const repoStarsDaily = pgTable(
 	'repo_stars_daily',
 	{
 		repo: text('repo').notNull(),
 		day: date('day').notNull(),
-		stars: integer('stars').notNull()
+		stars: integer('stars').notNull(),
+		source: text('source').notNull().default('curve')
 	},
-	(table) => [uniqueIndex('repo_stars_day_idx').on(table.repo, table.day)]
+	(table) => [uniqueIndex('repo_stars_day_idx').on(table.repo, table.day, table.source)]
+);
+
+// Daily success/failure/other counts per repo per kind (deployments, run-activity), so a
+// trend built from GitHub's bounded recent window still accumulates full history over visits
+export const outcomeHistory = pgTable(
+	'outcome_history',
+	{
+		scope: text('scope').notNull(),
+		kind: text('kind').notNull(),
+		day: date('day').notNull(),
+		success: integer('success').notNull().default(0),
+		failure: integer('failure').notNull().default(0),
+		other: integer('other').notNull().default(0)
+	},
+	(table) => [uniqueIndex('outcome_history_idx').on(table.scope, table.kind, table.day)]
+);
+
+// Weekly lines added and removed per repo, accumulated so churn keeps history beyond the
+// 52 weeks GitHub's stats endpoint returns
+export const repoChurnWeekly = pgTable(
+	'repo_churn_weekly',
+	{
+		repo: text('repo').notNull(),
+		week: date('week').notNull(),
+		additions: integer('additions').notNull().default(0),
+		deletions: integer('deletions').notNull().default(0)
+	},
+	(table) => [uniqueIndex('repo_churn_week_idx').on(table.repo, table.week)]
+);
+
+// Daily follower count per user, captured as we see it since GitHub only gives the current total
+export const userFollowersDaily = pgTable(
+	'user_followers_daily',
+	{
+		login: text('login').notNull(),
+		day: date('day').notNull(),
+		followers: integer('followers').notNull()
+	},
+	(table) => [uniqueIndex('user_followers_day_idx').on(table.login, table.day)]
+);
+
+// Daily security grade and open vuln count per repo, captured so the trend can be shown later
+export const repoSecurityDaily = pgTable(
+	'repo_security_daily',
+	{
+		repo: text('repo').notNull(),
+		day: date('day').notNull(),
+		score: integer('score').notNull(),
+		letter: text('letter').notNull(),
+		vulns: integer('vulns').notNull().default(0)
+	},
+	(table) => [uniqueIndex('repo_security_day_idx').on(table.repo, table.day)]
 );
 
 // Normalised timeline rows per user, accumulated from the events feed and backfill.

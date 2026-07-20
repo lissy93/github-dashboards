@@ -1,6 +1,7 @@
 import type { DeployRecord, EnvironmentSummary, RepoDeployments } from '$lib/types';
 import { paginate } from '$lib/server/github/client';
 import { cached, isCached } from '$lib/server/cache';
+import { accumulateOutcomes } from '$lib/server/github/outcome-history';
 import { bucketOutcomes } from '$lib/utils/outcomes';
 import { deployBand } from '$lib/views/repo-deployments';
 
@@ -141,6 +142,15 @@ async function fetchDeployments(owner: string, name: string): Promise<RepoDeploy
 
 	const decisive = records.filter((record) => deployBand(record.state) !== 'other');
 	const passed = decisive.filter((record) => deployBand(record.state) === 'success').length;
+	// Accumulate the frequency trend across visits so it keeps history beyond the sampled window
+	const frequency = await accumulateOutcomes(
+		`${owner}/${name}`,
+		'deployments',
+		bucketOutcomes(
+			records.map((record) => ({ at: record.createdAt, outcome: deployBand(record.state) }))
+		),
+		total > records.length
+	);
 	return {
 		totalDeployments: total,
 		sampled: total > records.length,
@@ -148,9 +158,7 @@ async function fetchDeployments(owner: string, name: string): Promise<RepoDeploy
 		lastDeployAt: records[0]?.createdAt ?? null,
 		environments: summariseEnvironments(envNodes, records),
 		recent: records.slice(0, RECENT_LIMIT),
-		frequency: bucketOutcomes(
-			records.map((record) => ({ at: record.createdAt, outcome: deployBand(record.state) }))
-		)
+		frequency
 	};
 }
 

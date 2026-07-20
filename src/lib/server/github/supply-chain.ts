@@ -8,6 +8,7 @@ import type {
 	VulnSeverity
 } from '$lib/types';
 import { graphql, rest, paginate } from '$lib/server/github/client';
+import { withAppToken } from '$lib/server/auth/context';
 import { cached, isCached } from '$lib/server/cache';
 import { createLogger } from '$lib/utils/logger';
 
@@ -186,14 +187,16 @@ export const severityOf = (value: string): VulnSeverity => {
 
 const MAX_VULN_PAGES = 10;
 
-// Alerts are maintainer-only, so use the app token to keep the shared cache viewer-independent
+// Alerts are maintainer-only private data, so fetch under the app token to keep the
+// shared cache from leaking one owner's vulnerabilities to other viewers
 export async function fetchVulns(owner: string, name: string): Promise<Vulnerability[]> {
-	const { nodes } = await paginate<RawVuln, VulnPage>(
-		VULN_QUERY,
-		{ owner, name },
-		(data) => data.repository?.vulnerabilityAlerts,
-		{ maxPages: MAX_VULN_PAGES },
-		'app'
+	const { nodes } = await withAppToken(() =>
+		paginate<RawVuln, VulnPage>(
+			VULN_QUERY,
+			{ owner, name },
+			(data) => data.repository?.vulnerabilityAlerts,
+			{ maxPages: MAX_VULN_PAGES }
+		)
 	);
 	const out: Vulnerability[] = [];
 	for (const node of nodes) {

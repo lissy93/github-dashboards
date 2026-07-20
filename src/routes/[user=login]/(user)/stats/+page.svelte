@@ -14,8 +14,60 @@
 	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
+	import { revalidatingResult } from '$lib/state/revalidate.svelte';
 
 	let { data }: { data: PageData } = $props();
+
+	// Freshen the SSR panels on land for a signed-in viewer
+	const enabled = () => !!data.viewerLogin;
+	const overview = revalidatingResult({
+		url: () => `/api/${data.user}/overview?fresh=1`,
+		initial: () => data.overview,
+		enabled
+	});
+	const languages = revalidatingResult({
+		url: () => `/api/${data.user}/languages?fresh=1`,
+		initial: () => data.languages,
+		enabled
+	});
+	const repoLanguages = revalidatingResult({
+		url: () => `/api/${data.user}/repo-languages?fresh=1`,
+		initial: () => data.repoLanguages,
+		enabled
+	});
+	// User-only datasets, their initial data is only read when the page renders them
+	const userOnly = () => !!data.viewerLogin && !data.isOrg;
+	const contributions = revalidatingResult({
+		url: () => `/api/${data.user}/contributions?fresh=1`,
+		initial: () => data.contributions!,
+		enabled: userOnly
+	});
+	const rhythm = revalidatingResult({
+		url: () => `/api/${data.user}/rhythm?fresh=1`,
+		initial: () => data.rhythm!,
+		enabled: userOnly
+	});
+	const lifecycle = revalidatingResult({
+		url: () => `/api/${data.user}/lifecycle?fresh=1`,
+		initial: () => data.lifecycleActivity!,
+		enabled: userOnly
+	});
+
+	// The combos keep the SSR-ready value until a fresh part lands, then rebuild live
+	const summary = $derived(
+		overview.refreshed || contributions.refreshed || languages.refreshed
+			? Promise.all([
+					overview.result,
+					data.contributions ? contributions.result : null,
+					languages.result
+				])
+			: data.summary
+	);
+	const facts = $derived(
+		data.facts && (contributions.refreshed || rhythm.refreshed || languages.refreshed)
+			? Promise.all([contributions.result, rhythm.result, languages.result])
+			: data.facts
+	);
 </script>
 
 <PageMeta
@@ -24,45 +76,48 @@
 />
 
 <div class="space-y-5">
-	<StatStrip result={data.summary} />
+	<StatStrip result={summary} />
 
 	<div class="grid gap-5 lg:grid-cols-2 lg:items-start">
 		<StarHistoryPanel user={data.user} loggedIn={!!data.viewerLogin} />
-		<TopReposPanel user={data.user} result={data.overview} />
+		<TopReposPanel user={data.user} result={overview.result} />
 	</div>
 
 	{#if data.contributions}
-		<ContributionsRow result={data.contributions} />
+		<ContributionsRow result={contributions.result} />
 	{/if}
 
 	<!-- Let the shorter panels pack neatly around each other -->
 	<div class="lg:columns-2 lg:gap-5 [&>*]:mb-5 [&>*]:break-inside-avoid">
 		{#if data.contributions}
-			<ContributionActivity result={data.contributions} />
+			<ContributionActivity result={contributions.result} />
 		{/if}
 
 		{#if data.rhythm}
-			<ActivityRhythm result={data.rhythm} />
+			<ActivityRhythm result={rhythm.result} />
 		{/if}
 
 		<RepoInsights
-			result={data.overview}
-			languages={data.languages}
-			repoLanguages={data.repoLanguages}
+			result={overview.result}
+			languages={languages.result}
+			repoLanguages={repoLanguages.result}
 		/>
 	</div>
 
-	<PortfolioPanel user={data.user} result={data.overview} />
+	<PortfolioPanel user={data.user} result={overview.result} />
 
-	<RepoFlowPanels user={data.user} result={data.overview} />
+	<RepoFlowPanels user={data.user} result={overview.result} />
 
 	{#if !data.isOrg}
-		<PeoplePanels user={data.user} result={data.overview} />
+		<PeoplePanels user={data.user} result={overview.result} />
 	{/if}
 
-	<ProjectLifecycle result={data.overview} activity={data.lifecycleActivity} />
+	<ProjectLifecycle
+		result={overview.result}
+		activity={data.lifecycleActivity ? lifecycle.result : null}
+	/>
 
-	{#if data.facts}
-		<FunFacts result={data.facts} />
+	{#if facts}
+		<FunFacts result={facts} />
 	{/if}
 </div>

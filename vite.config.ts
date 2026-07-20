@@ -6,9 +6,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 
 // Vercel sets VERCEL during its build; use its serverless adapter there and the
 // Node adapter everywhere else (Docker, CI, local) so `node build` keeps working.
-const adapter = process.env.VERCEL
-	? adapterVercel({ maxDuration: 30 })
-	: adapterNode();
+const adapter = process.env.VERCEL ? adapterVercel({ maxDuration: 30 }) : adapterNode();
 
 export default defineConfig({
 	server: { port: 5273 },

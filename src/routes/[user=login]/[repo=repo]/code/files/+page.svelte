@@ -4,8 +4,15 @@
 	import RepoTree from '$lib/components/repo/RepoTree.svelte';
 	import type { PageData } from './$types';
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
+	import { revalidatingResult } from '$lib/state/revalidate.svelte';
 
 	let { data }: { data: PageData } = $props();
+
+	const tree = revalidatingResult({
+		url: () => `/api/${data.user}/${data.repo.name}/tree?fresh=1`,
+		initial: () => data.tree,
+		enabled: () => !!data.viewerLogin
+	});
 </script>
 
 <PageMeta
@@ -16,7 +23,7 @@
 <AsyncPanel
 	title="Files"
 	icon={FolderTree}
-	result={data.tree}
+	result={tree.result}
 	empty={(tree) => tree.totalFiles === 0}
 	emptyText="No files in this repo"
 	cause={(tree) => (tree.truncated ? 'partial' : undefined)}

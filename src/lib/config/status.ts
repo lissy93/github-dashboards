@@ -7,10 +7,17 @@ export const STATUS_CAUSES: Record<
 	{ level: StatusLevel; label: string; hint: string }
 > = {
 	ok: { level: 'ok', label: 'Loaded', hint: 'Data loaded fine' },
+	fresh: { level: 'ok', label: 'Fresh', hint: 'Refreshed from GitHub on this visit' },
 	loading: { level: 'loading', label: 'Loading', hint: 'Still fetching data' },
+	refreshing: {
+		level: 'loading',
+		label: 'Refreshing',
+		hint: 'Updating with fresh data in the background'
+	},
 	empty: { level: 'info', label: 'No data', hint: 'Nothing to show here yet' },
 	low_data: { level: 'warn', label: 'Low data', hint: 'Too little data to draw the chart' },
 	partial: { level: 'warn', label: 'Partial', hint: 'Only part of the data has loaded' },
+	stale: { level: 'warn', label: 'Stale', hint: 'A refresh failed, this may be out of date' },
 	pending: { level: 'warn', label: 'Computing', hint: 'GitHub is still preparing this data' },
 	forbidden: { level: 'warn', label: 'Restricted', hint: 'You cannot view this data' },
 	needs_auth: { level: 'warn', label: 'Sign in needed', hint: 'Sign in with GitHub to load this' },

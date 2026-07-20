@@ -1,10 +1,29 @@
+import { sql } from 'drizzle-orm';
 import { batchedGraphql, graphql, rest, paginate } from '$lib/server/github/client';
 import { cached } from '$lib/server/cache';
-import { toAppError } from '$lib/utils/errors';
+import { db } from '$lib/server/db';
+import { userFollowersDaily } from '$lib/server/db/schema';
+import { isConnectionError, toAppError } from '$lib/utils/errors';
 import { createLogger } from '$lib/utils/logger';
 import type { NotableFollower, Org, UserSocial } from '$lib/types';
 
 const log = createLogger('social');
+
+// Record today's follower count so growth can be charted later, best effort
+async function snapshotFollowers(login: string, followers: number): Promise<void> {
+	try {
+		await db
+			.insert(userFollowersDaily)
+			.values({ login: login.toLowerCase(), day: new Date().toISOString().slice(0, 10), followers })
+			.onConflictDoUpdate({
+				target: [userFollowersDaily.login, userFollowersDaily.day],
+				set: { followers: sql`excluded.followers` }
+			});
+	} catch (error) {
+		if (!isConnectionError(error)) throw error;
+		log.warn(`follower snapshot unavailable for ${login}`, { code: toAppError(error).code });
+	}
+}
 
 const PER_PAGE = 100;
 // The followers connection has no influence order, so we sample a few pages and rank
@@ -77,8 +96,7 @@ async function fetchFollowers(login: string): Promise<{ all: RawFollower[]; tota
 			if (conn) total = conn.totalCount;
 			return conn;
 		},
-		{ maxPages: MAX_FOLLOWER_PAGES },
-		'app'
+		{ maxPages: MAX_FOLLOWER_PAGES }
 	);
 	return { all: nodes, total };
 }
@@ -92,9 +110,7 @@ async function fetchNewestFollowers(login: string, total: number): Promise<Notab
 	// GitHub 500s on very deep follower pages
 	const page =
 		(await rest<RestFollower[]>(
-			`/users/${login}/followers?per_page=${PER_PAGE}&page=${lastPage}`,
-			undefined,
-			'app'
+			`/users/${login}/followers?per_page=${PER_PAGE}&page=${lastPage}`
 		).catch((caught) => {
 			log.warn(`newest followers failed for ${login}`, { code: toAppError(caught).code });
 			return null;
@@ -118,8 +134,7 @@ async function followerCounts(logins: string[]): Promise<Map<string, number>> {
 		logins,
 		(index) => `$l${index}: String!`,
 		(index) => `u${index}: user(login: $l${index}) { login followers { totalCount } }`,
-		(login, index) => ({ [`l${index}`]: login }),
-		'app'
+		(login, index) => ({ [`l${index}`]: login })
 	);
 	const counts = new Map<string, number>();
 	for (const node of Object.values(data))
@@ -129,7 +144,7 @@ async function followerCounts(logins: string[]): Promise<Map<string, number>> {
 
 // Visible sponsors and the true total, which can be higher when some stay private
 async function fetchSponsors(login: string): Promise<{ sponsorsTotal: number; sponsors: Org[] }> {
-	const data = await graphql<SponsorsResult>(SPONSORS_QUERY, { login }, 'app');
+	const data = await graphql<SponsorsResult>(SPONSORS_QUERY, { login });
 	const conn = data.user?.sponsors;
 	if (!conn) return { sponsorsTotal: 0, sponsors: [] };
 	const sponsors = conn.nodes.filter((node): node is Org => !!node?.login);
@@ -146,6 +161,7 @@ export function getUserSocial(login: string): Promise<UserSocial> {
 				fetchSponsors(login)
 			]);
 			const newestFollowers = await fetchNewestFollowers(login, followers.total);
+			await snapshotFollowers(login, followers.total);
 			return {
 				topFollowers: rankFollowers(followers.all),
 				newestFollowers,

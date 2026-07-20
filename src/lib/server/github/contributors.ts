@@ -1,11 +1,16 @@
+import { eq, sql } from 'drizzle-orm';
 import type { ContributorRow, WeekChurn, RepoContributors } from '$lib/types';
 import { restResponse } from '$lib/server/github/client';
 import { fetchStatsEndpoint, statsPending } from '$lib/server/github/stats-endpoint';
 import { enrichOwnedRepos } from '$lib/server/github/enrich';
 import { cached, isCached } from '$lib/server/cache';
-import { AppError } from '$lib/utils/errors';
+import { db } from '$lib/server/db';
+import { repoChurnWeekly } from '$lib/server/db/schema';
+import { AppError, isConnectionError, toAppError } from '$lib/utils/errors';
+import { createLogger } from '$lib/utils/logger';
 import type { OwnedRepoData } from '$lib/types';
 
+const log = createLogger('contributors');
 const DAY = 86400;
 
 // Compact activity sparkline, the repo's weeks folded into this many buckets
@@ -99,6 +104,44 @@ export function weeklyChurn(raw: RawStat[]): WeekChurn[] {
 	return firstActive <= 0 ? weeks : weeks.slice(firstActive);
 }
 
+// Merge this fetch's weeks into stored churn and return the full series, fresh weeks
+// overwrite and aged-out weeks stay so history grows without double counting
+async function accumulateChurn(repo: string, fresh: WeekChurn[]): Promise<WeekChurn[]> {
+	const key = repo.toLowerCase();
+	try {
+		if (fresh.length) {
+			await db
+				.insert(repoChurnWeekly)
+				.values(
+					fresh.map((row) => ({
+						repo: key,
+						week: row.week,
+						additions: row.additions,
+						deletions: row.deletions
+					}))
+				)
+				.onConflictDoUpdate({
+					target: [repoChurnWeekly.repo, repoChurnWeekly.week],
+					set: { additions: sql`excluded.additions`, deletions: sql`excluded.deletions` }
+				});
+		}
+		const rows = await db
+			.select({
+				week: repoChurnWeekly.week,
+				additions: repoChurnWeekly.additions,
+				deletions: repoChurnWeekly.deletions
+			})
+			.from(repoChurnWeekly)
+			.where(eq(repoChurnWeekly.repo, key));
+		return rows.sort((first, second) => first.week.localeCompare(second.week));
+	} catch (error) {
+		// Storage down, fall back to the current window so the chart still renders
+		if (!isConnectionError(error)) throw error;
+		log.warn(`churn history unavailable for ${key}`, { code: toAppError(error).code });
+		return fresh;
+	}
+}
+
 async function fetchContributors(owner: string, name: string): Promise<RepoContributors> {
 	const [stats, total] = await Promise.all([
 		fetchStatsEndpoint<RawStat>(
@@ -116,7 +159,8 @@ async function fetchContributors(owner: string, name: string): Promise<RepoContr
 	const contributors = summariseContributors(stats);
 	// The stats endpoint tops out at 100 contributors, so flag when there are more
 	const sampled = total > contributors.length;
-	return { contributors, total, sampled, weekly: weeklyChurn(stats) };
+	const weekly = await accumulateChurn(`${owner}/${name}`, weeklyChurn(stats));
+	return { contributors, total, sampled, weekly };
 }
 
 const repoKey = (owner: string, name: string) =>
