@@ -18,7 +18,10 @@ import { db } from '$lib/server/db';
 import { repoSecurityDaily } from '$lib/server/db/schema';
 import { formatDateTime, plural } from '$lib/utils/format';
 import { fetchVulns, severityOf } from '$lib/server/github/supply-chain';
-import { AppError, isConnectionError, logError } from '$lib/utils/errors';
+import { AppError, logError, rootReason } from '$lib/utils/errors';
+import { createLogger } from '$lib/utils/logger';
+
+const log = createLogger('security');
 
 // Security posture moves slowly, refresh on visit like the rest of the board
 const TTL = 900;
@@ -569,8 +572,8 @@ async function snapshotSecurity(
 				}
 			});
 	} catch (error) {
-		if (!isConnectionError(error)) throw error;
-		logError('security-snapshot', error);
+		// Snapshots are best-effort history, the fresh security data is already in hand
+		log.warn('security snapshot failed', { reason: rootReason(error) });
 	}
 }
 

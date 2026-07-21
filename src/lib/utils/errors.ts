@@ -50,6 +50,13 @@ export function isConnectionError(error: unknown): boolean {
 	return false;
 }
 
+// The deepest cause message, database failures arrive wrapped in ORM layers
+export function rootReason(error: unknown): string {
+	let current: unknown = error;
+	while (current instanceof Error && current.cause instanceof Error) current = current.cause;
+	return current instanceof Error ? current.message : String(current);
+}
+
 // App-wide error with a code, http status and a message safe to show users
 export class AppError extends Error {
 	code: ErrorCode;

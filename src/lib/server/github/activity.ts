@@ -3,7 +3,8 @@ import { graphql, rest, paginate } from '$lib/server/github/client';
 import { getRepo } from '$lib/server/github/repo';
 import { buildPunchCard } from '$lib/utils/punch-card';
 import { cached, isCached, readCached, writeCached } from '$lib/server/cache';
-import { logError } from '$lib/utils/errors';
+import { logError, rootReason } from '$lib/utils/errors';
+import { createLogger } from '$lib/utils/logger';
 import { db } from '$lib/server/db';
 import { activityEvent } from '$lib/server/db/schema';
 import { getUserContributions } from '$lib/server/github/user-stats';
@@ -35,6 +36,8 @@ import type {
 	Reactions
 } from '$lib/types';
 
+const log = createLogger('activity');
+
 const PER_PAGE = 100;
 const EVENT_PAGES = 3;
 const BACKFILL_PAGES = 5;
@@ -55,17 +58,22 @@ async function store(login: string, events: ActivityEvent[]): Promise<void> {
 		user: (event.actor ?? login).toLowerCase(),
 		createdAt: new Date(event.createdAt)
 	}));
-	await db
-		.insert(activityEvent)
-		.values(rows)
-		.onConflictDoUpdate({
-			target: activityEvent.id,
-			set: {
-				title: sql`coalesce(${activityEvent.title}, excluded.title)`,
-				body: sql`coalesce(${activityEvent.body}, excluded.body)`,
-				reactions: sql`coalesce(excluded.reactions, ${activityEvent.reactions})`
-			}
-		});
+	try {
+		await db
+			.insert(activityEvent)
+			.values(rows)
+			.onConflictDoUpdate({
+				target: activityEvent.id,
+				set: {
+					title: sql`coalesce(${activityEvent.title}, excluded.title)`,
+					body: sql`coalesce(${activityEvent.body}, excluded.body)`,
+					reactions: sql`coalesce(excluded.reactions, ${activityEvent.reactions})`
+				}
+			});
+	} catch (error) {
+		// Events refetch on the next visit, a failed persist must not sink the page
+		log.warn(`could not store events for ${login}`, { reason: rootReason(error) });
+	}
 }
 
 // Walk up to EVENT_PAGES of the public events feed, mapping each to a row

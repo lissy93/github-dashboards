@@ -1,7 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { outcomeHistory } from '$lib/server/db/schema';
-import { isConnectionError, toAppError } from '$lib/utils/errors';
+import { rootReason } from '$lib/utils/errors';
 import { createLogger } from '$lib/utils/logger';
 import type { OutcomeBucket } from '$lib/utils/outcomes';
 
@@ -70,9 +70,8 @@ export async function accumulateOutcomes(
 			}))
 			.sort((first, second) => first.date.localeCompare(second.date));
 	} catch (error) {
-		// Storage down, fall back to the current window so the trend still renders
-		if (!isConnectionError(error)) throw error;
-		log.warn(`outcome history unavailable for ${kind} ${key}`, { code: toAppError(error).code });
+		// Storage trouble, fall back to the current window so the trend still renders
+		log.warn(`outcome history unavailable for ${kind} ${key}`, { reason: rootReason(error) });
 		return fresh;
 	}
 }

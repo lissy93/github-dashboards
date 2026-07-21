@@ -3,7 +3,7 @@ import { batchedGraphql, graphql, rest, paginate } from '$lib/server/github/clie
 import { cached } from '$lib/server/cache';
 import { db } from '$lib/server/db';
 import { userFollowersDaily } from '$lib/server/db/schema';
-import { isConnectionError, toAppError } from '$lib/utils/errors';
+import { rootReason, toAppError } from '$lib/utils/errors';
 import { createLogger } from '$lib/utils/logger';
 import type { NotableFollower, Org, UserSocial } from '$lib/types';
 
@@ -20,8 +20,7 @@ async function snapshotFollowers(login: string, followers: number): Promise<void
 				set: { followers: sql`excluded.followers` }
 			});
 	} catch (error) {
-		if (!isConnectionError(error)) throw error;
-		log.warn(`follower snapshot unavailable for ${login}`, { code: toAppError(error).code });
+		log.warn(`follower snapshot unavailable for ${login}`, { reason: rootReason(error) });
 	}
 }
 

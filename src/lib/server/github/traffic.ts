@@ -4,7 +4,11 @@ import { restTolerant } from '$lib/server/github/client';
 import { cached } from '$lib/server/cache';
 import { db } from '$lib/server/db';
 import { repoTrafficDaily } from '$lib/server/db/schema';
+import { rootReason } from '$lib/utils/errors';
+import { createLogger } from '$lib/utils/logger';
 import type { TrafficDay } from '$lib/types';
+
+const log = createLogger('traffic');
 
 type DailyPoint = { timestamp: string; count: number; uniques: number };
 type ViewsResponse = TrafficCount & { views: DailyPoint[] };
@@ -50,18 +54,23 @@ export function mergeTrafficDays(views: DailyPoint[], clones: DailyPoint[]) {
 async function snapshot(repo: string, views: ViewsResponse, clones: ClonesResponse | null) {
 	const rows = mergeTrafficDays(views.views, clones?.clones ?? []).map((day) => ({ repo, ...day }));
 	if (!rows.length) return;
-	await db
-		.insert(repoTrafficDaily)
-		.values(rows)
-		.onConflictDoUpdate({
-			target: [repoTrafficDaily.repo, repoTrafficDaily.day],
-			set: {
-				views: sql`excluded.views`,
-				uniqueViews: sql`excluded.unique_views`,
-				clones: sql`excluded.clones`,
-				uniqueClones: sql`excluded.unique_clones`
-			}
-		});
+	try {
+		await db
+			.insert(repoTrafficDaily)
+			.values(rows)
+			.onConflictDoUpdate({
+				target: [repoTrafficDaily.repo, repoTrafficDaily.day],
+				set: {
+					views: sql`excluded.views`,
+					uniqueViews: sql`excluded.unique_views`,
+					clones: sql`excluded.clones`,
+					uniqueClones: sql`excluded.unique_clones`
+				}
+			});
+	} catch (error) {
+		// The summary is already in hand, a failed snapshot only costs stored history
+		log.warn(`could not snapshot traffic for ${repo}`, { reason: rootReason(error) });
+	}
 }
 
 async function fetchSummary(owner: string, repo: string): Promise<RepoTrafficSummary> {

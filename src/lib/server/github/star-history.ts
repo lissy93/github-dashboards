@@ -10,7 +10,7 @@ import { preferTotals } from '$lib/server/github/stars';
 import { cached, isCached, readCached, writeCached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
 import { createLogger } from '$lib/utils/logger';
-import { AppError } from '$lib/utils/errors';
+import { AppError, rootReason } from '$lib/utils/errors';
 import type { StarBreakdown } from '$lib/views/stats';
 
 const log = createLogger('star-history');
@@ -279,13 +279,18 @@ async function writePoints(repo: string, points: Point[]): Promise<void> {
 		byDay.set(point.day, Math.max(byDay.get(point.day) ?? 0, point.stars));
 	if (!byDay.size) return;
 	const rows = [...byDay].map(([day, stars]) => ({ repo, day, stars, source: 'curve' }));
-	await db
-		.insert(repoStarsDaily)
-		.values(rows)
-		.onConflictDoUpdate({
-			target: [repoStarsDaily.repo, repoStarsDaily.day, repoStarsDaily.source],
-			set: { stars: sql`excluded.stars` }
-		});
+	try {
+		await db
+			.insert(repoStarsDaily)
+			.values(rows)
+			.onConflictDoUpdate({
+				target: [repoStarsDaily.repo, repoStarsDaily.day, repoStarsDaily.source],
+				set: { stars: sql`excluded.stars` }
+			});
+	} catch (error) {
+		// The walk already has the curve, a failed persist only costs stored history
+		log.warn(`could not store star points for ${repo}`, { reason: rootReason(error) });
+	}
 }
 
 async function readRows(names: string[]): Promise<DayStars[]> {

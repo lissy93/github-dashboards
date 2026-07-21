@@ -1,7 +1,7 @@
 import { batchedGraphql, graphql, rest } from '$lib/server/github/client';
 import { snapshotStars } from '$lib/server/github/stars';
 import { cached, isCached, readCached, writeCached } from '$lib/server/cache';
-import { AppError, toAppError } from '$lib/utils/errors';
+import { AppError, rootReason, toAppError } from '$lib/utils/errors';
 import { createLogger } from '$lib/utils/logger';
 import type { Org, Repo, UserOverview, UserProfile } from '$lib/types';
 
@@ -403,7 +403,7 @@ async function syncOverview(login: string, current?: OverviewState): Promise<Ove
 		try {
 			await snapshotStars(owned.nodes.map(mapRepo));
 		} catch (error) {
-			log.warn(`star snapshot failed for ${login}`, { code: toAppError(error).code });
+			log.warn(`star snapshot failed for ${login}`, { reason: rootReason(error) });
 		}
 		return state;
 	})().finally(() => syncing.delete(cacheKey));

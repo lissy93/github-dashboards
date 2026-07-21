@@ -1,6 +1,7 @@
 import { isStorageHealthy } from '$lib/server/cache';
 import { getRateLimitState } from '$lib/server/github/client';
 import { oauthEnabled } from '$lib/server/auth/oauth';
+import { appTokenConfigured } from '$lib/server/github/app-token';
 import { config } from '$lib/server/env';
 import type { LayoutServerLoad } from './$types';
 
@@ -21,6 +22,6 @@ export const load: LayoutServerLoad = ({ locals }) => {
 		user: locals.user,
 		loginEnabled: oauthEnabled(),
 		// No shared token means anonymous visitors only get GitHub's tiny rate limit
-		tokenMissing: !config.GITHUB_TOKEN
+		tokenMissing: !config.GITHUB_TOKEN && !appTokenConfigured()
 	};
 };

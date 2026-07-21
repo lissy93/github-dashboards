@@ -6,7 +6,7 @@ import { enrichOwnedRepos } from '$lib/server/github/enrich';
 import { cached, isCached } from '$lib/server/cache';
 import { db } from '$lib/server/db';
 import { repoChurnWeekly } from '$lib/server/db/schema';
-import { AppError, isConnectionError, toAppError } from '$lib/utils/errors';
+import { AppError, rootReason } from '$lib/utils/errors';
 import { createLogger } from '$lib/utils/logger';
 import type { OwnedRepoData } from '$lib/types';
 
@@ -135,9 +135,8 @@ async function accumulateChurn(repo: string, fresh: WeekChurn[]): Promise<WeekCh
 			.where(eq(repoChurnWeekly.repo, key));
 		return rows.sort((first, second) => first.week.localeCompare(second.week));
 	} catch (error) {
-		// Storage down, fall back to the current window so the chart still renders
-		if (!isConnectionError(error)) throw error;
-		log.warn(`churn history unavailable for ${key}`, { code: toAppError(error).code });
+		// Storage trouble, fall back to the current window so the chart still renders
+		log.warn(`churn history unavailable for ${key}`, { reason: rootReason(error) });
 		return fresh;
 	}
 }

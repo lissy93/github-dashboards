@@ -5,7 +5,7 @@ import { db } from '$lib/server/db';
 import { cacheEntry } from '$lib/server/db/schema';
 import { config } from '$lib/server/env';
 import { createLogger } from '$lib/utils/logger';
-import { logError, toAppError, isConnectionError } from '$lib/utils/errors';
+import { logError, rootReason, toAppError, isConnectionError } from '$lib/utils/errors';
 
 const log = createLogger('cache');
 
@@ -131,9 +131,9 @@ export async function writeCached<T>(key: string, value: T, ttl: number): Promis
 			});
 		storageReachable = true;
 	} catch (error) {
-		if (!isConnectionError(error)) throw error;
-		storageReachable = false;
-		log.warn(`storage unavailable, could not checkpoint ${key}`);
+		// Checkpoints are best-effort, callers still hold the state they just built
+		if (isConnectionError(error)) storageReachable = false;
+		log.warn(`could not checkpoint ${key}`, { reason: rootReason(error) });
 	}
 }
 
@@ -151,19 +151,24 @@ function refresh<T>(
 	const promise = (async () => {
 		const value = await fetcher();
 		const packed = packValue(value) as object;
-		if (previous !== undefined && JSON.stringify(packed) === JSON.stringify(previous)) {
-			await db
-				.update(cacheEntry)
-				.set({ fetchedAt: new Date(), ttl })
-				.where(eq(cacheEntry.key, key));
-		} else {
-			await db
-				.insert(cacheEntry)
-				.values({ key, value: packed, ttl })
-				.onConflictDoUpdate({
-					target: cacheEntry.key,
-					set: { value: packed, ttl, fetchedAt: new Date() }
-				});
+		try {
+			if (previous !== undefined && JSON.stringify(packed) === JSON.stringify(previous)) {
+				await db
+					.update(cacheEntry)
+					.set({ fetchedAt: new Date(), ttl })
+					.where(eq(cacheEntry.key, key));
+			} else {
+				await db
+					.insert(cacheEntry)
+					.values({ key, value: packed, ttl })
+					.onConflictDoUpdate({
+						target: cacheEntry.key,
+						set: { value: packed, ttl, fetchedAt: new Date() }
+					});
+			}
+		} catch (error) {
+			// The fetch already succeeded, a failed persist must not cost callers the value
+			log.warn(`cache write failed for ${key}`, { reason: rootReason(error) });
 		}
 		return value;
 	})().finally(() => inflight.delete(key));

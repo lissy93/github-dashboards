@@ -1,5 +1,6 @@
 import { config } from '$lib/server/env';
-import { activeToken, tokenSource } from '$lib/server/auth/context';
+import { activeToken, tokenSource, usingAppToken } from '$lib/server/auth/context';
+import { ensureAppToken } from '$lib/server/github/app-token';
 import { AppError, type ErrorCode } from '$lib/utils/errors';
 import { createLogger } from '$lib/utils/logger';
 
@@ -116,6 +117,8 @@ function context(res: Response): string {
 
 // Fetch through the concurrency gate with auth and a timeout, retrying gateway failures
 async function call(url: string, init: RequestInit = {}, label = 'request'): Promise<Response> {
+	// App-identity requests ride the installation token, freshen it before headers bind
+	if (usingAppToken()) await ensureAppToken();
 	await acquire();
 	try {
 		let lastError: unknown;
