@@ -44,6 +44,8 @@ const BACKFILL_PAGES = 5;
 const PAGE_SIZE = 40;
 // Refresh newest on each visit, but throttle so navigation does not refetch
 const SYNC_TTL = 120;
+// Per-user newest-events sync key, also the retention signal for a user's stored events
+export const ACTIVITY_SYNC_PREFIX = 'activity:sync:';
 // Deep history is heavy, so reseed at most daily to refresh titles and new items
 const BACKFILL_TTL = 86400;
 
@@ -96,7 +98,7 @@ async function fetchEvents(login: string): Promise<ActivityEvent[]> {
 // Refresh the newest events for a user, throttled and deduped against history
 export function syncActivity(login: string): Promise<{ stored: number }> {
 	return cached(
-		`activity:sync:${login.toLowerCase()}`,
+		`${ACTIVITY_SYNC_PREFIX}${login.toLowerCase()}`,
 		async () => {
 			const events = await fetchEvents(login);
 			await store(login, events);

@@ -10,18 +10,12 @@ import type {
 	Vulnerability,
 	VulnSeverity
 } from '$lib/types';
-import { sql } from 'drizzle-orm';
 import { graphql, rest, restResponse } from '$lib/server/github/client';
 import { withAppToken } from '$lib/server/auth/context';
 import { cached, isCached } from '$lib/server/cache';
-import { db } from '$lib/server/db';
-import { repoSecurityDaily } from '$lib/server/db/schema';
 import { formatDateTime, plural } from '$lib/utils/format';
 import { fetchVulns, severityOf } from '$lib/server/github/supply-chain';
-import { AppError, logError, rootReason } from '$lib/utils/errors';
-import { createLogger } from '$lib/utils/logger';
-
-const log = createLogger('security');
+import { AppError, logError } from '$lib/utils/errors';
 
 // Security posture moves slowly, refresh on visit like the rest of the board
 const TTL = 900;
@@ -531,12 +525,6 @@ async function fetchSecurity(owner: string, name: string): Promise<RepoSecurity>
 		privateVulnReporting
 	});
 	const finalGrade = grade(checks, alerts);
-	await snapshotSecurity(
-		`${owner}/${name}`,
-		finalGrade.score,
-		finalGrade.letter,
-		alerts?.total ?? 0
-	);
 	return {
 		checks,
 		...tally(checks),
@@ -544,37 +532,6 @@ async function fetchSecurity(owner: string, name: string): Promise<RepoSecurity>
 		alerts,
 		advisories: advisories ?? []
 	};
-}
-
-// Record today's security grade and open vulnerability count so the trend can be shown later
-async function snapshotSecurity(
-	repo: string,
-	score: number,
-	letter: string,
-	vulns: number
-): Promise<void> {
-	try {
-		await db
-			.insert(repoSecurityDaily)
-			.values({
-				repo: repo.toLowerCase(),
-				day: new Date().toISOString().slice(0, 10),
-				score,
-				letter,
-				vulns
-			})
-			.onConflictDoUpdate({
-				target: [repoSecurityDaily.repo, repoSecurityDaily.day],
-				set: {
-					score: sql`excluded.score`,
-					letter: sql`excluded.letter`,
-					vulns: sql`excluded.vulns`
-				}
-			});
-	} catch (error) {
-		// Snapshots are best-effort history, the fresh security data is already in hand
-		log.warn('security snapshot failed', { reason: rootReason(error) });
-	}
 }
 
 const key = (owner: string, name: string) => `repo:security:v5:${owner}/${name}`.toLowerCase();

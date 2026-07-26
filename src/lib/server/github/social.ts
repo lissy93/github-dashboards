@@ -1,28 +1,10 @@
-import { sql } from 'drizzle-orm';
 import { batchedGraphql, graphql, rest, paginate } from '$lib/server/github/client';
 import { cached } from '$lib/server/cache';
-import { db } from '$lib/server/db';
-import { userFollowersDaily } from '$lib/server/db/schema';
-import { rootReason, toAppError } from '$lib/utils/errors';
+import { toAppError } from '$lib/utils/errors';
 import { createLogger } from '$lib/utils/logger';
 import type { NotableFollower, Org, UserSocial } from '$lib/types';
 
 const log = createLogger('social');
-
-// Record today's follower count so growth can be charted later, best effort
-async function snapshotFollowers(login: string, followers: number): Promise<void> {
-	try {
-		await db
-			.insert(userFollowersDaily)
-			.values({ login: login.toLowerCase(), day: new Date().toISOString().slice(0, 10), followers })
-			.onConflictDoUpdate({
-				target: [userFollowersDaily.login, userFollowersDaily.day],
-				set: { followers: sql`excluded.followers` }
-			});
-	} catch (error) {
-		log.warn(`follower snapshot unavailable for ${login}`, { reason: rootReason(error) });
-	}
-}
 
 const PER_PAGE = 100;
 // The followers connection has no influence order, so we sample a few pages and rank
@@ -160,7 +142,6 @@ export function getUserSocial(login: string): Promise<UserSocial> {
 				fetchSponsors(login)
 			]);
 			const newestFollowers = await fetchNewestFollowers(login, followers.total);
-			await snapshotFollowers(login, followers.total);
 			return {
 				topFollowers: rankFollowers(followers.all),
 				newestFollowers,

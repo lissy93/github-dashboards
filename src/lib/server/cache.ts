@@ -28,6 +28,11 @@ function forceFreshRequested(): boolean {
 // Values past this size gzip well (file trees, crawl states), smaller ones stay plain
 const PACK_MIN_BYTES = 4096;
 
+// Refetchable values whose packed form exceeds this are served but never stored, since
+// refetching one bulky entry costs less than letting it dominate storage. Checkpoints,
+// which cannot be rebuilt on demand, go through writeCached and are exempt
+const MAX_PERSIST_BYTES = 1024 * 1024;
+
 // Gzip a big value into a compact wrapper so bulky entries stop dominating storage
 export function packValue(value: unknown): unknown {
 	const json = JSON.stringify(value);
@@ -151,8 +156,11 @@ function refresh<T>(
 	const promise = (async () => {
 		const value = await fetcher();
 		const packed = packValue(value) as object;
+		const serialized = JSON.stringify(packed);
 		try {
-			if (previous !== undefined && JSON.stringify(packed) === JSON.stringify(previous)) {
+			if (serialized.length > MAX_PERSIST_BYTES) {
+				log.debug(`value too large to persist for ${key}`, { bytes: serialized.length });
+			} else if (previous !== undefined && serialized === JSON.stringify(previous)) {
 				await db
 					.update(cacheEntry)
 					.set({ fetchedAt: new Date(), ttl })
