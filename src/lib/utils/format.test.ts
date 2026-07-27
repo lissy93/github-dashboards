@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { compactNumber, relativeTime } from './format';
+import { compactNumber, relativeTime, formatDate, formatDateTime } from './format';
 
 describe('compactNumber', () => {
 	it('keeps small numbers as-is', () => {
@@ -24,5 +24,11 @@ describe('relativeTime', () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date('2026-01-10T00:00:00Z'));
 		expect(relativeTime('2026-01-12T00:00:00Z')).toBe('in 2 days');
+	});
+
+	it('falls back for a missing or invalid date', () => {
+		expect(relativeTime(null as unknown as string)).toBe('never');
+		expect(formatDate('')).toBe('never');
+		expect(formatDateTime('not-a-date')).toBe('never');
 	});
 });

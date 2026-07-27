@@ -12,10 +12,12 @@ const REVALIDATE_TIMEOUT_MS = 60000;
 type MaybeResult<T> = Promise<LoadResult<T>> | LoadResult<T>;
 type Phase = 'refreshing' | 'fresh' | 'stale';
 
-type Options<T> = {
+type Options<T, Raw> = {
 	url: () => string;
 	initial: () => MaybeResult<T>;
 	enabled: () => boolean;
+	// Reshape the fresh payload, e.g. slice a preview or unwrap a page
+	map?: (raw: Raw) => T;
 };
 
 // Live revalidations across the page, rolled into one freshness row in the status report
@@ -42,7 +44,7 @@ function syncFreshness(status: PanelStatusStore | undefined): void {
 
 // Show the SSR cache instantly, then a signed-in viewer refetches once and we swap the
 // fresh copy in. The endpoint writes through the shared cache so anonymous viewers ride it
-export function revalidatingResult<T>(options: Options<T>) {
+export function revalidatingResult<T, Raw = T>(options: Options<T, Raw>) {
 	let fresh = $state<LoadResult<T>>();
 	const result = $derived(fresh ?? options.initial());
 	const status = usePanelStatus();
@@ -62,9 +64,9 @@ export function revalidatingResult<T>(options: Options<T>) {
 		setPhase('refreshing');
 		(async () => {
 			try {
-				const data = await fetchApi<T>(url, REVALIDATE_TIMEOUT_MS);
+				const raw = await fetchApi<Raw>(url, REVALIDATE_TIMEOUT_MS);
 				if (!active) return;
-				fresh = { ok: true, data };
+				fresh = { ok: true, data: options.map ? options.map(raw) : (raw as unknown as T) };
 				setPhase('fresh');
 			} catch (error) {
 				// Keep the cached copy on failure, a slightly stale panel beats a broken one

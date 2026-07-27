@@ -9,8 +9,16 @@
 	import type { TaskBucket } from '$lib/types';
 	import type { PageData } from './$types';
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
+	import { revalidatingResult } from '$lib/state/revalidate.svelte';
+	import { TASKS_SUMMARY_PREVIEW } from '$lib/views/overview';
 
 	let { data }: { data: PageData } = $props();
+
+	const tasks = revalidatingResult({
+		url: () => `/api/${data.user}/tasks?fresh=1&preview=${TASKS_SUMMARY_PREVIEW}`,
+		initial: () => data.result,
+		enabled: () => !!data.viewerLogin
+	});
 
 	// Authored lists make no sense for an org account, so drop them there
 	function columnBuckets(column: TaskBucket[], isOrg: boolean): TaskBucket[] {
@@ -23,7 +31,7 @@
 	description={`Open issues and PRs for ${data.user} on ${APP_NAME}`}
 />
 
-{#await data.result}
+{#await tasks.result}
 	<div class="grid gap-5 lg:grid-cols-2">
 		{#each [0, 1] as column (column)}
 			<div class="space-y-5">

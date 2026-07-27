@@ -3,11 +3,13 @@ import { getTaskData, isTaskReady } from '$lib/server/github/tasks';
 import { getActivityPage } from '$lib/server/github/activity';
 import { canSeeTraffic } from '$lib/server/github/traffic';
 import { settle } from '$lib/server/load';
-import { previewBuckets, type ActivityResult } from '$lib/views/overview';
+import {
+	previewBuckets,
+	OVERVIEW_TASK_PREVIEW,
+	OVERVIEW_ACTIVITY_PREVIEW,
+	type ActivityResult
+} from '$lib/views/overview';
 import type { PageServerLoad } from './$types';
-
-const TASK_PREVIEW = 5;
-const ACTIVITY_PREVIEW = 12;
 
 export const load: PageServerLoad = async ({ params, parent, locals }) => {
 	const user = params.user;
@@ -17,7 +19,7 @@ export const load: PageServerLoad = async ({ params, parent, locals }) => {
 	const overview = settle('overview', getUserOverview(user));
 	const task = settle(
 		'overview-task',
-		getTaskData(user).then((data) => previewBuckets(data, TASK_PREVIEW))
+		getTaskData(user).then((data) => previewBuckets(data, OVERVIEW_TASK_PREVIEW))
 	);
 
 	// Activity is a quick store read, resolve it inline and never block on GitHub here
@@ -25,7 +27,7 @@ export const load: PageServerLoad = async ({ params, parent, locals }) => {
 		? null
 		: await settle(
 				'overview-activity',
-				getActivityPage(user, { limit: ACTIVITY_PREVIEW }).then((page) => page.events)
+				getActivityPage(user, { limit: OVERVIEW_ACTIVITY_PREVIEW }).then((page) => page.events)
 			);
 
 	// Render cached data server-side for SEO, stream only a slow cold miss

@@ -74,30 +74,6 @@ export const repoChurnWeekly = pgTable(
 	(table) => [uniqueIndex('repo_churn_week_idx').on(table.repo, table.week)]
 );
 
-// Daily follower count per user, captured as we see it since GitHub only gives the current total
-export const userFollowersDaily = pgTable(
-	'user_followers_daily',
-	{
-		login: text('login').notNull(),
-		day: date('day').notNull(),
-		followers: integer('followers').notNull()
-	},
-	(table) => [uniqueIndex('user_followers_day_idx').on(table.login, table.day)]
-);
-
-// Daily security grade and open vuln count per repo, captured so the trend can be shown later
-export const repoSecurityDaily = pgTable(
-	'repo_security_daily',
-	{
-		repo: text('repo').notNull(),
-		day: date('day').notNull(),
-		score: integer('score').notNull(),
-		letter: text('letter').notNull(),
-		vulns: integer('vulns').notNull().default(0)
-	},
-	(table) => [uniqueIndex('repo_security_day_idx').on(table.repo, table.day)]
-);
-
 // Normalised timeline rows per user, accumulated from the events feed and backfill.
 // id is deterministic so the same action from either source dedupes on insert
 export const activityEvent = pgTable(

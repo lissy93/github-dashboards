@@ -5,23 +5,28 @@
 	import { paths } from '$lib/config';
 	import type { ActivityResult } from '$lib/views/overview';
 
-	let { user, result }: { user: string; result: ActivityResult } = $props();
-	const events = $derived(result.ok ? result.data : []);
+	let { user, result }: { user: string; result: Promise<ActivityResult> | ActivityResult } =
+		$props();
 </script>
 
-<Panel
-	title="Activity"
-	icon={Activity}
-	href={paths.userActivity(user)}
-	error={result.ok ? undefined : result.error}
-	empty={result.ok && events.length === 0}
-	emptyText="No recent activity"
->
-	{#if result.ok}
-		<ul class="-m-4 divide-y">
-			{#each events as event (event.id)}
-				<li><ActivityItem {event} /></li>
-			{/each}
-		</ul>
-	{/if}
-</Panel>
+{#await result}
+	<Panel title="Activity" icon={Activity} loading />
+{:then res}
+	{@const events = res.ok ? res.data : []}
+	<Panel
+		title="Activity"
+		icon={Activity}
+		href={paths.userActivity(user)}
+		error={res.ok ? undefined : res.error}
+		empty={res.ok && events.length === 0}
+		emptyText="No recent activity"
+	>
+		{#if res.ok}
+			<ul class="-m-4 divide-y">
+				{#each events as event (event.id)}
+					<li><ActivityItem {event} /></li>
+				{/each}
+			</ul>
+		{/if}
+	</Panel>
+{/await}

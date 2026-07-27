@@ -10,15 +10,30 @@
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
+	import type { ActivityEvent, ActivityPage, TaskData } from '$lib/types';
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
 	import { revalidatingResult } from '$lib/state/revalidate.svelte';
+	import { OVERVIEW_TASK_PREVIEW, OVERVIEW_ACTIVITY_PREVIEW } from '$lib/views/overview';
 
 	let { data }: { data: PageData } = $props();
 
+	// Freshen every SSR panel on land for a signed-in viewer
+	const enabled = () => !!data.viewerLogin;
 	const overview = revalidatingResult({
 		url: () => `/api/${data.user}/overview?fresh=1`,
 		initial: () => data.overview,
-		enabled: () => !!data.viewerLogin
+		enabled
+	});
+	const task = revalidatingResult<TaskData>({
+		url: () => `/api/${data.user}/tasks?fresh=1&preview=${OVERVIEW_TASK_PREVIEW}`,
+		initial: () => data.task,
+		enabled
+	});
+	const activity = revalidatingResult<ActivityEvent[], ActivityPage>({
+		url: () => `/api/${data.user}/activity?fresh=1&limit=${OVERVIEW_ACTIVITY_PREVIEW}`,
+		initial: () => data.activity!,
+		enabled: () => enabled() && !data.isOrg,
+		map: (page) => page.events
 	});
 </script>
 
@@ -48,7 +63,7 @@
 	{#if result.ok}
 		<div class="space-y-5">
 			<ProfileCard profile={result.data.profile} />
-			<TasksPreview user={data.user} result={data.task} />
+			<TasksPreview user={data.user} result={task.result} />
 			<ReposPanel
 				user={data.user}
 				canSeeTraffic={data.canSeeTraffic}
@@ -56,7 +71,7 @@
 				capped={result.data.ownedReposCapped}
 			/>
 			{#if data.activity}
-				<ActivityPreview user={data.user} result={data.activity} />
+				<ActivityPreview user={data.user} result={activity.result} />
 			{/if}
 		</div>
 	{:else}

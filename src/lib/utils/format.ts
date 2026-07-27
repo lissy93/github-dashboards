@@ -60,9 +60,17 @@ export function formatBytes(bytes: number): string {
 	return `${unit === 'B' ? value : decimal.format(value)} ${unit}`;
 }
 
+// Milliseconds from an ISO date, null when missing or unparseable (e.g. a null pushedAt)
+function parseTime(iso: string): number | null {
+	const ms = Date.parse(iso);
+	return Number.isNaN(ms) ? null : ms;
+}
+
 // Relative time from now, e.g. 3 days ago
 export function relativeTime(iso: string): string {
-	const seconds = (Date.parse(iso) - Date.now()) / 1000;
+	const ms = parseTime(iso);
+	if (ms === null) return 'never';
+	const seconds = (ms - Date.now()) / 1000;
 	const abs = Math.abs(seconds);
 	for (const [unit, size] of UNITS) {
 		if (abs >= size) return relative.format(Math.round(seconds / size), unit);
@@ -72,12 +80,14 @@ export function relativeTime(iso: string): string {
 
 // Absolute short date, e.g. 5 Jun 2024
 export function formatDate(iso: string): string {
-	return dateFmt.format(Date.parse(iso));
+	const ms = parseTime(iso);
+	return ms === null ? 'never' : dateFmt.format(ms);
 }
 
 // Exact date and time for tooltips, e.g. Jun 5, 2024, 2:32 PM
 export function formatDateTime(iso: string): string {
-	return dateTimeFmt.format(Date.parse(iso));
+	const ms = parseTime(iso);
+	return ms === null ? 'never' : dateTimeFmt.format(ms);
 }
 
 // GitHub lets the profile website be any string, so only link real web URLs
