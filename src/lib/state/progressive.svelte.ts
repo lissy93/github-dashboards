@@ -50,7 +50,7 @@ export function progressiveResult<T>(options: Options<T>) {
 				// A repeated payload means the crawl stalled upstream, stop hammering
 				let last = settled.ok ? JSON.stringify(settled.data) : '';
 				for (let step = 0; active && step < MAX_ADVANCES; step++) {
-					const data = await fetchApi<T>(url, ADVANCE_TIMEOUT_MS);
+					const data = await fetchApi<T>(url, ADVANCE_TIMEOUT_MS, true);
 					if (!active) return;
 					deeper = { ok: true, data };
 					if (!options.incomplete(data)) return;
@@ -101,6 +101,22 @@ type TimelinePageData = {
 export function progressiveTimeline(data: () => TimelinePageData) {
 	return progressiveResult({
 		url: () => `/api/${data().user}/${data().repo.name}/timeline?advance=1`,
+		initial: () => data().timeline,
+		enabled: () => !!data().viewerLogin,
+		incomplete: (tl) => tl.sampled
+	});
+}
+
+type UserTimelinePageData = {
+	user: string;
+	timeline: MaybeResult<RepoTimeline>;
+	viewerLogin: string | null;
+};
+
+// The user's all-time issue/PR timeline across their repos, deepened one repo per advance
+export function progressiveUserTimeline(data: () => UserTimelinePageData) {
+	return progressiveResult({
+		url: () => `/api/${data().user}/timeline?advance=1`,
 		initial: () => data().timeline,
 		enabled: () => !!data().viewerLogin,
 		incomplete: (tl) => tl.sampled

@@ -2,6 +2,7 @@
 	import './layout.css';
 	import { TriangleAlert, CircleAlert, Info } from '@lucide/svelte';
 	import TopBar from '$lib/components/layout/TopBar.svelte';
+	import LoadProgress from '$lib/components/layout/LoadProgress.svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import PanelStatusReport from '$lib/components/common/PanelStatusReport.svelte';
 	import { providePanelStatus } from '$lib/state/panel-status.svelte';
@@ -37,6 +38,8 @@
 </script>
 
 <svelte:head><link rel="icon" href="/logo.svg" type="image/svg+xml" /></svelte:head>
+
+<LoadProgress />
 
 <a
 	href="#main"

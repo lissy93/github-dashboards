@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { buildTimeline, issueResolved, resolutionStats } from '$lib/server/github/repo-timeline';
+import {
+	buildTimeline,
+	issueResolved,
+	resolutionStats,
+	timelineContribution,
+	type TimelineState
+} from '$lib/server/github/repo-timeline';
 
 const point = (points: ReturnType<typeof buildTimeline>['points'], period: string) =>
 	points.find((entry) => entry.period === period);
@@ -104,6 +110,65 @@ describe('buildTimeline', () => {
 
 	it('returns no points for an empty repo', () => {
 		expect(buildTimeline([], []).points).toEqual([]);
+	});
+});
+
+describe('timelineContribution', () => {
+	const state = (issues: TimelineState['issues'], prs: TimelineState['prs']): TimelineState => ({
+		issues,
+		prs
+	});
+	const crawl = <T>(
+		nodes: T[],
+		extra: { complete?: boolean; total?: number; openTotal?: number } = {}
+	) => ({
+		nodes,
+		cursor: null as string | null,
+		complete: true,
+		total: nodes.length,
+		openTotal: 0,
+		...extra
+	});
+
+	it('maps issue state reason and PR merged flag onto the resolved flag', () => {
+		const part = timelineContribution(
+			state(
+				crawl([
+					{ id: '1', createdAt: '2024-01-01', closedAt: '2024-02-01', stateReason: 'COMPLETED' },
+					{ id: '2', createdAt: '2024-01-02', closedAt: '2024-02-02', stateReason: 'NOT_PLANNED' }
+				]),
+				crawl([{ id: '3', createdAt: '2024-01-03', closedAt: '2024-02-03', merged: true }])
+			)
+		);
+		expect(part.issues.map((node) => node.resolved)).toEqual([true, false]);
+		expect(part.prs[0].resolved).toBe(true);
+		expect(part.complete).toBe(true);
+	});
+
+	it('has a zero baseline once both kinds are fully crawled', () => {
+		const part = timelineContribution(
+			state(
+				crawl([{ id: '1', createdAt: '2024-01-01', closedAt: null, stateReason: null }]),
+				crawl([])
+			)
+		);
+		expect(part.baseline).toEqual({ issues: { total: 0, open: 0 }, prs: { total: 0, open: 0 } });
+	});
+
+	it('counts the uncrawled tail into the baseline when a kind is incomplete', () => {
+		const part = timelineContribution(
+			state(
+				crawl([{ id: '1', createdAt: '2024-01-01', closedAt: null, stateReason: null }], {
+					complete: false,
+					total: 10,
+					openTotal: 4
+				}),
+				crawl([])
+			)
+		);
+		// 10 issues exist, 1 crawled, so 9 sit in the baseline; 4 open minus the 1 open crawled leaves 3
+		expect(part.baseline.issues).toEqual({ total: 9, open: 3 });
+		expect(part.complete).toBe(false);
 	});
 });
 

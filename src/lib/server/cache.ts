@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { gzipSync, gunzipSync } from 'node:zlib';
-import { and, eq, like, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, like, or, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { cacheEntry } from '$lib/server/db/schema';
 import { config } from '$lib/server/env';
@@ -120,6 +120,24 @@ export async function readCached<T>(
 	} catch (error) {
 		if (isConnectionError(error)) storageReachable = false;
 		throw error;
+	}
+}
+
+// Read many keys in one query, unpacking each, returning only those found. A DB failure
+// degrades to an empty map so the caller treats every key as a cold miss rather than crash
+export async function readCachedMany<T>(keys: string[]): Promise<Map<string, T>> {
+	if (!keys.length) return new Map();
+	try {
+		const rows = await db
+			.select({ key: cacheEntry.key, value: cacheEntry.value })
+			.from(cacheEntry)
+			.where(inArray(cacheEntry.key, keys));
+		storageReachable = true;
+		return new Map(rows.map((row) => [row.key, unpackValue<T>(row.value)]));
+	} catch (error) {
+		if (isConnectionError(error)) storageReachable = false;
+		log.warn('batch cache read failed', { code: toAppError(error).code });
+		return new Map();
 	}
 }
 

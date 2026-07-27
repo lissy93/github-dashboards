@@ -3,6 +3,7 @@ import type {
 	RepoResolution,
 	RepoTimeline,
 	ResolutionStats,
+	TimelineBaseline,
 	TimelineCore
 } from '$lib/types';
 import { paginate } from '$lib/server/github/client';
@@ -147,7 +148,7 @@ type Crawl<T> = {
 	openTotal: number;
 	syncedAt?: string;
 };
-type TimelineState = { issues: Crawl<IssueNode>; prs: Crawl<PrNode> };
+export type TimelineState = { issues: Crawl<IssueNode>; prs: Crawl<PrNode> };
 
 type BatchOptions<T> = {
 	pages: number;
@@ -331,44 +332,51 @@ export function buildTimeline(
 	return { points, sampled, granularity };
 }
 
-function build(state: TimelineState): RepoTimeline {
-	const { issues, prs } = state;
-	issues.nodes.sort((first, second) => first.createdAt.localeCompare(second.createdAt));
-	prs.nodes.sort((first, second) => first.createdAt.localeCompare(second.createdAt));
-	const issueLife: Lifecycle[] = issues.nodes.map((node) => ({
+// The pre-window counts for one kind: items that exist beyond the crawled nodes, so the
+// chart can show them as earlier history. Zero once that kind is fully crawled
+function baselineOf(crawl: Crawl<{ closedAt: string | null }>): TimelineBaseline {
+	if (crawl.complete) return { total: 0, open: 0 };
+	return {
+		total: Math.max(0, crawl.total - crawl.nodes.length),
+		open: Math.max(0, crawl.openTotal - crawl.nodes.filter((node) => !node.closedAt).length)
+	};
+}
+
+// Lifecycle arrays plus the pre-window baseline from a stored crawl, shared by the repo
+// timeline and the user aggregate that folds many repos into one timeline
+export function timelineContribution(state: TimelineState): {
+	issues: Lifecycle[];
+	prs: Lifecycle[];
+	baseline: { issues: TimelineBaseline; prs: TimelineBaseline };
+	complete: boolean;
+} {
+	const issues: Lifecycle[] = state.issues.nodes.map((node) => ({
 		createdAt: node.createdAt,
 		closedAt: node.closedAt,
 		resolved: issueResolved(node.stateReason)
 	}));
-	const prLife: Lifecycle[] = prs.nodes.map((node) => ({
+	const prs: Lifecycle[] = state.prs.nodes.map((node) => ({
 		createdAt: node.createdAt,
 		closedAt: node.closedAt,
 		resolved: node.merged
 	}));
-	const sampled = !issues.complete || !prs.complete;
-	const baseline = {
-		issues: {
-			total: !issues.complete ? Math.max(0, issues.total - issues.nodes.length) : 0,
-			open: !issues.complete
-				? Math.max(0, issues.openTotal - issues.nodes.filter((node) => !node.closedAt).length)
-				: 0
-		},
-		prs: {
-			total: !prs.complete ? Math.max(0, prs.total - prs.nodes.length) : 0,
-			open: !prs.complete
-				? Math.max(0, prs.openTotal - prs.nodes.filter((node) => !node.closedAt).length)
-				: 0
-		}
+	return {
+		issues,
+		prs,
+		baseline: { issues: baselineOf(state.issues), prs: baselineOf(state.prs) },
+		complete: state.issues.complete && state.prs.complete
 	};
-	const initialOpen = {
-		issues: baseline.issues.open,
-		prs: baseline.prs.open
-	};
-	const core = buildTimeline(issueLife, prLife, sampled, initialOpen);
-	return { ...core, resolution: buildResolution(issues.nodes, prs.nodes), baseline };
 }
 
-const key = (owner: string, name: string) =>
+function build(state: TimelineState): RepoTimeline {
+	const { issues, prs } = state;
+	const part = timelineContribution(state);
+	const initialOpen = { issues: part.baseline.issues.open, prs: part.baseline.prs.open };
+	const core = buildTimeline(part.issues, part.prs, !part.complete, initialOpen);
+	return { ...core, resolution: buildResolution(issues.nodes, prs.nodes), baseline: part.baseline };
+}
+
+export const repoTimelineKey = (owner: string, name: string) =>
 	`repo:timeline-state:v1:${owner}/${name}`.toLowerCase();
 // One kind failing mid-refresh keeps the other's progress instead of blanking both
 async function syncState(
@@ -395,14 +403,15 @@ async function syncState(
 	return { issues, prs };
 }
 
-export const isRepoTimelineCached = (owner: string, name: string) => isCached(key(owner, name));
+export const isRepoTimelineCached = (owner: string, name: string) =>
+	isCached(repoTimelineKey(owner, name));
 
 // Serve the last good timeline immediately, refreshing recent rows and resuming older
 // history in the background. A cold repo fetches one bounded batch before first render
 export async function getRepoIssuePrTimeline(owner: string, name: string): Promise<RepoTimeline> {
 	const state = await checkpointed<TimelineState>(
 		'repo-timeline',
-		key(owner, name),
+		repoTimelineKey(owner, name),
 		TTL,
 		(current) => syncState(owner, name, current)
 	);
@@ -412,12 +421,12 @@ export async function getRepoIssuePrTimeline(owner: string, name: string): Promi
 // Crawl one more batch of older history on demand and persist it, so a signed-in viewer
 // can progressively deepen the timeline past the background bound, cached for later viewers
 export async function advanceRepoTimeline(owner: string, name: string): Promise<RepoTimeline> {
-	const stored = await readCached<TimelineState>(key(owner, name));
+	const stored = await readCached<TimelineState>(repoTimelineKey(owner, name));
 	const current = stored?.value;
 	// Fully crawled already, hand back what we have rather than refetch
 	if (current && current.issues.complete && current.prs.complete) return build(current);
 	return build(
-		await advanceCheckpointed<TimelineState>(key(owner, name), TTL, (state) =>
+		await advanceCheckpointed<TimelineState>(repoTimelineKey(owner, name), TTL, (state) =>
 			syncState(owner, name, state)
 		)
 	);

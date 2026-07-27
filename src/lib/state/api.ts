@@ -1,3 +1,4 @@
+import { beginLoading } from '$lib/state/loading.svelte';
 import { createLogger } from '$lib/utils/logger';
 import type { DisplayError } from '$lib/utils/errors';
 import type { LoadResult } from '$lib/types';
@@ -9,6 +10,7 @@ const TIMEOUT_MS = 20000;
 const RETRY_DELAYS_MS = [1500, 5000];
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const noop = () => {};
 
 // Worth a quick retry: an upstream gateway blip or a client-side timeout (tagged
 // unavailable below). Permanent failures (auth, not found, rate limited) the user sees
@@ -19,12 +21,22 @@ export const isTransient = (error: DisplayError) =>
 const inflight = new Map<string, Promise<LoadResult<unknown>>>();
 
 // Fetch one of our api routes, throwing the parsed apiError body on failure so
-// panels can render the server's message through toDisplayError
-export async function fetchApi<T>(url: string, timeoutMs = TIMEOUT_MS): Promise<T> {
-	const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
-	const body = await response.json();
-	if (!response.ok) throw body;
-	return body as T;
+// panels can render the server's message through toDisplayError. Background pollers
+// pass background=true so long deepen loops don't keep the top progress bar lit
+export async function fetchApi<T>(
+	url: string,
+	timeoutMs = TIMEOUT_MS,
+	background = false
+): Promise<T> {
+	const end = background ? noop : beginLoading();
+	try {
+		const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+		const body = await response.json();
+		if (!response.ok) throw body;
+		return body as T;
+	} finally {
+		end();
+	}
 }
 
 // One fetch of a lazy endpoint, mapping the response to a loading result
@@ -48,6 +60,7 @@ export function loadJson<T>(user: string, endpoint: string): Promise<LoadResult<
 	const key = `${user}/${endpoint}`;
 	const running = inflight.get(key);
 	if (running) return running as Promise<LoadResult<T>>;
+	const end = beginLoading();
 	const promise = (async () => {
 		let result = await attempt<T>(key, endpoint);
 		for (const delay of RETRY_DELAYS_MS) {
@@ -56,7 +69,10 @@ export function loadJson<T>(user: string, endpoint: string): Promise<LoadResult<
 			result = await attempt<T>(key, endpoint);
 		}
 		return result;
-	})().finally(() => inflight.delete(key));
+	})().finally(() => {
+		inflight.delete(key);
+		end();
+	});
 	inflight.set(key, promise as Promise<LoadResult<unknown>>);
 	return promise;
 }

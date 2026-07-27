@@ -1,18 +1,11 @@
 <script lang="ts">
 	import { CircleDot, GitPullRequest } from '@lucide/svelte';
 	import AsyncPanel from '$lib/components/common/AsyncPanel.svelte';
-	import StackedBarChart from '$lib/components/charts/StackedBarChart.svelte';
 	import ItemRow from '$lib/components/tasks/ItemRow.svelte';
-	import {
-		lifecycleBars,
-		lifecycleSeries,
-		cumulativeTicks,
-		TIMELINE_SAMPLED_NOTE
-	} from '$lib/views/repo';
+	import TotalTimelinePanel from '$lib/components/tasks/TotalTimelinePanel.svelte';
 	import { paths } from '$lib/config';
 	import { progressiveTimeline } from '$lib/state/progressive.svelte';
 	import { revalidatingResult } from '$lib/state/revalidate.svelte';
-	import type { RepoTimeline } from '$lib/types';
 	import type { TaskList } from '$lib/types';
 	import type { PageData } from './$types';
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
@@ -35,28 +28,6 @@
 	description={`Issues and pull requests over time for ${data.repo.nameWithOwner}`}
 />
 
-<!-- The running total chart for one kind, split open/resolved/discarded -->
-{#snippet totalChart(tl: RepoTimeline, kind: 'issue' | 'pr', unit: string)}
-	<div class="space-y-3">
-		<StackedBarChart
-			bars={lifecycleBars(
-				tl.points,
-				kind,
-				tl.granularity,
-				kind === 'issue' ? tl.baseline.issues : tl.baseline.prs
-			)}
-			series={lifecycleSeries(kind)}
-			totalUnit={unit}
-			height={14}
-			ticks={cumulativeTicks(tl.points, tl.granularity)}
-			barGap={0.125}
-		/>
-		{#if tl.sampled}
-			<p class="text-muted-foreground text-xs">{TIMELINE_SAMPLED_NOTE}</p>
-		{/if}
-	</div>
-{/snippet}
-
 {#snippet openList(items: TaskList['items'])}
 	<ul class="-m-4 divide-y">
 		{#each items as item (item.id)}
@@ -68,19 +39,12 @@
 <!-- A column per kind: the running total chart on top, the live open list below -->
 <div class="grid items-start gap-5 lg:grid-cols-2">
 	<div class="space-y-5">
-		<AsyncPanel
-			title="Total issues"
-			icon={CircleDot}
+		<TotalTimelinePanel
 			result={timeline.result}
-			empty={(tl) => tl.points.length === 0}
-			emptyText="No issues yet"
+			kind="issue"
 			cause={timeline.cause}
 			detail={timeline.detail}
-		>
-			{#snippet children(tl)}
-				{@render totalChart(tl, 'issue', 'issues')}
-			{/snippet}
-		</AsyncPanel>
+		/>
 
 		<AsyncPanel
 			title="Open issues"
@@ -99,19 +63,12 @@
 	</div>
 
 	<div class="space-y-5">
-		<AsyncPanel
-			title="Total PRs"
-			icon={GitPullRequest}
+		<TotalTimelinePanel
 			result={timeline.result}
-			empty={(tl) => tl.points.length === 0}
-			emptyText="No pull requests yet"
+			kind="pr"
 			cause={timeline.cause}
 			detail={timeline.detail}
-		>
-			{#snippet children(tl)}
-				{@render totalChart(tl, 'pr', 'PRs')}
-			{/snippet}
-		</AsyncPanel>
+		/>
 
 		<AsyncPanel
 			title="Open PRs"
