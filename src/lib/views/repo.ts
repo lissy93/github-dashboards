@@ -1,4 +1,5 @@
-import { MONTHS_SHORT } from '$lib/utils/datetime';
+import { MONTHS_SHORT, monthStartsThrough, monthlyGains, monthLabel } from '$lib/utils/datetime';
+import { formatNumber } from '$lib/utils/format';
 import type { ChartData } from '$lib/views/analytics';
 import { outcomeBars, type OutcomeChart } from '$lib/utils/outcomes';
 import type { Slice, StackBar, StackSeries } from '$lib/types/charts';
@@ -645,6 +646,27 @@ export function starChart(history: RepoStarHistory): ChartData {
 		series: [{ key: 'stars', label: 'Stars', color: 'var(--chart-1)', values: history.stars }],
 		max: Math.max(1, ...history.stars)
 	};
+}
+
+// New stars gained each month as bars, from deltas of the cumulative curve at month
+// boundaries so they line up with the Total line and sum to the repo's star count
+export function starGainBars(history: RepoStarHistory): Slice[] {
+	const { days, stars } = history;
+	if (days.length < 2) return [];
+	const months = monthStartsThrough(days[0], days[days.length - 1]);
+	const gains = monthlyGains(days, stars, months);
+	let running = 0;
+	return months.map((month, index) => {
+		running += gains[index];
+		return {
+			label: monthLabel(month),
+			value: gains[index],
+			rows: [
+				{ label: 'New stars', value: formatNumber(gains[index]) },
+				{ label: 'Total', value: formatNumber(running) }
+			]
+		};
+	});
 }
 
 // Human label for a GitHub Actions run conclusion or status

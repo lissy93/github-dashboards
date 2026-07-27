@@ -11,8 +11,10 @@ import {
 	netVelocityChart,
 	resolutionTrendChart,
 	activityHeatmap,
-	defaultTimelineView
+	defaultTimelineView,
+	starGainBars
 } from '$lib/views/repo';
+import type { RepoStarHistory } from '$lib/types';
 import { formatDuration } from '$lib/utils/format';
 
 const point = (over: Partial<Parameters<typeof groupPoints>[0][number]> = {}) => ({
@@ -407,5 +409,45 @@ describe('pointsInWindow', () => {
 
 	it('returns every point for the all-time window', () => {
 		expect(pointsInWindow(points, 'all')).toHaveLength(24);
+	});
+});
+
+describe('starGainBars', () => {
+	const history = (days: string[], stars: number[]): RepoStarHistory => ({
+		days,
+		stars,
+		sampled: false,
+		restricted: false
+	});
+
+	it('splits a cumulative curve into new stars gained per month', () => {
+		const bars = starGainBars(history(['2024-01-15', '2024-02-15', '2024-03-15'], [10, 30, 45]));
+		expect(bars.map((bar) => bar.label)).toEqual(['Jan 24', 'Feb 24', 'Mar 24']);
+		expect(bars.map((bar) => bar.value)).toEqual([21, 17, 7]);
+	});
+
+	it('sums the monthly gains to the final star total', () => {
+		const bars = starGainBars(history(['2020-06-10', '2022-02-01', '2023-11-20'], [5, 400, 1200]));
+		const total = bars.reduce((sum, bar) => sum + bar.value, 0);
+		expect(total).toBe(1200);
+	});
+
+	it('shows a zero bar for months with no new stars', () => {
+		const bars = starGainBars(history(['2024-01-15', '2024-04-15'], [10, 10]));
+		expect(bars).toHaveLength(4);
+		expect(bars.map((bar) => bar.value)).toEqual([10, 0, 0, 0]);
+	});
+
+	it('carries the running total in each bar tooltip', () => {
+		const bars = starGainBars(history(['2024-01-15', '2024-02-15', '2024-03-15'], [10, 30, 45]));
+		expect(bars.at(-1)?.rows).toEqual([
+			{ label: 'New stars', value: '7' },
+			{ label: 'Total', value: '45' }
+		]);
+	});
+
+	it('returns nothing when there is too little history to bucket', () => {
+		expect(starGainBars(history(['2024-01-01'], [5]))).toEqual([]);
+		expect(starGainBars(history([], []))).toEqual([]);
 	});
 });

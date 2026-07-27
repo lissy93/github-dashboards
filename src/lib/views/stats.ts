@@ -1,5 +1,12 @@
 import { formatNumber, formatSize, formatDate, relativeTime } from '$lib/utils/format';
-import { DAYS_FULL, toMondayFirst } from '$lib/utils/datetime';
+import {
+	DAYS_FULL,
+	toMondayFirst,
+	monthStartsThrough,
+	monthlyGains,
+	monthLabel
+} from '$lib/utils/datetime';
+import { stackColor } from '$lib/components/charts/chart';
 import type {
 	ActivityRhythm,
 	ContributionDay,
@@ -210,6 +217,31 @@ export function starHistory({ days, series }: StarBreakdown): StarStack {
 		series: series.map((item) => ({ ...item, values: item.values.slice(start) })),
 		total: total.slice(start)
 	};
+}
+
+export type StarGainStack = { bars: StackBar[]; series: StackSeries[] };
+
+// Stars gained per month split by project, as stacked bars coloured to match the area
+// bands. Each repo's first visible total is its baseline, so a trimmed curve never spikes
+export function starGainStack({ days, series }: StarStack): StarGainStack {
+	if (days.length < 2 || !series.length) return { bars: [], series: [] };
+	const months = monthStartsThrough(days[0], days[days.length - 1]);
+	const outSeries: StackSeries[] = series.map((item, index) => ({
+		key: String(index),
+		label: item.label,
+		color: item.label === 'Other' ? 'var(--muted-foreground)' : stackColor(index)
+	}));
+	const gains = series.map((item) => monthlyGains(days, item.values, months, item.values[0]));
+	const bars: StackBar[] = months.map((month, monthIndex) => {
+		const values: Record<string, number> = {};
+		let total = 0;
+		gains.forEach((repoGains, seriesIndex) => {
+			values[String(seriesIndex)] = repoGains[monthIndex];
+			total += repoGains[monthIndex];
+		});
+		return { label: monthLabel(month), values, total };
+	});
+	return { bars, series: outSeries };
 }
 
 // Bucket each day into one of five intensity levels off the busiest day

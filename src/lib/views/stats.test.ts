@@ -4,6 +4,7 @@ import {
 	topRepos,
 	REPO_METRICS,
 	starHistory,
+	starGainStack,
 	contributionLevels,
 	contributionsPerYear,
 	visibleContributionYears,
@@ -20,6 +21,7 @@ import {
 	issueFlow,
 	prFlow
 } from '$lib/views/stats';
+import { stackColor } from '$lib/components/charts/chart';
 import type {
 	ActivityRhythm,
 	ContributionDay,
@@ -109,6 +111,62 @@ describe('starHistory', () => {
 
 	it('handles an empty breakdown', () => {
 		expect(starHistory({ days: [], series: [] })).toEqual({ days: [], series: [], total: [] });
+	});
+});
+
+describe('starGainStack', () => {
+	const stack = (days: string[], series: { label: string; values: number[] }[]) => ({
+		days,
+		series,
+		total: days.map((_, index) => series.reduce((sum, item) => sum + item.values[index], 0))
+	});
+
+	it('splits new stars per month across projects', () => {
+		const gains = starGainStack(
+			stack(
+				['2024-01-15', '2024-02-15', '2024-03-15'],
+				[
+					{ label: 'a', values: [10, 30, 45] },
+					{ label: 'b', values: [0, 5, 20] }
+				]
+			)
+		);
+		expect(gains.bars.map((bar) => bar.label)).toEqual(['Jan 24', 'Feb 24', 'Mar 24']);
+		expect(gains.bars.map((bar) => bar.total)).toEqual([14, 27, 14]);
+		expect(gains.bars[0].values).toEqual({ '0': 11, '1': 3 });
+		expect(gains.series.map((entry) => [entry.key, entry.label])).toEqual([
+			['0', 'a'],
+			['1', 'b']
+		]);
+	});
+
+	it('colours bands to match the stacked area, with Other muted', () => {
+		const gains = starGainStack(
+			stack(
+				['2024-01-15', '2024-02-15'],
+				[
+					{ label: 'a', values: [10, 30] },
+					{ label: 'Other', values: [2, 8] }
+				]
+			)
+		);
+		expect(gains.series[0].color).toBe(stackColor(0));
+		expect(gains.series[1].color).toBe('var(--muted-foreground)');
+	});
+
+	it('treats a trimmed curve start as baseline rather than a first-month spike', () => {
+		const gains = starGainStack(
+			stack(['2024-01-10', '2024-02-10'], [{ label: 'a', values: [5000, 5100] }])
+		);
+		expect(gains.bars.map((bar) => bar.total)).toEqual([71, 29]);
+	});
+
+	it('returns nothing when there is too little history to bucket', () => {
+		expect(starGainStack(stack([], []))).toEqual({ bars: [], series: [] });
+		expect(starGainStack(stack(['2024-01-01'], [{ label: 'a', values: [5] }]))).toEqual({
+			bars: [],
+			series: []
+		});
 	});
 });
 

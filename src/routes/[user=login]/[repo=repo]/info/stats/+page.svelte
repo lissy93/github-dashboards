@@ -17,7 +17,9 @@
 	import PunchCard from '$lib/components/charts/PunchCard.svelte';
 	import Donut from '$lib/components/charts/Donut.svelte';
 	import StackedBarChart from '$lib/components/charts/StackedBarChart.svelte';
+	import BarChart from '$lib/components/charts/BarChart.svelte';
 	import HBarList from '$lib/components/charts/HBarList.svelte';
+	import SegmentedControl from '$lib/components/common/SegmentedControl.svelte';
 	import LorenzCurve from '$lib/components/charts/LorenzCurve.svelte';
 	import DivergingAreaChart from '$lib/components/charts/DivergingAreaChart.svelte';
 	import MarkerTimeline from '$lib/components/charts/MarkerTimeline.svelte';
@@ -27,6 +29,7 @@
 	import ActivityHeatmap from '$lib/components/repo/ActivityHeatmap.svelte';
 	import {
 		starChart,
+		starGainBars,
 		flowChart,
 		netVelocityChart,
 		resolutionTrendChart,
@@ -56,6 +59,14 @@
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
 
 	const VIEW_KEY = 'repo:timeline-view';
+
+	// Star history shows either the cumulative total line or new stars gained per month
+	type StarView = 'total' | 'new';
+	const STAR_VIEWS: { value: StarView; label: string }[] = [
+		{ value: 'total', label: 'Total' },
+		{ value: 'new', label: 'New' }
+	];
+	let starView = $state<StarView>('total');
 
 	let { data }: { data: PageData } = $props();
 
@@ -364,9 +375,28 @@
 		cause={(history) => (history.sampled ? 'partial' : undefined)}
 		detail={(history) => (history.sampled ? STAR_SAMPLED_NOTE : undefined)}
 	>
+		{#snippet actions(history)}
+			{#if !history.restricted && history.days.length > 1}
+				<SegmentedControl
+					options={STAR_VIEWS}
+					bind:value={starView}
+					size="sm"
+					label="Star history view"
+				/>
+			{/if}
+		{/snippet}
 		{#snippet children(history)}
 			<div class="space-y-3">
-				<MetricTimeChart data={starChart(history)} label="Star history" height={16} />
+				{#if starView === 'new' && history.days.length > 1}
+					<BarChart
+						data={starGainBars(history)}
+						valueLabel="new stars"
+						maxLabels={12}
+						height={14}
+					/>
+				{:else}
+					<MetricTimeChart data={starChart(history)} label="Star history" height={16} />
+				{/if}
 				{#if history.sampled}
 					<p class="text-muted-foreground text-xs">{STAR_SAMPLED_NOTE}</p>
 				{/if}
