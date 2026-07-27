@@ -29,6 +29,18 @@ export type ScatterPoint = {
 	rows?: TipRow[];
 };
 
+// One packed avatar bubble: value drives the circle size, image fills it, initials show if the
+// image fails to load, rows and note feed the tooltip
+export type Bubble = {
+	label: string;
+	value: number;
+	image: string;
+	initials: string;
+	ring?: string;
+	note?: string;
+	rows: TipRow[];
+};
+
 // One coloured series in a stacked bar, keyed to a StackBar's values
 export type StackSeries = { key: string; label: string; color: string; hint?: string };
 // One stacked bar: a value per series key, plus the column total

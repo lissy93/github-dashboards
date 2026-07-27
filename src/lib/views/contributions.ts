@@ -61,6 +61,59 @@ export function hasEnoughExternal(data: AuthoredContributions): boolean {
 	return external.size >= MIN_EXTERNAL_REPOS;
 }
 
+// One repo owner (org or user) the contributions land on, totalled across every year
+export type OwnerContribution = {
+	owner: string;
+	owned: boolean;
+	prs: number;
+	mergedPrs: number;
+	issues: number;
+	additions: number;
+	deletions: number;
+	repos: number;
+};
+
+// Contributions grouped by repo owner, most PRs first. externalOnly drops the user's own
+// namespace so the view reads as outward reach into other orgs and projects, and an optional
+// year narrows it to a single year
+export function contributionOwners(
+	data: AuthoredContributions,
+	externalOnly: boolean,
+	year: number | null = null
+): OwnerContribution[] {
+	const byOwner = new Map<string, OwnerContribution>();
+	for (const group of data.years) {
+		if (year !== null && group.year !== year) continue;
+		for (const repo of group.repos) {
+			if (externalOnly && repo.owned) continue;
+			const owner = repo.repo.slice(0, repo.repo.indexOf('/'));
+			let entry = byOwner.get(owner);
+			if (!entry) {
+				entry = {
+					owner,
+					owned: repo.owned,
+					prs: 0,
+					mergedPrs: 0,
+					issues: 0,
+					additions: 0,
+					deletions: 0,
+					repos: 0
+				};
+				byOwner.set(owner, entry);
+			}
+			entry.prs += repo.prs;
+			entry.mergedPrs += repo.mergedPrs;
+			entry.issues += repo.issues;
+			entry.additions += repo.additions;
+			entry.deletions += repo.deletions;
+			entry.repos += 1;
+		}
+	}
+	return [...byOwner.values()].sort(
+		(a, b) => b.prs - a.prs || b.issues - a.issues || a.owner.localeCompare(b.owner)
+	);
+}
+
 export type ContribRow = AuthoredRepo & { year: number };
 
 // One flat row per repo and year, for the full filterable list

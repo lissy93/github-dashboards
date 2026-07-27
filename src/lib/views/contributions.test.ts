@@ -5,7 +5,8 @@ import {
 	capYears,
 	hasEnoughExternal,
 	contributionRows,
-	contributionsConfig
+	contributionsConfig,
+	contributionOwners
 } from '$lib/views/contributions';
 import type { AuthoredContributions } from '$lib/types';
 
@@ -125,6 +126,37 @@ describe('contributionRows', () => {
 		const rows = contributionRows(data);
 		expect(rows).toHaveLength(3);
 		expect(rows.some((row) => row.repo === 'acme/api' && row.year === 2024)).toBe(true);
+	});
+});
+
+describe('contributionOwners', () => {
+	it('totals each owner across years and sorts by pull requests', () => {
+		const owners = contributionOwners(data, false);
+		expect(owners.map((owner) => owner.owner)).toEqual(['me', 'acme']);
+		expect(owners[0]).toMatchObject({
+			owner: 'me',
+			owned: true,
+			prs: 4,
+			mergedPrs: 3,
+			issues: 1,
+			additions: 55,
+			deletions: 10,
+			repos: 2
+		});
+		expect(owners[1]).toMatchObject({ owner: 'acme', owned: false, prs: 2, repos: 1 });
+	});
+
+	it('drops the user own namespace when external only', () => {
+		const owners = contributionOwners(data, true);
+		expect(owners.map((owner) => owner.owner)).toEqual(['acme']);
+		expect(owners.every((owner) => !owner.owned)).toBe(true);
+	});
+
+	it('narrows to a single year when one is given', () => {
+		expect(contributionOwners(data, false, 2023).map((owner) => owner.owner)).toEqual(['me']);
+		const external2024 = contributionOwners(data, true, 2024);
+		expect(external2024.map((owner) => owner.owner)).toEqual(['acme']);
+		expect(external2024[0]).toMatchObject({ prs: 2, repos: 1 });
 	});
 });
 

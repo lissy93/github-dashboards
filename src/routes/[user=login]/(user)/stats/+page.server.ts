@@ -11,7 +11,10 @@ import {
 	isLifecycleActivityReady,
 	isRhythmReady
 } from '$lib/server/github/activity';
+import { getAuthoredContributions } from '$lib/server/github/authored-contributions';
+import { isAuthoredTimelineCached } from '$lib/server/github/authored-timeline';
 import { settle } from '$lib/server/load';
+import type { AuthoredContributions, LoadResult } from '$lib/types';
 import type {
 	OverviewResult,
 	ContributionsResult,
@@ -49,14 +52,29 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 		: settle('user-stats-lifecycle', getLifecycleActivity(user));
 
 	// Serve cached data for SEO and stream cold misses, both language views share one cache
-	const [overviewReady, languagesReady, contributionsReady, rhythmReady, lifecycleReady] =
-		await Promise.all([
-			isUserOverviewCached(user),
-			isLanguagesCached(user),
-			isOrg ? Promise.resolve(true) : isContributionsCached(user),
-			isOrg ? Promise.resolve(true) : isRhythmReady(user),
-			isOrg ? Promise.resolve(true) : isLifecycleActivityReady(user)
-		]);
+	const [
+		overviewReady,
+		languagesReady,
+		contributionsReady,
+		rhythmReady,
+		lifecycleReady,
+		authoredReady
+	] = await Promise.all([
+		isUserOverviewCached(user),
+		isLanguagesCached(user),
+		isOrg ? Promise.resolve(true) : isContributionsCached(user),
+		isOrg ? Promise.resolve(true) : isRhythmReady(user),
+		isOrg ? Promise.resolve(true) : isLifecycleActivityReady(user),
+		isOrg ? Promise.resolve(false) : isAuthoredTimelineCached(user)
+	]);
+
+	// Reduce the authored crawl only when it is already warm, a cold crawl is heavy so the
+	// signed-in viewer deepens it from the client instead of blocking the stats render
+	const authored: LoadResult<AuthoredContributions> | null = isOrg
+		? null
+		: authoredReady
+			? await settle('user-stats-authored', getAuthoredContributions(user))
+			: { ok: true, data: { years: [], complete: false } };
 
 	// The summary strip needs all three, settle them as one so it renders in one pass
 	const summary = Promise.all([overview, contributions ?? Promise.resolve(null), languages]);
@@ -74,6 +92,7 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 		repoLanguages: languagesReady ? await repoLanguages : repoLanguages,
 		contributions: contributions && (contributionsReady ? await contributions : contributions),
 		rhythm: rhythm && (rhythmReady ? await rhythm : rhythm),
+		authored,
 		lifecycleActivity:
 			lifecycleActivity && (lifecycleReady ? await lifecycleActivity : lifecycleActivity),
 		summary: summaryReady ? await summary : summary,

@@ -2,6 +2,7 @@
 	import StarHistoryPanel from '$lib/components/stats/StarHistoryPanel.svelte';
 	import ActivityRhythm from '$lib/components/stats/ActivityRhythm.svelte';
 	import ContributionsRow from '$lib/components/stats/ContributionsRow.svelte';
+	import ContributionReach from '$lib/components/stats/ContributionReach.svelte';
 	import ContributionActivity from '$lib/components/stats/ContributionActivity.svelte';
 	import TopReposPanel from '$lib/components/stats/TopReposPanel.svelte';
 	import RepoInsights from '$lib/components/stats/RepoInsights.svelte';
@@ -15,6 +16,7 @@
 	import type { PageData } from './$types';
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
 	import { revalidatingResult } from '$lib/state/revalidate.svelte';
+	import { progressiveAuthored } from '$lib/state/progressive.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -52,6 +54,13 @@
 		initial: () => data.lifecycleActivity!,
 		enabled: userOnly
 	});
+	// Authored contributions deepen from the client, like the overview panel, so a cold crawl
+	// never blocks the stats render
+	const authored = progressiveAuthored(() => ({
+		user: data.user,
+		contributions: data.authored ?? { ok: true as const, data: { years: [], complete: true } },
+		viewerLogin: data.isOrg ? null : data.viewerLogin
+	}));
 
 	// The combos keep the SSR-ready value until a fresh part lands, then rebuild live
 	const summary = $derived(
@@ -102,6 +111,10 @@
 			languages={languages.result}
 			repoLanguages={repoLanguages.result}
 		/>
+
+		{#if !data.isOrg}
+			<ContributionReach result={authored.result} cause={authored.cause} detail={authored.detail} />
+		{/if}
 	</div>
 
 	<PortfolioPanel user={data.user} result={overview.result} />

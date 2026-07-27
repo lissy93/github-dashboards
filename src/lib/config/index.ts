@@ -2,8 +2,9 @@ export const APP_NAME = 'goard';
 export const APP_DESCRIPTION = 'A fast GitHub status board for users and repos';
 export const GITHUB_WEB = 'https://github.com';
 
-// A login's avatar straight from GitHub, no id needed, redirects to the sized image
-export const githubAvatar = (login: string) => `${GITHUB_WEB}/${login}.png?size=48`;
+// A login's avatar straight from GitHub, no id needed, redirects to the sized image.
+// Larger sizes stay crisp when the avatar is drawn big, e.g. inside a bubble
+export const githubAvatar = (login: string, size = 48) => `${GITHUB_WEB}/${login}.png?size=${size}`;
 
 // Day windows offered for the new-stars delta, with the default selection
 export const STAR_WINDOWS = [1, 7, 30, 90] as const;
