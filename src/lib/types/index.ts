@@ -1,5 +1,6 @@
 export * from './activity';
 export * from './charts';
+export * from './contributions';
 export * from './load';
 export * from './ops';
 export * from './people';

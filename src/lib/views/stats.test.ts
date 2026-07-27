@@ -517,17 +517,24 @@ describe('portfolioScatter', () => {
 			repo({ name: 'a', stars: 5, forks: 2, language: { name: 'Go', color: '#0ad' } }),
 			repo({ name: 'f', isFork: true })
 		];
-		const out = portfolioScatter(repos, byKey('created'), byKey('stars'));
+		const out = portfolioScatter(repos, byKey('created'), byKey('stars'), byKey('forks'));
 		expect(out).toHaveLength(1);
 		expect(out[0]).toMatchObject({ label: 'a', y: 5, r: 2, color: '#0ad' });
-		// Tooltip leads with the y axis, x axis, then the forks size detail
+		// Tooltip leads with the y axis, x axis, then the size detail
 		expect(out[0].rows?.map((row) => row.label)).toEqual(['Stars', 'Created', 'Forks', 'Language']);
+	});
+
+	it('sizes dots by the chosen size axis, not always forks', () => {
+		const repos = [repo({ name: 'a', stars: 9, forks: 2 })];
+		const out = portfolioScatter(repos, byKey('created'), byKey('forks'), byKey('stars'));
+		expect(out[0].r).toBe(9);
+		expect(out[0].rows?.map((row) => row.label)).toEqual(['Forks', 'Created', 'Stars', 'Language']);
 	});
 
 	it('reads a lazy axis from the loaded maps and dedupes a repeated axis', () => {
 		const repos = [repo({ name: 'a', nameWithOwner: 'o/a', forks: 4 })];
 		const maps = { stats: { 'o/a': { commits: 12 } as never } };
-		const out = portfolioScatter(repos, byKey('forks'), byKey('commits'), maps);
+		const out = portfolioScatter(repos, byKey('forks'), byKey('commits'), byKey('forks'), maps);
 		expect(out[0]).toMatchObject({ x: 4, y: 12 });
 		// Forks is both the x axis and the size detail, so it lists once
 		expect(out[0].rows?.filter((row) => row.label === 'Forks')).toHaveLength(1);
@@ -539,12 +546,13 @@ describe('portfolioScatter', () => {
 			repo({ name: 'missing', nameWithOwner: 'o/missing' })
 		];
 		const maps = { stats: { 'o/covered': { commits: 12 } as never } };
-		const out = portfolioScatter(repos, byKey('created'), byKey('commits'), maps);
+		const out = portfolioScatter(repos, byKey('created'), byKey('commits'), byKey('forks'), maps);
 		expect(out.map((point) => point.label)).toEqual(['covered']);
 	});
 
 	it('falls back to no colour when a repo has no language', () => {
-		expect(portfolioScatter([repo({})], byKey('created'), byKey('stars'))[0].color).toBeUndefined();
+		const out = portfolioScatter([repo({})], byKey('created'), byKey('stars'), byKey('forks'));
+		expect(out[0].color).toBeUndefined();
 	});
 });
 

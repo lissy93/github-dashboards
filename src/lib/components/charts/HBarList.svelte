@@ -44,7 +44,18 @@
 				tip.show(event, { title: row.label, color: fill(row, index), rows: rowsFor(row) })}
 			onpointerleave={tip.hide}
 		>
-			<span class="text-muted-foreground truncate">{row.label}</span>
+			<span class="text-muted-foreground flex min-w-0 items-center gap-1.5">
+				{#if row.icon}
+					<img
+						src={row.icon}
+						alt=""
+						loading="lazy"
+						class="size-3.5 shrink-0 rounded-sm"
+						onerror={(event) => ((event.currentTarget as HTMLImageElement).style.display = 'none')}
+					/>
+				{/if}
+				<span class="truncate">{row.label}</span>
+			</span>
 			<span class="bg-muted/40 h-2 overflow-hidden rounded-full">
 				<span
 					class="block h-full rounded-full"

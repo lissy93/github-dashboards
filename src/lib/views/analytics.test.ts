@@ -121,6 +121,7 @@ describe('top lists', () => {
 		];
 		const rows = topReferrers(referrers, '');
 		expect(rows[0]).toMatchObject({ label: 'google.com', value: 20 });
+		expect(rows[0].icon).toBe('https://icon.horse/icon/google.com');
 		expect(rows).toHaveLength(2);
 	});
 });

@@ -2,6 +2,9 @@ export const APP_NAME = 'goard';
 export const APP_DESCRIPTION = 'A fast GitHub status board for users and repos';
 export const GITHUB_WEB = 'https://github.com';
 
+// A login's avatar straight from GitHub, no id needed, redirects to the sized image
+export const githubAvatar = (login: string) => `${GITHUB_WEB}/${login}.png?size=48`;
+
 // Day windows offered for the new-stars delta, with the default selection
 export const STAR_WINDOWS = [1, 7, 30, 90] as const;
 export const STAR_WINDOW_DEFAULT = 7;
@@ -12,6 +15,7 @@ export const paths = {
 	userRepos: (user: string) => `/${user}/repos`,
 	userStats: (user: string) => `/${user}/stats`,
 	userActivity: (user: string) => `/${user}/activity`,
+	userContributions: (user: string) => `/${user}/contributions`,
 	userAnalytics: (user: string) => `/${user}/analytics`,
 	userTasks: (user: string) => `/${user}/tasks`,
 	userTaskList: (user: string, list: string) => `/${user}/tasks/${list}`,

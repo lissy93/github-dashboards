@@ -1,5 +1,6 @@
 import { monthStartOf, weekStartOf } from '$lib/utils/datetime';
 import { formatNumber } from '$lib/utils/format';
+import { faviconUrl } from '$lib/utils/favicon';
 import type { Slice } from '$lib/types/charts';
 import type { AnalyticsItem, TrafficDay } from '$lib/types';
 
@@ -205,6 +206,7 @@ export function topReferrers(items: AnalyticsItem[], repo: string, limit = 10): 
 		.map(([label, value]) => ({
 			label,
 			value: value.count,
+			icon: faviconUrl(label),
 			rows: [
 				{ label: 'Referrer', value: label },
 				{ label: 'Views', value: formatNumber(value.count) },

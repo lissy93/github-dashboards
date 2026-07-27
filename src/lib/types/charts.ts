@@ -12,7 +12,13 @@ export type LegendItem = {
 };
 
 // A chart datum, rows override the default tooltip detail when present
-export type Slice = { label: string; value: number; color?: string; rows?: TipRow[] };
+export type Slice = {
+	label: string;
+	value: number;
+	color?: string;
+	icon?: string;
+	rows?: TipRow[];
+};
 // One scatter dot: x/y plot position, r drives the dot size, rows feed the tooltip
 export type ScatterPoint = {
 	label: string;

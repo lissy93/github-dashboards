@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { GitPullRequest, CircleDot, BookMarked, Activity } from '@lucide/svelte';
+	import { GitPullRequest, CircleDot, BookMarked, Activity, FolderGit2 } from '@lucide/svelte';
 	import ProfileCard from '$lib/components/profile/ProfileCard.svelte';
 	import TasksPreview from '$lib/components/overview/TasksPreview.svelte';
 	import ReposPanel from '$lib/components/overview/ReposPanel.svelte';
 	import ActivityPreview from '$lib/components/overview/ActivityPreview.svelte';
+	import ContributionsPanel from '$lib/components/contributions/ContributionsPanel.svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
 	import ErrorState from '$lib/components/common/ErrorState.svelte';
 	import * as Card from '$lib/components/ui/card';
@@ -13,6 +14,7 @@
 	import type { ActivityEvent, ActivityPage, TaskData } from '$lib/types';
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
 	import { revalidatingResult } from '$lib/state/revalidate.svelte';
+	import { progressiveAuthored } from '$lib/state/progressive.svelte';
 	import { OVERVIEW_TASK_PREVIEW, OVERVIEW_ACTIVITY_PREVIEW } from '$lib/views/overview';
 
 	let { data }: { data: PageData } = $props();
@@ -35,6 +37,11 @@
 		enabled: () => enabled() && !data.isOrg,
 		map: (page) => page.events
 	});
+	const contributions = progressiveAuthored(() => ({
+		user: data.user,
+		contributions: data.contributions ?? { ok: true as const, data: { years: [], complete: true } },
+		viewerLogin: data.isOrg ? null : data.viewerLogin
+	}));
 </script>
 
 <PageMeta
@@ -57,7 +64,10 @@
 			<Panel title="Issues to review" icon={CircleDot} loading />
 		</div>
 		<Panel title="Repositories" icon={BookMarked} loading />
-		<Panel title="Activity" icon={Activity} loading />
+		<div class="grid gap-5 lg:grid-cols-2">
+			<Panel title="Activity" icon={Activity} loading />
+			<Panel title="Contributions" icon={FolderGit2} loading />
+		</div>
 	</div>
 {:then result}
 	{#if result.ok}
@@ -70,8 +80,16 @@
 				repos={result.data.ownedRepos}
 				capped={result.data.ownedReposCapped}
 			/>
-			{#if data.activity}
-				<ActivityPreview user={data.user} result={activity.result} />
+			{#if !data.isOrg}
+				<div class="grid gap-5 lg:grid-cols-2 lg:items-start">
+					<ActivityPreview user={data.user} result={activity.result} />
+					<ContributionsPanel
+						user={data.user}
+						result={contributions.result}
+						cause={contributions.cause}
+						detail={contributions.detail}
+					/>
+				</div>
 			{/if}
 		</div>
 	{:else}

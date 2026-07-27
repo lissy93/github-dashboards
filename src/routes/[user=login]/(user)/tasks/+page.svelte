@@ -37,16 +37,16 @@
 
 <div class="space-y-5">
 	<div class="grid items-start gap-5 lg:grid-cols-2">
-		<TotalTimelinePanel
+  	<TotalTimelinePanel
+  		result={timeline.result}
+  		kind="pr"
+  		cause={timeline.cause}
+  		detail={timeline.detail}
+  		mini
+  	/>
+	  <TotalTimelinePanel
 			result={timeline.result}
 			kind="issue"
-			cause={timeline.cause}
-			detail={timeline.detail}
-			mini
-		/>
-		<TotalTimelinePanel
-			result={timeline.result}
-			kind="pr"
 			cause={timeline.cause}
 			detail={timeline.detail}
 			mini

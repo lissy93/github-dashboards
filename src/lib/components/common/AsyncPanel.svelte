@@ -15,6 +15,9 @@
 		result: Promise<LoadResult<T>> | LoadResult<T>;
 		count?: (data: T) => number | undefined;
 		capped?: (data: T) => boolean;
+		// A resolved result that is still filling in, e.g. a progressively crawled dataset,
+		// so the shared loading skeleton shows instead of an empty body
+		loading?: (data: T) => boolean;
 		empty?: (data: T) => boolean;
 		cause?: (data: T) => StatusCause | undefined;
 		detail?: (data: T) => string | undefined;
@@ -32,6 +35,7 @@
 		result,
 		count,
 		capped,
+		loading,
 		empty,
 		cause,
 		detail,
@@ -48,7 +52,8 @@
 {#await result}
 	<Panel {title} {icon} {href} class={className} loading />
 {:then res}
-	{@const isEmpty = res.ok && (empty?.(res.data) ?? false)}
+	{@const isLoading = res.ok && (loading?.(res.data) ?? false)}
+	{@const isEmpty = res.ok && !isLoading && (empty?.(res.data) ?? false)}
 	{#snippet loadedActions()}
 		{#if res.ok}{@render actions?.(res.data)}{/if}
 	{/snippet}
@@ -62,6 +67,7 @@
 		error={res.ok ? undefined : res.error}
 		count={res.ok ? count?.(res.data) : undefined}
 		capped={res.ok ? (capped?.(res.data) ?? false) : false}
+		loading={isLoading}
 		empty={isEmpty}
 		cause={isEmpty && res.ok ? pick(emptyCause, res.data) : res.ok ? cause?.(res.data) : undefined}
 		detail={res.ok && !isEmpty ? detail?.(res.data) : undefined}

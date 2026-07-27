@@ -25,6 +25,16 @@ const emptyBaseline = (): TimelineBaseline => ({ total: 0, open: 0 });
 // Resolution histograms are a repo-only readout, so the aggregate ships empty ones
 const emptyResolution = () => ({ issues: resolutionStats([]), prs: resolutionStats([]) });
 
+// A fully crawled repo whose live open counts have drifted from its last sync changed after
+// we crawled it (an issue closed, a PR merged), so once that sync is stale it wants a fresh
+// sweep to correct its stored lifecycle. The stale gate lets one advance settle it and stop
+export function needsResync(ref: RepoRef, state: TimelineState): boolean {
+	const changed = ref.openIssues !== state.issues.openTotal || ref.openPRs !== state.prs.openTotal;
+	const syncedAt = state.issues.syncedAt ?? state.prs.syncedAt;
+	const stale = !syncedAt || Date.now() - Date.parse(syncedAt) >= TTL * 1000;
+	return changed && stale;
+}
+
 // Crawl one more chunk of the first few incomplete repos, each swallowing its own failure
 // (deleted, gone private or a transient error) so one bad repo never blanks or stalls the rest
 async function advanceRepos(incomplete: RepoRef[]): Promise<void> {
@@ -54,7 +64,8 @@ async function ownedRefs(login: string): Promise<{ refs: RepoRef[]; capped: bool
 // Fold every owned repo's stored crawl into one all-time issue/PR timeline. A repo not yet
 // crawled contributes its current open counts to the baseline, so the totals stay honest
 // while its detailed history fills in over later advances. Rebuilt from the repo caches
-// each time, so a repo closing an issue is never double counted
+// each time, so a repo closing an issue is never double counted. Repos that have drifted
+// since their last sync join the incomplete set so an advance re-sweeps their lifecycle
 async function assemble(login: string): Promise<{ timeline: RepoTimeline; incomplete: RepoRef[] }> {
 	const { refs, capped } = await ownedRefs(login);
 	const states = await readCachedMany<TimelineState>(
@@ -83,7 +94,7 @@ async function assemble(login: string): Promise<{ timeline: RepoTimeline; incomp
 		baseline.issues.open += part.baseline.issues.open;
 		baseline.prs.total += part.baseline.prs.total;
 		baseline.prs.open += part.baseline.prs.open;
-		if (!part.complete) incomplete.push(ref);
+		if (!part.complete || needsResync(ref, state)) incomplete.push(ref);
 	}
 
 	const sampled = incomplete.length > 0 || capped;

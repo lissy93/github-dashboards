@@ -1,6 +1,13 @@
 import type { TaskBucket } from '$lib/types';
 
-export type BucketInfo = { title: string; kind: 'pr' | 'issue'; section: string; empty: string };
+// mine marks the lists of the user's own authored work, the rest are review queues
+export type BucketInfo = {
+	title: string;
+	kind: 'pr' | 'issue';
+	section: string;
+	empty: string;
+	mine: boolean;
+};
 
 // Each bucket's title, route section and empty text, the UI layers icons on top
 export const TASK_BUCKET_INFO: Record<TaskBucket, BucketInfo> = {
@@ -8,25 +15,29 @@ export const TASK_BUCKET_INFO: Record<TaskBucket, BucketInfo> = {
 		title: 'PRs to review',
 		kind: 'pr',
 		section: 'prs-review',
-		empty: 'No open PRs to review'
+		empty: 'No open PRs to review',
+		mine: false
 	},
 	myPrs: {
 		title: 'Your PRs',
 		kind: 'pr',
 		section: 'my-prs',
-		empty: 'No open PRs opened by you'
+		empty: 'No open PRs opened by you',
+		mine: true
 	},
 	reviewIssues: {
 		title: 'Issues to review',
 		kind: 'issue',
 		section: 'issues-review',
-		empty: 'No open issues to review'
+		empty: 'No open issues to review',
+		mine: false
 	},
 	myIssues: {
 		title: 'Your issues',
 		kind: 'issue',
 		section: 'my-issues',
-		empty: 'No open issues opened by you'
+		empty: 'No open issues opened by you',
+		mine: true
 	}
 };
 

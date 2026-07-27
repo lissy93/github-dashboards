@@ -34,9 +34,9 @@ describe('page registry', () => {
 		expect(gated.sort()).toEqual(['analytics', 'tasks', 'traffic']);
 	});
 
-	it('hides only activity and the authored task lists from org boards', () => {
+	it('hides only activity, contributions and the authored task lists from org boards', () => {
 		const hidden = ALL.filter((page) => page.hideForOrg).map((page) => page.slug);
-		expect(hidden.sort()).toEqual(['activity', 'my-issues', 'my-prs']);
+		expect(hidden.sort()).toEqual(['activity', 'contributions', 'my-issues', 'my-prs']);
 	});
 });
 

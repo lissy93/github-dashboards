@@ -41,6 +41,12 @@ export const USER_PAGES: PageDef[] = [
 		description: 'Feed of recent public activity'
 	},
 	{
+		slug: 'contributions',
+		label: 'Contributions',
+		hideForOrg: true,
+		description: 'Repositories you have contributed to, by year'
+	},
+	{
 		slug: 'analytics',
 		label: 'Analytics',
 		gate: 'owner',

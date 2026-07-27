@@ -1,6 +1,7 @@
 import { paginate } from '$lib/server/github/client';
 import { getUserOverview } from '$lib/server/github/user';
 import { cached, isCached } from '$lib/server/cache';
+import { TASK_BUCKET_INFO } from '$lib/config/tasks';
 import { logError } from '$lib/utils/errors';
 import type {
 	CheckState,
@@ -192,12 +193,12 @@ async function fetchBucket(
 	return { items, total: items.length, capped };
 }
 
-const BUCKETS: { bucket: TaskBucket; kind: 'pr' | 'issue'; mine: boolean }[] = [
-	{ bucket: 'reviewPrs', kind: 'pr', mine: false },
-	{ bucket: 'myPrs', kind: 'pr', mine: true },
-	{ bucket: 'reviewIssues', kind: 'issue', mine: false },
-	{ bucket: 'myIssues', kind: 'issue', mine: true }
-];
+// One entry per bucket, its kind and authored flag sourced from the shared task config
+const BUCKETS = (Object.keys(TASK_BUCKET_INFO) as TaskBucket[]).map((bucket) => ({
+	bucket,
+	kind: TASK_BUCKET_INFO[bucket].kind,
+	mine: TASK_BUCKET_INFO[bucket].mine
+}));
 
 const bucketKey = (bucket: TaskBucket, login: string) => `task:v1:${bucket}:${login.toLowerCase()}`;
 

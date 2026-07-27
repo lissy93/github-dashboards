@@ -701,17 +701,21 @@ export const SCATTER_AXES: ScatterAxis[] = [
 	}
 ];
 
+// Axes valid for the dot size, a date span makes no sense as a radius so drop time axes
+export const SCATTER_SIZE_AXES = SCATTER_AXES.filter((axis) => !axis.time);
+
 // Format an axis value for a tooltip, dates read as a day, metrics as numbers
 function axisDisplay(axis: ScatterAxis, value: number): string {
 	if (axis.time) return formatDate(new Date(value).toISOString());
 	return (axis.format ?? formatNumber)(value);
 }
 
-// Owned repos as scatter dots on a chosen pair of axes, forks driving the dot size
+// Owned repos as scatter dots on a chosen pair of axes, a third metric driving the dot size
 export function portfolioScatter(
 	repos: Repo[],
 	xAxis: ScatterAxis,
 	yAxis: ScatterAxis,
+	sizeAxis: ScatterAxis,
 	maps: MetricMaps = {}
 ): ScatterPoint[] {
 	const hasValue = (repo: Repo, axis: ScatterAxis) => {
@@ -729,9 +733,10 @@ export function portfolioScatter(
 			};
 			const x = xAxis.value(repo, input);
 			const y = yAxis.value(repo, input);
+			const size = sizeAxis.value(repo, input);
 			const rows: TipRow[] = [];
 			const seen = new Set<string>();
-			// Dedupe so a repeated axis or the forks size detail only lists once
+			// Dedupe so a repeated axis or the size detail only lists once
 			const add = (label: string, value: string) => {
 				if (seen.has(label)) return;
 				seen.add(label);
@@ -739,13 +744,13 @@ export function portfolioScatter(
 			};
 			add(yAxis.label, axisDisplay(yAxis, y));
 			add(xAxis.label, axisDisplay(xAxis, x));
-			add('Forks', formatNumber(repo.forks));
+			add(sizeAxis.label, axisDisplay(sizeAxis, size));
 			add('Language', repo.language?.name ?? 'n/a');
 			return {
 				label: repo.name,
 				x,
 				y,
-				r: repo.forks,
+				r: size,
 				color: repo.language?.color ?? undefined,
 				rows
 			};

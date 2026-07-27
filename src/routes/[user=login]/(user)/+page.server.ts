@@ -1,6 +1,8 @@
 import { getUserOverview, isUserOverviewCached } from '$lib/server/github/user';
 import { getTaskData, isTaskReady } from '$lib/server/github/tasks';
 import { getActivityPage } from '$lib/server/github/activity';
+import { getAuthoredContributions } from '$lib/server/github/authored-contributions';
+import { isAuthoredTimelineCached } from '$lib/server/github/authored-timeline';
 import { canSeeTraffic } from '$lib/server/github/traffic';
 import { settle } from '$lib/server/load';
 import {
@@ -9,6 +11,7 @@ import {
 	OVERVIEW_ACTIVITY_PREVIEW,
 	type ActivityResult
 } from '$lib/views/overview';
+import type { AuthoredContributions, LoadResult } from '$lib/types';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, parent, locals }) => {
@@ -31,10 +34,19 @@ export const load: PageServerLoad = async ({ params, parent, locals }) => {
 			);
 
 	// Render cached data server-side for SEO, stream only a slow cold miss
-	const [overviewReady, taskReady] = await Promise.all([
+	const [overviewReady, taskReady, contribReady] = await Promise.all([
 		isUserOverviewCached(user),
-		isTaskReady(user)
+		isTaskReady(user),
+		isAuthoredTimelineCached(user)
 	]);
+
+	// Reduce the authored crawl only when it is already warm, a cold crawl is heavy so the
+	// signed-in viewer warms it from the client instead of blocking every overview visit
+	const contributions: LoadResult<AuthoredContributions> | null = isOrg
+		? null
+		: contribReady
+			? await settle('overview-contributions', getAuthoredContributions(user))
+			: { ok: true, data: { years: [], complete: false } };
 
 	return {
 		user,
@@ -42,6 +54,7 @@ export const load: PageServerLoad = async ({ params, parent, locals }) => {
 		canSeeTraffic: canSeeTraffic(user, locals.user?.login),
 		overview: overviewReady ? await overview : overview,
 		task: taskReady ? await task : task,
-		activity
+		activity,
+		contributions
 	};
 };

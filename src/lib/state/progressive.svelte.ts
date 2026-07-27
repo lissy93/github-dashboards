@@ -1,6 +1,6 @@
 import { fetchApi } from '$lib/state/api';
 import { createLogger } from '$lib/utils/logger';
-import type { LoadResult, RepoTimeline, StatusCause } from '$lib/types';
+import type { AuthoredContributions, LoadResult, RepoTimeline, StatusCause } from '$lib/types';
 
 const log = createLogger('progressive');
 // Safety ceiling on advances, huge repos finish over later background syncs
@@ -111,14 +111,34 @@ type UserTimelinePageData = {
 	user: string;
 	timeline: MaybeResult<RepoTimeline>;
 	viewerLogin: string | null;
+	// The authored ("your") lists deepen the contributions crawl, the review lists the aggregate
+	mine?: boolean;
 };
 
-// The user's all-time issue/PR timeline across their repos, deepened one repo per advance
+// The user's all-time issue/PR timeline, deepened progressively. scope=mine follows the
+// authored contributions crawl, otherwise the on-repos aggregate deepened one repo per advance
 export function progressiveUserTimeline(data: () => UserTimelinePageData) {
 	return progressiveResult({
-		url: () => `/api/${data().user}/timeline?advance=1`,
+		url: () => `/api/${data().user}/timeline?advance=1${data().mine ? '&scope=mine' : ''}`,
 		initial: () => data().timeline,
 		enabled: () => !!data().viewerLogin,
 		incomplete: (tl) => tl.sampled
+	});
+}
+
+type AuthoredPageData = {
+	user: string;
+	contributions: MaybeResult<AuthoredContributions>;
+	viewerLogin: string | null;
+};
+
+// The user's authored contributions per repo and year, deepened as the crawl resumes older
+// history for a signed-in viewer
+export function progressiveAuthored(data: () => AuthoredPageData) {
+	return progressiveResult({
+		url: () => `/api/${data().user}/authored?advance=1`,
+		initial: () => data().contributions,
+		enabled: () => !!data().viewerLogin,
+		incomplete: (contrib) => !contrib.complete
 	});
 }

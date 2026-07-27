@@ -149,7 +149,8 @@ describe('paletteSections', () => {
 			'/sveltejs',
 			'/sveltejs/repos',
 			'/sveltejs/stats',
-			'/sveltejs/activity'
+			'/sveltejs/activity',
+			'/sveltejs/contributions'
 		]);
 		expect(github.heading).toBe('GitHub');
 		expect(github.links.map((link) => link.href)).toEqual([
@@ -186,7 +187,8 @@ describe('paletteSections', () => {
 			'/torvalds',
 			'/torvalds/repos',
 			'/torvalds/stats',
-			'/torvalds/activity'
+			'/torvalds/activity',
+			'/torvalds/contributions'
 		]);
 		expect(hrefs('Torvalds')).toContain('/torvalds/analytics');
 		expect(hrefs('Torvalds')).toContain('/torvalds/tasks/prs-review');
