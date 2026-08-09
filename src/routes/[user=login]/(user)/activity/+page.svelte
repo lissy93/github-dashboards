@@ -19,13 +19,20 @@
 	const config = activityFilterConfig();
 	let view = $state<View>(defaultView(config));
 	const query = $derived(activityQuery(view));
-	const resetKey = $derived(`${query.type}|${query.q}|${query.dir}`);
+
+	// the loader syncs without blocking, so reload on land to pick up what it stored
+	let resynced = $state<string | null>(null);
+	$effect(() => {
+		if (data.viewerLogin && !data.isOrg && resynced !== data.user) resynced = data.user;
+	});
+	const resetKey = $derived(`${query.type}|${query.q}|${query.dir}|${resynced}`);
 
 	// Fetch one older page from the API, carrying the current filters
 	async function fetchPage(
 		cursor: string | null
 	): Promise<{ items: ActivityEvent[]; nextCursor: string | null }> {
-		const body = await fetchApi<ActivityPage>(activityUrl(data.user, view, cursor));
+		const url = activityUrl(data.user, view, cursor, { fresh: !cursor });
+		const body = await fetchApi<ActivityPage>(url);
 		return { items: body.events, nextCursor: body.nextCursor };
 	}
 </script>

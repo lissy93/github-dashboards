@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { CircleDot, GitPullRequest } from '@lucide/svelte';
 	import AsyncPanel from '$lib/components/common/AsyncPanel.svelte';
 	import StackedBarChart from '$lib/components/charts/StackedBarChart.svelte';
@@ -17,8 +18,9 @@
 		detail?: (tl: RepoTimeline) => string | undefined;
 		// A compact preview form: shorter bars and no sampled caption, for summary boards
 		mini?: boolean;
+		actions?: Snippet;
 	};
-	let { result, kind, cause, detail, mini = false }: Props = $props();
+	let { result, kind, cause, detail, mini = false, actions }: Props = $props();
 
 	// Title, icon and empty copy per kind, so the same panel serves issues and PRs
 	const META = {
@@ -38,6 +40,7 @@
 	emptyText={meta.empty}
 	{cause}
 	{detail}
+	{actions}
 >
 	{#snippet children(tl)}
 		<div class="space-y-3">

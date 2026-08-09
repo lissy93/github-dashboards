@@ -1,3 +1,11 @@
+<script lang="ts" module>
+	// shared look for panel header links and actions
+	export const PANEL_ACTION_CLASS =
+		'text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring ' +
+		'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap ' +
+		'transition-colors focus-visible:ring-1 focus-visible:outline-none';
+</script>
+
 <script lang="ts">
 	import type { Component, Snippet } from 'svelte';
 	import { ArrowUpRight } from '@lucide/svelte';
@@ -85,11 +93,7 @@
 					<Tooltip.Root>
 						<Tooltip.Trigger>
 							{#snippet child({ props }: { props: Record<string, unknown> })}
-								<a
-									{...props}
-									{href}
-									class="text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors focus-visible:ring-1 focus-visible:outline-none"
-								>
+								<a {...props} {href} class={PANEL_ACTION_CLASS}>
 									{linkLabel}{#if count != null}
 										<span class="tabular-nums">({formatNumber(count)}{capped ? '+' : ''})</span>
 									{/if}

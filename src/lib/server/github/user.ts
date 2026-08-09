@@ -10,6 +10,8 @@ const log = createLogger('user-overview');
 const PAGE = 100;
 const INITIAL_PAGE = 30;
 const PAGES_PER_SYNC = 3;
+// enough to cover the whole owned list, anything past it finishes over later syncs
+const REWALK_PAGES = 12;
 const TTL = 900;
 
 // Cheap fields only, the heavier per-repo counts load lazily via repo-stats
@@ -315,7 +317,12 @@ function toOverview(state: OverviewState): UserOverview {
 	};
 }
 
-async function syncOverview(login: string, current?: OverviewState): Promise<OverviewState> {
+// without rewalkOwned a complete owned list never repaginates and its counts freeze
+async function syncOverview(
+	login: string,
+	current?: OverviewState,
+	rewalkOwned = false
+): Promise<OverviewState> {
 	const cacheKey = overviewKey(login);
 	const running = syncing.get(cacheKey);
 	if (running) return running;
@@ -338,7 +345,7 @@ async function syncOverview(login: string, current?: OverviewState): Promise<Ove
 		const orgsTask = owner.__typename === 'User' ? fetchOrgs(login) : null;
 		const contributedData = owner.__typename === 'User' ? await contributedTask : null;
 		// A cold start still walks a few pages so the first paint is not just 30 repos
-		const pageBudget = PAGES_PER_SYNC;
+		const pageBudget = rewalkOwned ? REWALK_PAGES : PAGES_PER_SYNC;
 
 		const ownedFirst = progress(owner.ownedRepos);
 		const ownedNodes = mergeRepos(current?.owned.nodes ?? [], owner.ownedRepos.nodes).slice(
@@ -346,7 +353,7 @@ async function syncOverview(login: string, current?: OverviewState): Promise<Ove
 			owner.ownedRepos.totalCount
 		);
 		const ownedStart =
-			current && current.owned.total === owner.ownedRepos.totalCount
+			current && !rewalkOwned && current.owned.total === owner.ownedRepos.totalCount
 				? { ...current.owned, nodes: ownedNodes }
 				: { ...ownedFirst, nodes: ownedNodes };
 		const contributedFirst =
@@ -476,4 +483,12 @@ export async function getUserOverview(login: string): Promise<UserOverview> {
 		);
 	}
 	return toOverview(stored.value);
+}
+
+// blocking sync of every owned repo, for callers that need live counts
+export async function refreshUserOverview(login: string): Promise<UserOverview> {
+	// joining a shallow sync already in flight would skip the rewalk
+	await syncing.get(overviewKey(login))?.catch(() => {});
+	const stored = await readCached<OverviewState>(overviewKey(login)).catch(() => null);
+	return toOverview(await syncOverview(login, stored?.value, true));
 }

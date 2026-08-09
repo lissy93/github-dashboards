@@ -15,6 +15,7 @@ type Options<T> = {
 	initial: () => MaybeResult<T>;
 	enabled: () => boolean;
 	incomplete: (data: T) => boolean;
+	refresh?: () => string;
 };
 
 // Progressively deepen a checkpointed dataset for a signed-in viewer: start from the
@@ -24,6 +25,10 @@ export function progressiveResult<T>(options: Options<T>) {
 	let deeper = $state<LoadResult<T>>();
 	// True once no more advances will happen this visit, so partial data warns
 	let exhausted = $state(false);
+	let refreshing = $state(false);
+	let refreshFailed = $state(false);
+	// bumped per landed refresh, so a slow advance never puts older data back
+	let refreshes = 0;
 	const result = $derived(deeper ?? options.initial());
 
 	$effect(() => {
@@ -32,6 +37,8 @@ export function progressiveResult<T>(options: Options<T>) {
 		const initial = options.initial();
 		deeper = undefined;
 		exhausted = !enabled;
+		refreshing = false;
+		refreshFailed = false;
 		if (!enabled) return;
 		let active = true;
 
@@ -50,9 +57,11 @@ export function progressiveResult<T>(options: Options<T>) {
 				// A repeated payload means the crawl stalled upstream, stop hammering
 				let last = settled.ok ? JSON.stringify(settled.data) : '';
 				for (let step = 0; active && step < MAX_ADVANCES; step++) {
+					const before = refreshes;
 					const data = await fetchApi<T>(url, ADVANCE_TIMEOUT_MS, true);
 					if (!active) return;
-					deeper = { ok: true, data };
+					// a refresh that landed mid-advance is the newer answer
+					if (refreshes === before) deeper = { ok: true, data };
 					if (!options.incomplete(data)) return;
 					const snapshot = JSON.stringify(data);
 					if (snapshot === last) return;
@@ -81,12 +90,39 @@ export function progressiveResult<T>(options: Options<T>) {
 			: 'Loading the full history in the background';
 	};
 
+	// swap in place rather than through initial, so the panel never drops to a skeleton
+	async function refresh(): Promise<void> {
+		const url = options.refresh?.();
+		if (!url || refreshing) return;
+		refreshing = true;
+		refreshFailed = false;
+		try {
+			const data = await fetchApi<T>(url, ADVANCE_TIMEOUT_MS);
+			// the viewer may have moved to another dataset while this was in flight
+			if (options.refresh?.() !== url) return;
+			deeper = { ok: true, data };
+			refreshes += 1;
+		} catch (error) {
+			log.warn(`failed to refresh ${url}`, error);
+			refreshFailed = true;
+		} finally {
+			refreshing = false;
+		}
+	}
+
 	return {
 		get result() {
 			return result;
 		},
+		get refreshing() {
+			return refreshing;
+		},
+		get refreshFailed() {
+			return refreshFailed;
+		},
 		cause,
-		detail
+		detail,
+		refresh
 	};
 }
 
@@ -115,11 +151,13 @@ type UserTimelinePageData = {
 	mine?: boolean;
 };
 
-// The user's all-time issue/PR timeline, deepened progressively. scope=mine follows the
-// authored contributions crawl, otherwise the on-repos aggregate deepened one repo per advance
+// scope=mine follows the authored crawl, the review lists the on-repos aggregate
 export function progressiveUserTimeline(data: () => UserTimelinePageData) {
+	const endpoint = (mode: string) =>
+		`/api/${data().user}/timeline?${mode}=1${data().mine ? '&scope=mine' : ''}`;
 	return progressiveResult({
-		url: () => `/api/${data().user}/timeline?advance=1${data().mine ? '&scope=mine' : ''}`,
+		url: () => endpoint('advance'),
+		refresh: () => endpoint('refresh'),
 		initial: () => data().timeline,
 		enabled: () => !!data().viewerLogin,
 		incomplete: (tl) => tl.sampled

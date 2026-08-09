@@ -16,15 +16,21 @@ export function activityQuery(view: View): { type: string; q: string; dir: strin
 	return { type: view.filters.type ?? '', q: view.search.trim(), dir: view.dir };
 }
 
-// Build the activity API url for one page request, carrying filters and cursor.
-// Pass repo to hit the repo-scoped feed instead of the whole user timeline
+type UrlOptions = {
+	// switches to the repo-scoped feed
+	repo?: string;
+	exclude?: string;
+	mine?: boolean;
+	// resync before serving, throttled server-side and ignored for anonymous
+	fresh?: boolean;
+};
+
+// Build the activity API url for one page request, carrying filters and cursor
 export function activityUrl(
 	user: string,
 	view: View,
 	cursor: string | null,
-	repo?: string,
-	exclude?: string,
-	mine?: boolean
+	{ repo, exclude, mine, fresh }: UrlOptions = {}
 ): string {
 	const params = new URLSearchParams();
 	const { type, q, dir } = activityQuery(view);
@@ -35,6 +41,7 @@ export function activityUrl(
 	if (exclude) params.set('exclude', exclude);
 	// Scope to the signed-in viewer's own events, resolved server-side from the session
 	if (mine) params.set('mine', '1');
+	if (fresh) params.set('fresh', '1');
 	const base = repo ? `/api/${user}/${repo}/activity` : `/api/${user}/activity`;
 	return `${base}?${params}`;
 }

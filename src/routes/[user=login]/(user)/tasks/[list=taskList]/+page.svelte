@@ -5,6 +5,7 @@
 	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
+	import RefreshButton from '$lib/components/common/RefreshButton.svelte';
 	import { progressiveUserTimeline } from '$lib/state/progressive.svelte';
 	import { revalidatingResult } from '$lib/state/revalidate.svelte';
 
@@ -33,6 +34,17 @@
 		kind={meta.kind}
 		cause={timeline.cause}
 		detail={timeline.detail}
-	/>
+	>
+		{#snippet actions()}
+			{#if data.viewerLogin}
+				<RefreshButton
+					onclick={timeline.refresh}
+					busy={timeline.refreshing}
+					failed={timeline.refreshFailed}
+					hint="Refresh the chart from GitHub now"
+				/>
+			{/if}
+		{/snippet}
+	</TotalTimelinePanel>
 	<AsyncTaskList result={tasks.result} kind={meta.kind} title={meta.title} empty={meta.empty} />
 </div>

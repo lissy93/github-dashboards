@@ -54,7 +54,7 @@
 	async function fetchPage(
 		cursor: string | null
 	): Promise<{ items: ActivityEvent[]; nextCursor: string | null }> {
-		const url = activityUrl(user, view, cursor, repo, exclude, mine);
+		const url = activityUrl(user, view, cursor, { repo, exclude, mine });
 		const page = await fetchApi<ActivityPage>(url);
 		return { items: page.events, nextCursor: page.nextCursor };
 	}

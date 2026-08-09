@@ -73,8 +73,8 @@
 	const enabled = () => !!data.viewerLogin;
 	const revalidate = <T,>(path: string, initial: () => LoadResult<T> | Promise<LoadResult<T>>) =>
 		revalidatingResult({ url: () => `${repoBase()}/${path}?fresh=1`, initial, enabled });
-	const issues = revalidate('issues', () => data.issues);
-	const prs = revalidate('prs', () => data.prs);
+	// tasks is open-only, the issues and prs endpoints also carry closed work
+	const tasks = revalidate('tasks', () => data.tasks);
 	const stars = revalidate('star-history', () => data.stars);
 	const workflows = revalidate('workflows', () => data.workflows);
 	const deployments = revalidate('deployments', () => data.deployments);
@@ -132,51 +132,43 @@
 	</AsyncPanel>
 {/snippet}
 
+{#snippet openList(
+	kind: 'issues' | 'prs',
+	title: string,
+	icon: typeof CircleDot,
+	emptyText: string
+)}
+	<AsyncPanel
+		{title}
+		{icon}
+		{emptyText}
+		href={section('tasks')}
+		result={tasks.result}
+		count={(t) => t[kind].total}
+		capped={(t) => t[kind].capped}
+		empty={(t) => t[kind].items.length === 0}
+	>
+		{#snippet children(t)}
+			<ul class="-m-4 divide-y">
+				{#each t[kind].items.slice(0, preview) as item (item.id)}
+					<li><ItemRow {item} /></li>
+				{/each}
+			</ul>
+		{/snippet}
+	</AsyncPanel>
+{/snippet}
+
 <div class="space-y-6">
 	<SectionHeading {...heading('tasks')}>
 		<div class="grid items-start gap-5 lg:grid-cols-2">
 			<div class="lg:space-y-5">
 				{@render totalMini('issue', 'issues', 'Total issues', CircleDot)}
-				<AsyncPanel
-					title="Open issues"
-					icon={CircleDot}
-					href={section('tasks')}
-					result={issues.result}
-					count={(list) => list.total}
-					capped={(list) => list.capped}
-					empty={(list) => list.items.length === 0}
-					emptyText="No open issues"
-				>
-					{#snippet children(list)}
-						<ul class="-m-4 divide-y">
-							{#each list.items.slice(0, preview) as item (item.id)}
-								<li><ItemRow {item} /></li>
-							{/each}
-						</ul>
-					{/snippet}
-				</AsyncPanel>
+				{@render openList('issues', 'Open issues', CircleDot, 'No open issues')}
 			</div>
 
 			<div class="lg:space-y-5">
 				{@render totalMini('pr', 'PRs', 'Total PRs', GitPullRequest)}
-				<AsyncPanel
-					title="Open PRs"
-					icon={GitPullRequest}
-					href={section('tasks')}
-					result={prs.result}
-					count={(list) => list.total}
-					capped={(list) => list.capped}
-					empty={(list) => list.items.length === 0}
-					emptyText="No open pull requests"
-				>
-					{#snippet children(list)}
-						<ul class="-m-4 divide-y">
-							{#each list.items.slice(0, preview) as item (item.id)}
-								<li><ItemRow {item} /></li>
-							{/each}
-						</ul>
-					{/snippet}
-				</AsyncPanel>
+				{@render openList('prs', 'Open PRs', GitPullRequest, 'No open pull requests')}
 			</div>
 		</div>
 	</SectionHeading>

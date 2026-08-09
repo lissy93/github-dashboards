@@ -74,6 +74,14 @@ export async function getAuthoredState(login: string): Promise<AuthoredState> {
 	);
 }
 
+// one sync round now, ignoring how fresh the checkpoint is
+function syncRound(login: string): Promise<AuthoredState> {
+	const source = userSource(login);
+	return advanceCheckpointed<AuthoredState>(key(login), TTL, (state) =>
+		syncCrawl<IssueNode, PrNode>(source, 'authored-timeline', state)
+	);
+}
+
 // Crawl one more batch of older authored history on demand, so a signed-in viewer deepens
 // the all-time totals and later viewers get the warm cache
 export async function advanceAuthoredState(login: string): Promise<AuthoredState> {
@@ -81,10 +89,7 @@ export async function advanceAuthoredState(login: string): Promise<AuthoredState
 	const stored = await readCached<AuthoredState>(key(login));
 	const current = stored?.value;
 	if (current && current.issues.complete && current.prs.complete) return current;
-	const source = userSource(login);
-	return advanceCheckpointed<AuthoredState>(key(login), TTL, (state) =>
-		syncCrawl<IssueNode, PrNode>(source, 'authored-timeline', state)
-	);
+	return syncRound(login);
 }
 
 // The user's all-time authored issue/PR timeline
@@ -95,4 +100,10 @@ export async function getAuthoredTimeline(login: string): Promise<RepoTimeline> 
 // The authored timeline deepened one more batch for a signed-in viewer
 export async function advanceAuthoredTimeline(login: string): Promise<RepoTimeline> {
 	return buildTimelineState(await advanceAuthoredState(login));
+}
+
+// on-demand catch-up, sweeping even when the crawl is already complete
+export async function refreshAuthoredTimeline(login: string): Promise<RepoTimeline> {
+	if (await isOrg(login)) return buildTimelineState(emptyState());
+	return buildTimelineState(await syncRound(login));
 }

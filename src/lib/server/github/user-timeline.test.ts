@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { needsResync } from '$lib/server/github/user-timeline';
+import { hasDrifted, needsResync } from '$lib/server/github/user-timeline';
 import type { TimelineState } from '$lib/server/github/repo-timeline';
 
 const ref = (openIssues: number, openPRs: number) => ({
@@ -45,5 +45,15 @@ describe('needsResync', () => {
 
 	it('resyncs a drifted repo crawled before sync watermarks existed', () => {
 		expect(needsResync(ref(2, 0), state(5, 0, undefined))).toBe(true);
+	});
+});
+
+describe('hasDrifted', () => {
+	it('flags a repo whose counts moved however recently it synced, for a forced refresh', () => {
+		expect(hasDrifted(ref(2, 0), state(5, 0, minsAgo(1)))).toBe(true);
+	});
+
+	it('leaves a repo alone when its open counts still match', () => {
+		expect(hasDrifted(ref(5, 3), state(5, 3, minsAgo(1)))).toBe(false);
 	});
 });

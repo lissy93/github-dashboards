@@ -1,8 +1,4 @@
-import {
-	getRepoIssues,
-	getRepoPullRequests,
-	isRepoTasksCached
-} from '$lib/server/github/repo-tasks';
+import { getRepoTasks, isRepoTasksCached } from '$lib/server/github/repo-tasks';
 import { getRepoIssuePrTimeline } from '$lib/server/github/repo-timeline';
 import { getActivityPage, syncRepoActivity } from '$lib/server/github/activity';
 import { getRepoStarHistory } from '$lib/server/github/star-history';
@@ -30,8 +26,7 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 	const name = params.repo;
 
 	// Each dataset carries its error as data so one failure never breaks the rest
-	const issues = settle('repo-issues', getRepoIssues(owner, name));
-	const prs = settle('repo-prs', getRepoPullRequests(owner, name));
+	const tasks = settle('repo-tasks', getRepoTasks(owner, name));
 	const timeline = settle('repo-timeline', getRepoIssuePrTimeline(owner, name));
 	const stars = settle('repo-stars', getRepoStarHistory(owner, name));
 	const workflows = settle('repo-workflows', getRepoWorkflows(owner, name));
@@ -94,8 +89,7 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 	return {
 		preview: PREVIEW,
 		historyPreview: HISTORY_PREVIEW,
-		issues: tasksReady ? await issues : issues,
-		prs: tasksReady ? await prs : prs,
+		tasks: tasksReady ? await tasks : tasks,
 		timeline,
 		stars,
 		workflows: wfReady ? await workflows : workflows,

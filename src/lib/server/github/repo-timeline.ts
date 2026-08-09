@@ -276,6 +276,14 @@ export async function getRepoIssuePrTimeline(owner: string, name: string): Promi
 	return buildTimelineState(state);
 }
 
+// one sync round now, ignoring how fresh the checkpoint is
+export function sweepRepoTimeline(owner: string, name: string): Promise<TimelineState> {
+	const source = repoSource(owner, name);
+	return advanceCheckpointed<TimelineState>(repoTimelineKey(owner, name), TTL, (state) =>
+		syncCrawl<IssueNode, PrNode>(source, 'repo-timeline', state)
+	);
+}
+
 // Crawl one more batch of older history on demand and persist it, so a signed-in viewer
 // can progressively deepen the timeline past the background bound, cached for later viewers
 export async function advanceRepoTimeline(owner: string, name: string): Promise<RepoTimeline> {
@@ -286,10 +294,5 @@ export async function advanceRepoTimeline(owner: string, name: string): Promise<
 	if (stored && current?.issues.complete && current.prs.complete) {
 		if (Date.now() - stored.fetchedAt.getTime() < TTL * 1000) return buildTimelineState(current);
 	}
-	const source = repoSource(owner, name);
-	return buildTimelineState(
-		await advanceCheckpointed<TimelineState>(repoTimelineKey(owner, name), TTL, (state) =>
-			syncCrawl<IssueNode, PrNode>(source, 'repo-timeline', state)
-		)
-	);
+	return buildTimelineState(await sweepRepoTimeline(owner, name));
 }
