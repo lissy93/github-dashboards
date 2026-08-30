@@ -5,9 +5,9 @@
 	import ErrorState from '$lib/components/common/ErrorState.svelte';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { TASK_BUCKETS } from '$lib/components/tasks/tasks-config';
-	import { TASK_COLUMNS } from '$lib/config/tasks';
+	import { TASK_COLUMNS, showsBucket } from '$lib/config/tasks';
+	import { navViewer } from '$lib/components/layout/nav';
 	import { paths, APP_NAME } from '$lib/config';
-	import type { TaskBucket } from '$lib/types';
 	import type { PageData } from './$types';
 	import PageMeta from '$lib/components/common/PageMeta.svelte';
 	import { progressiveUserTimeline } from '$lib/state/progressive.svelte';
@@ -24,10 +24,12 @@
 		enabled: () => !!data.viewerLogin
 	});
 
-	// Authored lists make no sense for an org account, so drop them there
-	function columnBuckets(column: TaskBucket[], isOrg: boolean): TaskBucket[] {
-		return column.filter((bucket) => !(isOrg && (bucket === 'myPrs' || bucket === 'myIssues')));
-	}
+	const isOwner = $derived(navViewer(data.user, data.viewerLogin).isOwner);
+	const columns = $derived(
+		TASK_COLUMNS.map((column) =>
+			column.filter((bucket) => showsBucket(bucket, isOwner, data.isOrg))
+		)
+	);
 </script>
 
 <PageMeta
@@ -37,14 +39,14 @@
 
 <div class="space-y-5">
 	<div class="grid items-start gap-5 lg:grid-cols-2">
-  	<TotalTimelinePanel
-  		result={timeline.result}
-  		kind="pr"
-  		cause={timeline.cause}
-  		detail={timeline.detail}
-  		mini
-  	/>
-	  <TotalTimelinePanel
+		<TotalTimelinePanel
+			result={timeline.result}
+			kind="pr"
+			cause={timeline.cause}
+			detail={timeline.detail}
+			mini
+		/>
+		<TotalTimelinePanel
 			result={timeline.result}
 			kind="issue"
 			cause={timeline.cause}
@@ -55,9 +57,9 @@
 
 	{#await tasks.result}
 		<div class="grid gap-5 lg:grid-cols-2">
-			{#each [0, 1] as column (column)}
+			{#each columns as column, index (index)}
 				<div class="space-y-5">
-					{#each [0, 1] as panel (panel)}
+					{#each column as bucket (bucket)}
 						<div class="bg-card space-y-3 rounded-md border p-4">
 							<Skeleton class="h-5 w-40" />
 							{#each [0, 1, 2] as row (row)}
@@ -70,11 +72,11 @@
 		</div>
 	{:then result}
 		{#if result.ok}
-			{@const { isOrg, buckets } = result.data}
+			{@const buckets = result.data.buckets}
 			<div class="grid items-start gap-5 lg:grid-cols-2">
-				{#each TASK_COLUMNS as column, index (index)}
+				{#each columns as column, index (index)}
 					<div class="space-y-5">
-						{#each columnBuckets(column, isOrg) as bucket (bucket)}
+						{#each column as bucket (bucket)}
 							{@const meta = TASK_BUCKETS[bucket]}
 							{@const list = buckets[bucket]}
 							<Panel

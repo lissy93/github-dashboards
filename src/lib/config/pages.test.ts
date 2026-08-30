@@ -29,9 +29,9 @@ describe('page registry', () => {
 		expect(REPO_PAGES[0]).toMatchObject({ slug: '', label: 'Overview' });
 	});
 
-	it('gates only analytics, user tasks and repo traffic to the owner', () => {
+	it('gates only analytics and repo traffic to the owner', () => {
 		const gated = ALL.filter((page) => page.gate === 'owner').map((page) => page.slug);
-		expect(gated.sort()).toEqual(['analytics', 'tasks', 'traffic']);
+		expect(gated.sort()).toEqual(['analytics', 'traffic']);
 	});
 
 	it('hides only activity, contributions and the authored task lists from org boards', () => {

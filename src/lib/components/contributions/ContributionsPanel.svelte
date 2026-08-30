@@ -56,8 +56,8 @@
 	emptyText={(data) =>
 		data.complete
 			? externalOnly
-				? 'No external contributions yet'
-				: 'No contributions found'
+				? 'No merged PRs in other repos yet'
+				: 'No merged PRs found'
 			: 'No contributions loaded yet'}
 	emptyHint={(data) => detail?.(data)}
 	emptyCause={(data) => cause?.(data) ?? 'empty'}

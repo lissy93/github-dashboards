@@ -107,6 +107,10 @@ export async function isCached(key: string): Promise<boolean> {
 	}
 }
 
+// Every key warm, for pages that only render inline once each half is seeded
+export const isCachedAll = (...keys: string[]): Promise<boolean> =>
+	Promise.all(keys.map(isCached)).then((all) => all.every(Boolean));
+
 // Read any stored value and its age without triggering a refresh
 export async function readCached<T>(
 	key: string

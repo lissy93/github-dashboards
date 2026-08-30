@@ -3,6 +3,7 @@ import {
 	summarize,
 	contributionYears,
 	capYears,
+	panelYears,
 	hasEnoughExternal,
 	contributionRows,
 	contributionsConfig,
@@ -56,6 +57,29 @@ const data: AuthoredContributions = {
 	]
 };
 
+// A second repo the user opened PRs against but never landed one in
+const unmerged: AuthoredContributions = {
+	complete: true,
+	years: [
+		{
+			year: 2024,
+			repos: [
+				data.years[0].repos[0],
+				{
+					repo: 'acme/docs',
+					owned: false,
+					lastAt: '2024-05-01',
+					prs: 4,
+					mergedPrs: 0,
+					issues: 2,
+					additions: 0,
+					deletions: 0
+				}
+			]
+		}
+	]
+};
+
 describe('summarize', () => {
 	it('sums opened PRs, merged PRs and issues across repos', () => {
 		expect(summarize(data.years[0].repos)).toEqual({ prs: 5, mergedPrs: 3, issues: 1 });
@@ -67,6 +91,11 @@ describe('contributionYears', () => {
 		const years = contributionYears(data, false);
 		expect(years).toHaveLength(2);
 		expect(years[0].summary.mergedPrs).toBe(3);
+	});
+
+	it('drops repos with no merged PR when merged only', () => {
+		const years = contributionYears(unmerged, false, true);
+		expect(years.map((year) => year.repos.map((repo) => repo.repo))).toEqual([['me/own']]);
 	});
 
 	it('drops owned repos and now-empty years when external only', () => {
@@ -93,9 +122,39 @@ describe('capYears', () => {
 	});
 });
 
+describe('panelYears', () => {
+	it('shows landed work only, so an opened-but-unmerged repo is left out', () => {
+		expect(
+			panelYears(unmerged, false).flatMap((year) => year.repos.map((repo) => repo.repo))
+		).toEqual(['me/own']);
+	});
+});
+
 describe('hasEnoughExternal', () => {
 	it('is false when distinct external repos are below the threshold', () => {
 		expect(hasEnoughExternal(data)).toBe(false);
+	});
+
+	it('ignores external repos where nothing was merged', () => {
+		const many: AuthoredContributions = {
+			complete: true,
+			years: [
+				{
+					year: 2024,
+					repos: ['a/x', 'b/y', 'c/z'].map((repo, index) => ({
+						repo,
+						owned: false,
+						lastAt: '2024-01-01',
+						prs: 1,
+						mergedPrs: index === 0 ? 1 : 0,
+						issues: 0,
+						additions: 0,
+						deletions: 0
+					}))
+				}
+			]
+		};
+		expect(hasEnoughExternal(many)).toBe(false);
 	});
 
 	it('is true once enough distinct external repos exist', () => {
@@ -152,11 +211,9 @@ describe('contributionOwners', () => {
 		expect(owners.every((owner) => !owner.owned)).toBe(true);
 	});
 
-	it('narrows to a single year when one is given', () => {
-		expect(contributionOwners(data, false, 2023).map((owner) => owner.owner)).toEqual(['me']);
-		const external2024 = contributionOwners(data, true, 2024);
-		expect(external2024.map((owner) => owner.owner)).toEqual(['acme']);
-		expect(external2024[0]).toMatchObject({ prs: 2, repos: 1 });
+	it('drops owners with no merged PR and ranks the rest by merged when merged only', () => {
+		const owners = contributionOwners(unmerged, false, true);
+		expect(owners.map((owner) => owner.owner)).toEqual(['me']);
 	});
 });
 

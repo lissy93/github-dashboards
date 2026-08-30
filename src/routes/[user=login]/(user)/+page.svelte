@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { GitPullRequest, CircleDot, BookMarked, Activity, FolderGit2 } from '@lucide/svelte';
+	import { BookMarked, Activity, FolderGit2 } from '@lucide/svelte';
 	import ProfileCard from '$lib/components/profile/ProfileCard.svelte';
 	import TasksPreview from '$lib/components/overview/TasksPreview.svelte';
 	import ReposPanel from '$lib/components/overview/ReposPanel.svelte';
@@ -9,6 +9,9 @@
 	import ErrorState from '$lib/components/common/ErrorState.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import { Skeleton } from '$lib/components/ui/skeleton';
+	import { TASK_BUCKETS } from '$lib/components/tasks/tasks-config';
+	import { navViewer } from '$lib/components/layout/nav';
+	import { overviewBuckets } from '$lib/config/tasks';
 	import { APP_NAME } from '$lib/config';
 	import type { PageData } from './$types';
 	import type { ActivityEvent, ActivityPage, TaskData } from '$lib/types';
@@ -18,6 +21,10 @@
 	import { OVERVIEW_TASK_PREVIEW, OVERVIEW_ACTIVITY_PREVIEW } from '$lib/views/overview';
 
 	let { data }: { data: PageData } = $props();
+
+	const taskBuckets = $derived(
+		overviewBuckets(navViewer(data.user, data.viewerLogin).isOwner, data.isOrg)
+	);
 
 	// Freshen every SSR panel on land for a signed-in viewer
 	const enabled = () => !!data.viewerLogin;
@@ -60,8 +67,9 @@
 			</div>
 		</Card.Root>
 		<div class="grid gap-5 lg:grid-cols-2">
-			<Panel title="PRs to review" icon={GitPullRequest} loading />
-			<Panel title="Issues to review" icon={CircleDot} loading />
+			{#each taskBuckets as bucket (bucket)}
+				<Panel title={TASK_BUCKETS[bucket].title} icon={TASK_BUCKETS[bucket].icon} loading />
+			{/each}
 		</div>
 		<Panel title="Repositories" icon={BookMarked} loading />
 		<div class="grid gap-5 lg:grid-cols-2">
@@ -73,7 +81,7 @@
 	{#if result.ok}
 		<div class="space-y-5">
 			<ProfileCard profile={result.data.profile} />
-			<TasksPreview user={data.user} result={task.result} />
+			<TasksPreview user={data.user} result={task.result} buckets={taskBuckets} />
 			<ReposPanel
 				user={data.user}
 				canSeeTraffic={data.canSeeTraffic}

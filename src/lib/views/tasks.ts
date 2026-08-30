@@ -9,8 +9,11 @@ const CHECK_OPTIONS = [
 
 const STATE_OPTIONS = [
 	{ value: 'open', label: 'Open' },
+	{ value: 'merged', label: 'Merged' },
 	{ value: 'closed', label: 'Closed' }
 ];
+// Issues never merge, so they get the same list without that state
+const ISSUE_STATE_OPTIONS = STATE_OPTIONS.filter((option) => option.value !== 'merged');
 
 // Sorted, de-duped select options from a list of raw values
 function toOptions(values: string[]): { value: string; label: string }[] {
@@ -38,22 +41,30 @@ export function taskConfig(
 
 	const repoOptions = toOptions(items.map((item) => item.repo));
 	const labelOptions = toOptions(items.flatMap((item) => item.labels.map((label) => label.name)));
-	const filters: FilterDef<TaskItem>[] = [];
-	// Only worth offering when the list actually carries closed work, open by default
-	if (items.some((item) => item.state !== 'open'))
-		filters.push({
+	const authorOptions = toOptions(items.flatMap((item) => item.author?.login ?? []));
+	// Lists carry closed work too, so the default view narrows to what is still open
+	const filters: FilterDef<TaskItem>[] = [
+		{
 			key: 'state',
-			label: 'State',
-			options: STATE_OPTIONS,
+			label: 'States',
+			options: kind === 'issue' ? ISSUE_STATE_OPTIONS : STATE_OPTIONS,
 			defaultValue: 'open',
-			test: (item, value) => (value === 'open' ? item.state === 'open' : item.state !== 'open')
-		});
+			test: (item, value) => item.state === value
+		}
+	];
 	if (repoOptions.length > 1)
 		filters.push({
 			key: 'repo',
 			label: 'Repos',
 			options: repoOptions,
 			test: (item, value) => item.repo === value
+		});
+	if (authorOptions.length > 1)
+		filters.push({
+			key: 'author',
+			label: 'Authors',
+			options: authorOptions,
+			test: (item, value) => item.author?.login === value
 		});
 	if (labelOptions.length)
 		filters.push({

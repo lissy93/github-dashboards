@@ -1,6 +1,6 @@
 import { paginate } from '$lib/server/github/client';
 import { getUserOverview } from '$lib/server/github/user';
-import { cached, isCached } from '$lib/server/cache';
+import { cached, isCached, isCachedAll, withForceFresh } from '$lib/server/cache';
 import { TASK_BUCKET_INFO } from '$lib/config/tasks';
 import { logError } from '$lib/utils/errors';
 import type {
@@ -16,8 +16,12 @@ import type {
 // GitHub search returns at most 100 per page and 1000 results per query total
 const PER_PAGE = 100;
 const MAX_PAGES = 10;
+// Closed history is long, so hold only the most recent of it
+const CLOSED_MAX_PAGES = 2;
 // Open work changes often, so refresh on visit but throttle rapid navigation
 const TTL = 300;
+// Closed work no longer moves, so it can live a lot longer
+const CLOSED_TTL = 3600;
 
 // Field lists shared with the repo task lists, so both build the same TaskItem rows
 export const PR_FIELDS = `
@@ -123,10 +127,18 @@ export function toItem(node: RawNode): TaskItem {
 	};
 }
 
+type TaskState = 'open' | 'closed';
+
 // The search queries that make up one bucket. Authored lists make no sense for an
 // org, and only PRs carry a review request
-function sources(login: string, isOrg: boolean, kind: 'pr' | 'issue', mine: boolean): string[] {
-	const base = `is:open ${kind === 'pr' ? 'is:pr' : 'is:issue'} sort:updated-desc`;
+function sources(
+	login: string,
+	isOrg: boolean,
+	kind: 'pr' | 'issue',
+	mine: boolean,
+	state: TaskState
+): string[] {
+	const base = `is:${state} ${kind === 'pr' ? 'is:pr' : 'is:issue'} sort:updated-desc`;
 	if (mine) return isOrg ? [] : [`${base} author:${login}`];
 	if (isOrg) return [`${base} user:${login}`];
 	const list = [`${base} user:${login}`, `${base} assignee:${login}`];
@@ -145,7 +157,10 @@ type SearchPage = {
 // Page one search as far as GitHub allows. It serves at most 1000 results per query
 // and reports no next page at that ceiling, so truncation is detected against the
 // true issueCount rather than the page cursor
-async function searchAll(q: string): Promise<{ nodes: RawNode[]; truncated: boolean }> {
+async function searchAll(
+	q: string,
+	maxPages: number
+): Promise<{ nodes: RawNode[]; truncated: boolean }> {
 	let issueCount = 0;
 	const { nodes } = await paginate<RawNode, SearchPage>(
 		SEARCH,
@@ -154,7 +169,7 @@ async function searchAll(q: string): Promise<{ nodes: RawNode[]; truncated: bool
 			issueCount = search.issueCount;
 			return search;
 		},
-		{ maxPages: MAX_PAGES }
+		{ maxPages }
 	);
 	return { nodes, truncated: nodes.length < issueCount };
 }
@@ -165,12 +180,14 @@ async function fetchBucket(
 	login: string,
 	isOrg: boolean,
 	kind: 'pr' | 'issue',
-	mine: boolean
+	mine: boolean,
+	state: TaskState
 ): Promise<TaskList> {
-	const queries = sources(login, isOrg, kind, mine);
+	const queries = sources(login, isOrg, kind, mine, state);
 	if (!queries.length) return { items: [], total: 0, capped: false };
 
-	const settled = await Promise.allSettled(queries.map(searchAll));
+	const maxPages = state === 'open' ? MAX_PAGES : CLOSED_MAX_PAGES;
+	const settled = await Promise.allSettled(queries.map((q) => searchAll(q, maxPages)));
 	const failed = settled.filter(
 		(result): result is PromiseRejectedResult => result.status === 'rejected'
 	);
@@ -193,32 +210,48 @@ async function fetchBucket(
 	return { items, total: items.length, capped };
 }
 
-// One entry per bucket, its kind and authored flag sourced from the shared task config
-const BUCKETS = (Object.keys(TASK_BUCKET_INFO) as TaskBucket[]).map((bucket) => ({
-	bucket,
-	kind: TASK_BUCKET_INFO[bucket].kind,
-	mine: TASK_BUCKET_INFO[bucket].mine
-}));
+const BUCKETS = Object.keys(TASK_BUCKET_INFO) as TaskBucket[];
 
-const bucketKey = (bucket: TaskBucket, login: string) => `task:v1:${bucket}:${login.toLowerCase()}`;
+const bucketKey = (bucket: TaskBucket, login: string, state: TaskState = 'open') =>
+	state === 'open'
+		? `task:v1:${bucket}:${login.toLowerCase()}`
+		: `task:closed:v1:${bucket}:${login.toLowerCase()}`;
 
-// Load every bucket, each cached on its own so one slow search never holds the others
+// One bucket in one state, each cached on its own so a slow search never holds the others
+function bucketList(
+	login: string,
+	isOrg: boolean,
+	bucket: TaskBucket,
+	state: TaskState
+): Promise<TaskList> {
+	const { kind, mine } = TASK_BUCKET_INFO[bucket];
+	return cached(
+		bucketKey(bucket, login, state),
+		() => fetchBucket(login, isOrg, kind, mine, state),
+		state === 'open' ? TTL : CLOSED_TTL
+	);
+}
+
+// Merge an open and closed list into one, keeping totals and the capped flag
+export function mergeTaskLists(open: TaskList, closed: TaskList): TaskList {
+	return {
+		items: [...open.items, ...closed.items],
+		total: open.total + closed.total,
+		capped: open.capped || closed.capped
+	};
+}
+
+// Every bucket's open list, for the overview previews and the summary board
 export async function getTaskData(login: string): Promise<TaskData> {
 	const { profile } = await getUserOverview(login);
 	const isOrg = profile.isOrg;
 
 	const lists = await Promise.all(
-		BUCKETS.map(({ bucket, kind, mine }) =>
-			cached(
-				bucketKey(bucket, profile.login),
-				() => fetchBucket(profile.login, isOrg, kind, mine),
-				TTL
-			)
-		)
+		BUCKETS.map((bucket) => bucketList(profile.login, isOrg, bucket, 'open'))
 	);
 
 	const buckets = Object.fromEntries(
-		BUCKETS.map(({ bucket }, index) => [bucket, lists[index]])
+		BUCKETS.map((bucket, index) => [bucket, lists[index]])
 	) as Record<TaskBucket, TaskList>;
 
 	return { login: profile.login, isOrg, buckets };
@@ -226,3 +259,21 @@ export async function getTaskData(login: string): Promise<TaskData> {
 
 // Whether the buckets are already seeded, so the page renders inline vs streams
 export const isTaskReady = (login: string) => isCached(bucketKey('reviewPrs', login));
+
+// Open plus recently closed work for one bucket, only the open half worth freshening on land
+export async function getTaskList(
+	login: string,
+	bucket: TaskBucket,
+	fresh = false
+): Promise<TaskList> {
+	const { profile } = await getUserOverview(login);
+	const open = () => bucketList(profile.login, profile.isOrg, bucket, 'open');
+	const [openList, closed] = await Promise.all([
+		fresh ? withForceFresh(open) : open(),
+		bucketList(profile.login, profile.isOrg, bucket, 'closed')
+	]);
+	return mergeTaskLists(openList, closed);
+}
+
+export const isTaskListCached = (login: string, bucket: TaskBucket): Promise<boolean> =>
+	isCachedAll(bucketKey(bucket, login), bucketKey(bucket, login, 'closed'));

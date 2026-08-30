@@ -15,17 +15,18 @@ describe('userNav', () => {
 		expect(byLabel(items, 'Tasks')?.disabled).toBeUndefined();
 	});
 
-	it('locks analytics and tasks for a visitor with a sign-in tooltip', () => {
+	it('locks analytics for a visitor with a sign-in tooltip, leaving tasks open', () => {
 		const items = userNav('octocat', false, SIGNED_OUT);
 		const analytics = byLabel(items, 'Analytics');
 		expect(analytics?.disabled).toBe(true);
 		expect(analytics?.href).toBeUndefined();
 		expect(analytics?.tooltip).toMatch(/sign in/i);
+		expect(byLabel(items, 'Tasks')?.href).toBe('/octocat/tasks');
 	});
 
 	it('tells a signed-in non-owner only the owner can view them', () => {
 		const items = userNav('octocat', false, VISITOR);
-		expect(byLabel(items, 'Tasks')?.tooltip).toMatch(/only octocat/i);
+		expect(byLabel(items, 'Analytics')?.tooltip).toMatch(/only octocat/i);
 	});
 
 	it('drops activity and the authored task lists on org boards', () => {

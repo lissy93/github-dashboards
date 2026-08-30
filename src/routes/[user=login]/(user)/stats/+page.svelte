@@ -113,7 +113,12 @@
 		/>
 
 		{#if !data.isOrg}
-			<ContributionReach result={authored.result} cause={authored.cause} detail={authored.detail} />
+			<ContributionReach
+				user={data.user}
+				result={authored.result}
+				cause={authored.cause}
+				detail={authored.detail}
+			/>
 		{/if}
 	</div>
 

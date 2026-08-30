@@ -147,10 +147,15 @@ describe('paletteSections', () => {
 		expect(owner.heading).toBe('sveltejs');
 		expect(owner.links.map((link) => link.href)).toEqual([
 			'/sveltejs',
-			'/sveltejs/repos',
 			'/sveltejs/stats',
+			'/sveltejs/repos',
 			'/sveltejs/activity',
-			'/sveltejs/contributions'
+			'/sveltejs/contributions',
+			'/sveltejs/tasks',
+			'/sveltejs/tasks/prs-review',
+			'/sveltejs/tasks/issues-review',
+			'/sveltejs/tasks/my-prs',
+			'/sveltejs/tasks/my-issues'
 		]);
 		expect(github.heading).toBe('GitHub');
 		expect(github.links.map((link) => link.href)).toEqual([
@@ -183,16 +188,9 @@ describe('paletteSections', () => {
 	it('hides gated pages from other viewers', () => {
 		const hrefs = (viewer?: string) =>
 			paletteSections(parseGithubInput('torvalds')!, viewer)[0].links.map((link) => link.href);
-		expect(hrefs()).toEqual([
-			'/torvalds',
-			'/torvalds/repos',
-			'/torvalds/stats',
-			'/torvalds/activity',
-			'/torvalds/contributions'
-		]);
+		expect(hrefs()).not.toContain('/torvalds/analytics');
+		expect(hrefs()).toContain('/torvalds/tasks/prs-review');
 		expect(hrefs('Torvalds')).toContain('/torvalds/analytics');
-		expect(hrefs('Torvalds')).toContain('/torvalds/tasks/prs-review');
-		expect(hrefs('someone-else')).not.toContain('/torvalds/tasks');
 	});
 
 	it('gates repo traffic to the repo owner', () => {

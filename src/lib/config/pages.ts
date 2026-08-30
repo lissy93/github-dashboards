@@ -32,8 +32,8 @@ const TASK_PAGES: PageDef[] = TASK_ORDER.map((bucket) => ({
 
 export const USER_PAGES: PageDef[] = [
 	{ slug: '', label: 'Overview', description: 'Profile summary, top repos and recent activity' },
-	{ slug: 'repos', label: 'Repos', description: 'All repositories with sorting and filters' },
 	{ slug: 'stats', label: 'Stats', description: 'Contribution, language and repo stat dashboards' },
+	{ slug: 'repos', label: 'Repos', description: 'All repositories with sorting and filters' },
 	{
 		slug: 'activity',
 		label: 'Activity',
@@ -47,17 +47,16 @@ export const USER_PAGES: PageDef[] = [
 		description: 'Repositories you have contributed to, by year'
 	},
 	{
+		slug: 'tasks',
+		label: 'Tasks',
+		description: 'Open PRs and issues needing attention',
+		children: TASK_PAGES
+	},
+	{
 		slug: 'analytics',
 		label: 'Analytics',
 		gate: 'owner',
 		description: 'Combined traffic and clones across repos'
-	},
-	{
-		slug: 'tasks',
-		label: 'Tasks',
-		gate: 'owner',
-		description: 'Open PRs and issues needing attention',
-		children: TASK_PAGES
 	}
 ];
 

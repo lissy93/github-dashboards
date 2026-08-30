@@ -1,6 +1,12 @@
 import { paginate } from '$lib/server/github/client';
-import { toItem, PR_FIELDS, ISSUE_FIELDS, type RawNode } from '$lib/server/github/tasks';
-import { cached, isCached } from '$lib/server/cache';
+import {
+	toItem,
+	mergeTaskLists,
+	PR_FIELDS,
+	ISSUE_FIELDS,
+	type RawNode
+} from '$lib/server/github/tasks';
+import { cached, isCachedAll } from '$lib/server/cache';
 import type { TaskList } from '$lib/types';
 
 // PR nodes carry checks and diff stats, so keep the page small to dodge timeouts
@@ -108,22 +114,13 @@ function getRepoClosedPullRequests(owner: string, name: string): Promise<TaskLis
 	);
 }
 
-// Merge an open and closed list into one, keeping totals and the capped flag
-function merge(open: TaskList, closed: TaskList): TaskList {
-	return {
-		items: [...open.items, ...closed.items],
-		total: open.total + closed.total,
-		capped: open.capped || closed.capped
-	};
-}
-
 // Open plus recent closed issues, for the filterable detail page
 export async function getRepoIssuesAll(owner: string, name: string): Promise<TaskList> {
 	const [open, closed] = await Promise.all([
 		getRepoIssues(owner, name),
 		getRepoClosedIssues(owner, name)
 	]);
-	return merge(open, closed);
+	return mergeTaskLists(open, closed);
 }
 
 // Open plus recent closed and merged PRs, for the filterable detail page
@@ -132,21 +129,18 @@ export async function getRepoPullRequestsAll(owner: string, name: string): Promi
 		getRepoPullRequests(owner, name),
 		getRepoClosedPullRequests(owner, name)
 	]);
-	return merge(open, closed);
+	return mergeTaskLists(open, closed);
 }
 
-const allCached = (a: string, b: string) =>
-	Promise.all([isCached(a), isCached(b)]).then(([x, y]) => x && y);
-
 export const isRepoIssuesAllCached = (owner: string, name: string): Promise<boolean> =>
-	allCached(issuesKey(owner, name), closedIssuesKey(owner, name));
+	isCachedAll(issuesKey(owner, name), closedIssuesKey(owner, name));
 
 export const isRepoPullRequestsAllCached = (owner: string, name: string): Promise<boolean> =>
-	allCached(prsKey(owner, name), closedPrsKey(owner, name));
+	isCachedAll(prsKey(owner, name), closedPrsKey(owner, name));
 
 // Both open lists warm and expire independently, so the overview is only ready when each is
 export const isRepoTasksCached = (owner: string, name: string): Promise<boolean> =>
-	allCached(issuesKey(owner, name), prsKey(owner, name));
+	isCachedAll(issuesKey(owner, name), prsKey(owner, name));
 
 // Both open lists together, for the combined repo tasks page
 export async function getRepoTasks(

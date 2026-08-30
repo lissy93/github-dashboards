@@ -22,14 +22,17 @@ export function summarize(repos: AuthoredRepo[]): ContribSummary {
 
 export type ContribYear = { year: number; repos: AuthoredRepo[]; summary: ContribSummary };
 
-// Years with an optional external-only filter, empty years dropped, each with its summary
+// Years with optional external-only and merged-only filters, empty years dropped, each summarised
 export function contributionYears(
 	data: AuthoredContributions,
-	externalOnly: boolean
+	externalOnly: boolean,
+	mergedOnly = false
 ): ContribYear[] {
 	const years: ContribYear[] = [];
 	for (const year of data.years) {
-		const repos = externalOnly ? year.repos.filter((repo) => !repo.owned) : year.repos;
+		const repos = year.repos.filter(
+			(repo) => (!externalOnly || !repo.owned) && (!mergedOnly || repo.mergedPrs > 0)
+		);
 		if (repos.length) years.push({ year: year.year, repos, summary: summarize(repos) });
 	}
 	return years;
@@ -48,16 +51,18 @@ export function capYears(years: ContribYear[], maxRows: number): ContribYear[] {
 	return capped;
 }
 
-// The capped year sections shown in the overview panel, with the external filter applied
+// The capped year sections shown in the overview panel. The panel counts landed work only,
+// so a repo the user opened PRs against but never got merged is not a contribution here
 export function panelYears(data: AuthoredContributions, externalOnly: boolean): ContribYear[] {
-	return capYears(contributionYears(data, externalOnly), CONTRIB_PANEL_ROWS);
+	return capYears(contributionYears(data, externalOnly, true), CONTRIB_PANEL_ROWS);
 }
 
-// Whether the user has enough external work to open the panel on external by default
+// Whether the user has enough external work to open the panel on external by default.
+// Counts the same merged-only repos the panel shows, so the default never opens on nothing
 export function hasEnoughExternal(data: AuthoredContributions): boolean {
 	const external = new Set<string>();
 	for (const year of data.years) {
-		for (const repo of year.repos) if (!repo.owned) external.add(repo.repo);
+		for (const repo of year.repos) if (!repo.owned && repo.mergedPrs > 0) external.add(repo.repo);
 	}
 	return external.size >= MIN_EXTERNAL_REPOS;
 }
@@ -74,19 +79,19 @@ export type OwnerContribution = {
 	repos: number;
 };
 
-// Contributions grouped by repo owner, most PRs first. externalOnly drops the user's own
-// namespace so the view reads as outward reach into other orgs and projects, and an optional
-// year narrows it to a single year
+// Contributions grouped by repo owner, biggest first. externalOnly drops the user's own
+// namespace so the view reads as outward reach into other orgs and projects, and mergedOnly
+// counts only repos where a PR actually landed
 export function contributionOwners(
 	data: AuthoredContributions,
 	externalOnly: boolean,
-	year: number | null = null
+	mergedOnly = false
 ): OwnerContribution[] {
 	const byOwner = new Map<string, OwnerContribution>();
 	for (const group of data.years) {
-		if (year !== null && group.year !== year) continue;
 		for (const repo of group.repos) {
 			if (externalOnly && repo.owned) continue;
+			if (mergedOnly && !repo.mergedPrs) continue;
 			const owner = repo.repo.slice(0, repo.repo.indexOf('/'));
 			let entry = byOwner.get(owner);
 			if (!entry) {
@@ -110,8 +115,10 @@ export function contributionOwners(
 			entry.repos += 1;
 		}
 	}
+	// Rank on whatever the caller is counting, so a capped list keeps the right owners
+	const rank = (owner: OwnerContribution) => (mergedOnly ? owner.mergedPrs : owner.prs);
 	return [...byOwner.values()].sort(
-		(a, b) => b.prs - a.prs || b.issues - a.issues || a.owner.localeCompare(b.owner)
+		(a, b) => rank(b) - rank(a) || b.issues - a.issues || a.owner.localeCompare(b.owner)
 	);
 }
 

@@ -1,4 +1,4 @@
-import { getTaskData, isTaskReady } from '$lib/server/github/tasks';
+import { getTaskList, isTaskListCached } from '$lib/server/github/tasks';
 import { getUserIssuePrTimeline, isUserTimelineCached } from '$lib/server/github/user-timeline';
 import {
 	getAuthoredTimeline,
@@ -13,10 +13,7 @@ export const load: PageServerLoad = async ({ params }) => {
 	const bucket = BUCKET_BY_SECTION[params.list];
 	const { mine, title } = TASK_BUCKET_INFO[bucket];
 
-	const result = settle(
-		'task-list',
-		getTaskData(params.user).then((data) => data.buckets[bucket])
-	);
+	const result = settle('task-list', getTaskList(params.user, bucket));
 	// The authored lists chart the user's own contributions, the review lists the on-repos totals
 	const timeline = settle(
 		'user-timeline',
@@ -24,7 +21,7 @@ export const load: PageServerLoad = async ({ params }) => {
 	);
 
 	const [ready, timelineReady] = await Promise.all([
-		isTaskReady(params.user),
+		isTaskListCached(params.user, bucket),
 		mine ? isAuthoredTimelineCached(params.user) : isUserTimelineCached(params.user)
 	]);
 	return {

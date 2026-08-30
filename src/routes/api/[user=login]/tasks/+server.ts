@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
-import { getTaskData } from '$lib/server/github/tasks';
+import { getTaskData, getTaskList } from '$lib/server/github/tasks';
+import { TASK_BUCKET_INFO } from '$lib/config/tasks';
 import { previewBuckets } from '$lib/views/overview';
 import { withForceFresh } from '$lib/server/cache';
 import { apiError } from '$lib/server/response';
@@ -14,9 +15,12 @@ export const GET: RequestHandler = async ({ params, locals, url, setHeaders }) =
 	const preview = Number(url.searchParams.get('preview')) || 0;
 	const bucket = url.searchParams.get('bucket') as TaskBucket | null;
 	try {
+		// One bucket carries its closed history too, so the list page can filter by state
+		if (bucket && TASK_BUCKET_INFO[bucket])
+			return json(await getTaskList(params.user, bucket, fresh));
+		if (bucket) return json({ items: [], total: 0, capped: false });
 		const run = () => getTaskData(params.user);
 		const data = fresh ? await withForceFresh(run) : await run();
-		if (bucket) return json(data.buckets[bucket] ?? { items: [], total: 0, capped: false });
 		return json(preview ? previewBuckets(data, preview) : data);
 	} catch (caught) {
 		return apiError('task-endpoint', caught);

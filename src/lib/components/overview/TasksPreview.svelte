@@ -6,10 +6,11 @@
 	import type { TaskBucket } from '$lib/types';
 	import type { TaskResult } from '$lib/views/overview';
 
-	let { user, result }: { user: string; result: Promise<TaskResult> | TaskResult } = $props();
-
-	// The two review queues shown on the overview, both valid for users and orgs
-	const buckets: TaskBucket[] = ['reviewPrs', 'reviewIssues'];
+	let {
+		user,
+		result,
+		buckets
+	}: { user: string; result: Promise<TaskResult> | TaskResult; buckets: TaskBucket[] } = $props();
 </script>
 
 <div class="grid items-start gap-5 lg:grid-cols-2">
