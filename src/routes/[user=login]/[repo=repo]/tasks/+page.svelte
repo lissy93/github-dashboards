@@ -24,7 +24,7 @@
 </script>
 
 <PageMeta
-	title={`Tasks · ${data.repo.nameWithOwner}`}
+	title={`Issues & PRs · ${data.repo.nameWithOwner}`}
 	description={`Issues and pull requests over time for ${data.repo.nameWithOwner}`}
 />
 

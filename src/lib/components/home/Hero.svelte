@@ -10,7 +10,7 @@
 		{ icon: ChartColumn, label: 'Stats' },
 		{ icon: Workflow, label: 'CI/CD' },
 		{ icon: TrendingUp, label: 'Traffic' },
-		{ icon: ListTodo, label: 'Tasks' }
+		{ icon: ListTodo, label: 'Issues & PRs' }
 	];
 </script>
 

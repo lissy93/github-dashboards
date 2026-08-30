@@ -132,7 +132,7 @@ describe('quickLinks', () => {
 
 	it('labels links from the page registry', () => {
 		const labels = quickLinks(parseGithubInput('sveltejs/svelte')!).map((link) => link.label);
-		expect(labels).toEqual(['Tasks', 'Supply chain', 'CI/CD', 'Security', 'Stats']);
+		expect(labels).toEqual(['Issues & PRs', 'Supply chain', 'CI/CD', 'Security', 'Stats']);
 	});
 });
 

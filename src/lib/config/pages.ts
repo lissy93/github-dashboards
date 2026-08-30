@@ -48,8 +48,8 @@ export const USER_PAGES: PageDef[] = [
 	},
 	{
 		slug: 'tasks',
-		label: 'Tasks',
-		description: 'Open PRs and issues needing attention',
+		label: 'Issues & PRs',
+		description: 'Issues and pull requests, open and closed',
 		children: TASK_PAGES
 	},
 	{
@@ -64,7 +64,7 @@ export const REPO_PAGES: PageDef[] = [
 	{ slug: '', label: 'Overview', description: 'Repo health and stats at a glance' },
 	{
 		slug: 'tasks',
-		label: 'Tasks',
+		label: 'Issues & PRs',
 		description: 'Issue and PR totals over time plus the open lists',
 		children: [
 			{ slug: 'issues', label: 'Issues', description: 'Open issues with labels and state' },

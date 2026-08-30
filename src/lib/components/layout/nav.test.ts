@@ -11,8 +11,8 @@ describe('userNav', () => {
 	it('gives the owner real hrefs for analytics and tasks', () => {
 		const items = userNav('octocat', false, OWNER);
 		expect(byLabel(items, 'Analytics')?.href).toBe('/octocat/analytics');
-		expect(byLabel(items, 'Tasks')?.href).toBe('/octocat/tasks');
-		expect(byLabel(items, 'Tasks')?.disabled).toBeUndefined();
+		expect(byLabel(items, 'Issues & PRs')?.href).toBe('/octocat/tasks');
+		expect(byLabel(items, 'Issues & PRs')?.disabled).toBeUndefined();
 	});
 
 	it('locks analytics for a visitor with a sign-in tooltip, leaving tasks open', () => {
@@ -21,7 +21,7 @@ describe('userNav', () => {
 		expect(analytics?.disabled).toBe(true);
 		expect(analytics?.href).toBeUndefined();
 		expect(analytics?.tooltip).toMatch(/sign in/i);
-		expect(byLabel(items, 'Tasks')?.href).toBe('/octocat/tasks');
+		expect(byLabel(items, 'Issues & PRs')?.href).toBe('/octocat/tasks');
 	});
 
 	it('tells a signed-in non-owner only the owner can view them', () => {
@@ -32,7 +32,8 @@ describe('userNav', () => {
 	it('drops activity and the authored task lists on org boards', () => {
 		const items = userNav('octocat', true, OWNER);
 		expect(byLabel(items, 'Activity')).toBeUndefined();
-		const taskChildren = byLabel(items, 'Tasks')?.children?.map((child) => child.label) ?? [];
+		const taskChildren =
+			byLabel(items, 'Issues & PRs')?.children?.map((child) => child.label) ?? [];
 		expect(taskChildren).toEqual(['PRs to review', 'Issues to review']);
 	});
 });

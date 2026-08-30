@@ -33,7 +33,7 @@
 </script>
 
 <PageMeta
-	title={`${data.user} tasks`}
+	title={`${data.user} issues and PRs`}
 	description={`Open issues and PRs for ${data.user} on ${APP_NAME}`}
 />
 
