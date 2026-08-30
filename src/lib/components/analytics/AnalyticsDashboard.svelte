@@ -18,6 +18,7 @@
 	import ErrorState from '$lib/components/common/ErrorState.svelte';
 	import EmptyState from '$lib/components/common/EmptyState.svelte';
 	import { Skeleton } from '$lib/components/ui/skeleton';
+	import Hint from '$lib/components/common/Hint.svelte';
 	import MetricTimeChart from '$lib/components/analytics/MetricTimeChart.svelte';
 	import AnalyticsFilters from '$lib/components/analytics/AnalyticsFilters.svelte';
 	import { createAnalytics } from '$lib/state/analytics.svelte';
@@ -30,10 +31,15 @@
 		topReferrers,
 		viewsByRepo,
 		repoOptions,
+		scopeLabel,
+		deltaHint,
+		SNAPSHOT_RANGE,
+		SNAPSHOT_HINT,
 		type AnalyticsView,
 		type MetricKey
 	} from '$lib/views/analytics';
 	import { compactNumber } from '$lib/utils/format';
+	import { cn } from '$lib/utils';
 
 	let {
 		user,
@@ -66,20 +72,34 @@
 	const byRepo = $derived(data ? viewsByRepo(data.daily, view, 100) : []);
 	const showByRepo = $derived(repos.length > 1 && !view.repo);
 
+	const rangeScope = $derived(scopeLabel(view));
+	const snapshotScope = $derived(scopeLabel(view, SNAPSHOT_RANGE));
+	const tileHint = $derived(deltaHint(view));
+
 	const metricTiles = $derived(
 		metricTotals.map((metric) => ({
 			label: metric.label,
 			value: compactNumber(metric.value),
 			icon: METRIC_ICONS[metric.key],
-			delta: metric.delta
+			delta: metric.delta,
+			hint: metric.delta === undefined ? undefined : tileHint
 		}))
 	);
 </script>
 
+{#snippet scope(label: string, hint?: string)}
+	<Hint
+		text={hint}
+		class={cn('text-muted-foreground text-xs whitespace-nowrap', hint && 'cursor-help')}
+	>
+		{label}
+	</Hint>
+{/snippet}
+
 {#if analytics.loading}
 	<div class="space-y-4">
+		{#if !compact}<Skeleton class="h-9 w-full" />{/if}
 		<StatTileGrid loading={5} class="sm:grid-cols-3 lg:grid-cols-5" />
-		<Skeleton class="h-9 w-full" />
 		<Skeleton class="h-72 w-full" />
 	</div>
 {:else if analytics.error}
@@ -96,13 +116,8 @@
 	<!-- Bare tiles and chart, so the caller's own panel provides the frame -->
 	<div class="space-y-4">
 		<div class="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-			{#each metricTotals as metric (metric.key)}
-				<StatTile
-					label={metric.label}
-					value={compactNumber(metric.value)}
-					icon={METRIC_ICONS[metric.key]}
-					delta={metric.delta}
-				/>
+			{#each metricTiles as tile (tile.label)}
+				<StatTile {...tile} />
 			{/each}
 		</div>
 		{#if points.length}
@@ -113,11 +128,12 @@
 	</div>
 {:else}
 	<div class="space-y-4">
-		<StatTileGrid tiles={metricTiles} class="sm:grid-cols-3 lg:grid-cols-5" />
-
 		<AnalyticsFilters bind:view {repos} />
 
+		<StatTileGrid tiles={metricTiles} class="sm:grid-cols-3 lg:grid-cols-5" />
+
 		<Panel title="Traffic over time" icon={ChartArea}>
+			{#snippet actions()}{@render scope(rangeScope)}{/snippet}
 			{#if points.length}
 				<MetricTimeChart data={chart} area={view.area} label="Traffic over time" />
 			{:else}
@@ -127,6 +143,7 @@
 
 		<div class="grid gap-4 lg:grid-cols-2">
 			<Panel title="Top pages" icon={FileText} empty={!paths.length} emptyText="No page data">
+				{#snippet actions()}{@render scope(snapshotScope, SNAPSHOT_HINT)}{/snippet}
 				<ExpandableBarList data={paths} valueLabel="Views" />
 			</Panel>
 			<Panel
@@ -135,12 +152,14 @@
 				empty={!referrers.length}
 				emptyText="No referrers"
 			>
+				{#snippet actions()}{@render scope(snapshotScope, SNAPSHOT_HINT)}{/snippet}
 				<ExpandableBarList data={referrers} valueLabel="Views" color="var(--chart-2)" />
 			</Panel>
 		</div>
 
 		{#if showByRepo}
 			<Panel title="Views by repo" icon={BookMarked} empty={!byRepo.length} emptyText="No data">
+				{#snippet actions()}{@render scope(rangeScope)}{/snippet}
 				<ExpandableBarList data={byRepo} valueLabel="Views" colored />
 			</Panel>
 		{/if}

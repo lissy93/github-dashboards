@@ -17,13 +17,26 @@ export const ANALYTICS_METRICS: { key: MetricKey; label: string; color: string }
 ];
 
 // Time ranges, all-time spans whatever history we have cached
-export const ANALYTICS_WINDOWS = [
-	{ key: '14', label: 'Last 14 days', days: 14 },
-	{ key: '30', label: 'Last 30 days', days: 30 },
-	{ key: '90', label: 'Last 90 days', days: 90 },
-	{ key: '365', label: 'Last year', days: 365 },
-	{ key: 'all', label: 'All time', days: Infinity }
+export type AnalyticsWindow = { key: string; label: string; short: string; days: number };
+const ALL_TIME: AnalyticsWindow = {
+	key: 'all',
+	label: 'All time',
+	short: 'all time',
+	days: Infinity
+};
+export const ANALYTICS_WINDOWS: AnalyticsWindow[] = [
+	{ key: '14', label: 'Last 14 days', short: '14 days', days: 14 },
+	{ key: '30', label: 'Last 30 days', short: '30 days', days: 30 },
+	{ key: '90', label: 'Last 90 days', short: '90 days', days: 90 },
+	{ key: '365', label: 'Last year', short: 'year', days: 365 },
+	ALL_TIME
 ];
+
+// GitHub serves top pages and referrers as one rolling snapshot with no per-day breakdown,
+// so those two panels can only ever honour the repo filter
+export const SNAPSHOT_RANGE = 'Last 14 days';
+export const SNAPSHOT_HINT =
+	'GitHub only reports top pages and referrers for the last 14 days, so the date range does not apply here';
 
 export const ANALYTICS_GRANULARITY: { key: Granularity; label: string }[] = [
 	{ key: 'day', label: 'Daily' },
@@ -60,8 +73,23 @@ export type PeriodPoint = {
 
 const shortRepo = (repo: string) => repo.split('/')[1] ?? repo;
 
+function windowOf(key: string): AnalyticsWindow {
+	return ANALYTICS_WINDOWS.find((window) => window.key === key) ?? ALL_TIME;
+}
+
 function windowDays(key: string): number {
-	return ANALYTICS_WINDOWS.find((window) => window.key === key)?.days ?? Infinity;
+	return windowOf(key).days;
+}
+
+// Caption naming the filters a panel is showing, so every panel states its own scope
+export function scopeLabel(view: AnalyticsView, range = windowOf(view.windowKey).label): string {
+	return view.repo ? `${range} · ${shortRepo(view.repo)}` : range;
+}
+
+// Which window each stat tile delta compares against, absent when nothing precedes it
+export function deltaHint(view: AnalyticsView): string | undefined {
+	const { key, label, short } = windowOf(view.windowKey);
+	return key === 'all' ? undefined : `${label} vs previous ${short}`;
 }
 
 // UTC day string `days` back from now, empty for an unbounded window

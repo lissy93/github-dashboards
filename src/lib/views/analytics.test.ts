@@ -6,6 +6,9 @@ import {
 	topReferrers,
 	viewsByRepo,
 	defaultAnalyticsView,
+	scopeLabel,
+	deltaHint,
+	SNAPSHOT_RANGE,
 	type AnalyticsView
 } from '$lib/views/analytics';
 import type { AnalyticsItem, TrafficDay } from '$lib/types';
@@ -133,5 +136,28 @@ describe('viewsByRepo', () => {
 			['a', 14],
 			['b', 5]
 		]);
+	});
+});
+
+describe('scopeLabel', () => {
+	it('names the window, adding the repo once one is picked', () => {
+		expect(scopeLabel(view({ windowKey: '30' }))).toBe('Last 30 days');
+		expect(scopeLabel(view({ windowKey: '30', repo: 'me/a' }))).toBe('Last 30 days · a');
+	});
+
+	it('takes an override range for the panels GitHub only snapshots', () => {
+		expect(scopeLabel(view({ windowKey: '90', repo: 'me/a' }), SNAPSHOT_RANGE)).toBe(
+			'Last 14 days · a'
+		);
+	});
+});
+
+describe('deltaHint', () => {
+	it('names the window the delta compares against', () => {
+		expect(deltaHint(view({ windowKey: '90' }))).toBe('Last 90 days vs previous 90 days');
+	});
+
+	it('has nothing to compare against over all time', () => {
+		expect(deltaHint(view({ windowKey: 'all' }))).toBeUndefined();
 	});
 });
