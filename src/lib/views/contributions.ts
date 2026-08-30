@@ -6,13 +6,14 @@ export const CONTRIB_PANEL_ROWS = 25;
 // External repos below this count keep the panel defaulting to all contributions
 const MIN_EXTERNAL_REPOS = 3;
 
-// Merged PR and issue totals across a set of repos, for the year separator
-export type ContribSummary = { mergedPrs: number; issues: number };
+// PR and issue totals across a set of repos, for the year separator and list tally
+export type ContribSummary = { prs: number; mergedPrs: number; issues: number };
 
 // Sum a repo list into one contribution summary
 export function summarize(repos: AuthoredRepo[]): ContribSummary {
-	const total: ContribSummary = { mergedPrs: 0, issues: 0 };
+	const total: ContribSummary = { prs: 0, mergedPrs: 0, issues: 0 };
 	for (const repo of repos) {
+		total.prs += repo.prs;
 		total.mergedPrs += repo.mergedPrs;
 		total.issues += repo.issues;
 	}
@@ -130,6 +131,15 @@ function yearOptions(rows: ContribRow[]): { value: string; label: string }[] {
 
 const churn = (row: ContribRow) => row.additions + row.deletions;
 
+// What each activity filter counts, a repo row survives when its count is non-zero
+const ACTIVITY_COUNTS: Record<string, (row: ContribRow) => number> = {
+	merged: (row) => row.mergedPrs,
+	prs: (row) => row.prs,
+	issues: (row) => row.issues
+};
+
+export const MERGED_ACTIVITY = 'merged';
+
 // Sort, filter and search config for the full contributions list
 export function contributionsConfig(rows: ContribRow[]): SortFilterConfig<ContribRow> {
 	return {
@@ -137,11 +147,22 @@ export function contributionsConfig(rows: ContribRow[]): SortFilterConfig<Contri
 		sorts: [
 			{ key: 'recent', label: 'Most recent', value: (row) => row.lastAt },
 			{ key: 'diff', label: 'Largest diff', value: churn },
+			{ key: 'merged', label: 'Most merged PRs', value: (row) => row.mergedPrs },
 			{ key: 'prs', label: 'Most PRs', value: (row) => row.prs },
 			{ key: 'issues', label: 'Most issues', value: (row) => row.issues },
 			{ key: 'repo', label: 'Repository', value: (row) => row.repo }
 		],
 		filters: [
+			{
+				key: 'activity',
+				label: 'Activity',
+				options: [
+					{ value: MERGED_ACTIVITY, label: 'Merged PRs' },
+					{ value: 'prs', label: 'Pull requests' },
+					{ value: 'issues', label: 'Issues' }
+				],
+				test: (row, value) => ACTIVITY_COUNTS[value](row) > 0
+			},
 			{
 				key: 'year',
 				label: 'Year',

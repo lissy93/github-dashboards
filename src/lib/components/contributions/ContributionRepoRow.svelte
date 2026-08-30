@@ -6,14 +6,16 @@
 	import { githubAvatar } from '$lib/config';
 	import type { AuthoredRepo } from '$lib/types';
 
-	// merged shows only landed PRs, the default in the compact panel
+	// merged counts landed PRs instead of opened, showIssues drops them in PR-only views
 	let {
 		item,
 		year,
-		merged = false
-	}: { item: AuthoredRepo; year?: number; merged?: boolean } = $props();
+		merged = false,
+		showIssues = true
+	}: { item: AuthoredRepo; year?: number; merged?: boolean; showIssues?: boolean } = $props();
 	const owner = $derived(item.repo.slice(0, item.repo.indexOf('/')));
 	const prs = $derived(merged ? item.mergedPrs : item.prs);
+	const issues = $derived(showIssues ? item.issues : 0);
 </script>
 
 <li class="flex items-center gap-3 py-2">
@@ -34,14 +36,14 @@
 					<GitPullRequest class="size-3.5" />{formatNumber(prs)}
 				</Hint>
 			{/if}
-			{#if item.issues}
+			{#if issues}
 				{#if prs}<span aria-hidden="true">·</span>{/if}
 				<Hint text="Issues opened" class="gap-1">
-					<CircleDot class="size-3.5" />{formatNumber(item.issues)}
+					<CircleDot class="size-3.5" />{formatNumber(issues)}
 				</Hint>
 			{/if}
 			{#if year !== undefined}
-				{#if prs || item.issues}<span aria-hidden="true">·</span>{/if}
+				{#if prs || issues}<span aria-hidden="true">·</span>{/if}
 				<span>{year}</span>
 			{/if}
 		</div>

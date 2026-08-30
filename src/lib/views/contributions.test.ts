@@ -57,8 +57,8 @@ const data: AuthoredContributions = {
 };
 
 describe('summarize', () => {
-	it('sums merged PRs and issues across repos', () => {
-		expect(summarize(data.years[0].repos)).toEqual({ mergedPrs: 3, issues: 1 });
+	it('sums opened PRs, merged PRs and issues across repos', () => {
+		expect(summarize(data.years[0].repos)).toEqual({ prs: 5, mergedPrs: 3, issues: 1 });
 	});
 });
 
@@ -165,6 +165,39 @@ describe('contributionsConfig', () => {
 		const config = contributionsConfig(contributionRows(data));
 		const yearFilter = config.filters?.find((filter) => filter.key === 'year');
 		expect(yearFilter?.options.map((option) => option.value)).toEqual(['2024', '2023']);
+	});
+
+	it('activity filter keeps only repos with a merged pull request', () => {
+		const rows = [
+			...contributionRows(data),
+			{
+				repo: 'acme/docs',
+				owned: false,
+				lastAt: '2024-01-01',
+				prs: 2,
+				mergedPrs: 0,
+				issues: 4,
+				additions: 0,
+				deletions: 0,
+				year: 2024
+			}
+		];
+		const activity = contributionsConfig(rows).filters?.find((filter) => filter.key === 'activity');
+		expect(rows.filter((row) => activity?.test(row, 'merged')).map((row) => row.repo)).toEqual([
+			'me/own',
+			'acme/api',
+			'me/own'
+		]);
+		expect(rows.filter((row) => activity?.test(row, 'issues')).map((row) => row.repo)).toEqual([
+			'me/own',
+			'acme/docs'
+		]);
+	});
+
+	it('offers a merged pull request sort', () => {
+		const config = contributionsConfig(contributionRows(data));
+		const merged = config.sorts.find((sort) => sort.key === 'merged');
+		expect(merged?.value(contributionRows(data)[0])).toBe(2);
 	});
 
 	it('scope filter keeps only external repos', () => {
