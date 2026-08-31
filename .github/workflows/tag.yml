@@ -147,7 +147,7 @@ jobs:
             echo "package.json already at $NEW_VERSION, nothing to commit"
             echo "bumped=false" >> "$GITHUB_OUTPUT"
           else
-            git commit -m "🔖 Bump version to $NEW_VERSION"
+            git commit -m "Bump version to $NEW_VERSION"
             git push
             echo "bumped=true" >> "$GITHUB_OUTPUT"
             echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"

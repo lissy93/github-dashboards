@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { niceMax, niceStep } from './chart';
+	import { niceStep } from './chart';
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
 	import ChartLegend from './ChartLegend.svelte';
@@ -17,6 +17,7 @@
 		maxLabels,
 		ticks,
 		barGap = 0.375,
+		maxBarWidth = 128,
 		miniView = false
 	}: {
 		bars: StackBar[];
@@ -28,6 +29,7 @@
 		maxLabels?: number;
 		ticks?: string[];
 		barGap?: number;
+		maxBarWidth?: number;
 		miniView?: boolean;
 	} = $props();
 
@@ -60,12 +62,14 @@
 	const barTotal = (bar: StackBar) =>
 		shown.reduce((sum, entry) => sum + (bar.values[entry.key] ?? 0), 0);
 
-	const max = $derived(niceMax(Math.max(1, ...bars.map(barTotal))));
+	const peak = $derived(Math.max(1, ...bars.map(barTotal)));
 	// Keep count-based grid steps on whole numbers, thinning them right down for the compact view
 	const Y_TICKS = $derived(miniView ? 2 : 5);
 	// Narrower y-axis gutter in the compact view so the bars get the space
 	const gutter = $derived(miniView ? 'w-5' : 'w-7');
-	const step = $derived(Math.max(1, Math.round(niceStep(max, Y_TICKS))));
+	const step = $derived(Math.max(1, Math.round(niceStep(peak, Y_TICKS))));
+	// Stop the axis at the first step past the tallest bar, so it keeps no spare headroom
+	const max = $derived(Math.ceil(peak / step) * step);
 	const yTicks = $derived(
 		Array.from({ length: Math.floor(max / step) + 1 }, (_, index) => index * step)
 	);
@@ -136,7 +140,7 @@
 							onpointermove={(event) => tip.show(event, barTip(bar))}
 							onpointerleave={tip.hide}
 						>
-							<div class="flex h-full flex-col-reverse">
+							<div class="mx-auto flex h-full flex-col-reverse" style="max-width: {maxBarWidth}px">
 								{#each shown as entry (entry.key)}
 									{#if (bar.values[entry.key] ?? 0) > 0}
 										{@const lift = legend.hovered === entry.key}

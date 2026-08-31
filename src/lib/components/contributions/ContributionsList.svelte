@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
-	import SortFilterBar from '$lib/components/filter/SortFilterBar.svelte';
 	import Pagination from '$lib/components/common/Pagination.svelte';
 	import ContributionRepoRow from './ContributionRepoRow.svelte';
 	import {
@@ -9,18 +7,18 @@
 		summarize,
 		MERGED_ACTIVITY
 	} from '$lib/views/contributions';
-	import { applyView, defaultView, type View } from '$lib/utils/sort-filter';
+	import { applyView, type View } from '$lib/utils/sort-filter';
 	import { formatNumber, plural } from '$lib/utils/format';
 	import type { AuthoredContributions } from '$lib/types';
 
 	const PAGE_SIZE = 30;
 
-	let { data }: { data: AuthoredContributions } = $props();
+	// view lives on the page, set by the filter bar above the summary and charts
+	let { data, view }: { data: AuthoredContributions; view: View } = $props();
 
 	const rows = $derived(contributionRows(data));
 	const config = $derived(contributionsConfig(rows));
 
-	let view = $state<View>(untrack(() => defaultView(config)));
 	let page = $state(1);
 	const visible = $derived(applyView(rows, config, view));
 	const mergedOnly = $derived(view.filters.activity === MERGED_ACTIVITY);
@@ -42,21 +40,13 @@
 		`${view.search}|${view.sortKey}|${view.dir}|${JSON.stringify(view.filters)}`
 	);
 
-	// Fresh view and first page when a different dataset arrives (route reuse)
+	// Back to the first page when a different dataset arrives, or the view changes
 	$effect(() => {
-		if (data) {
-			view = untrack(() => defaultView(config));
-			page = 1;
-		}
-	});
-	// Back to the first page whenever the sort, filter or search changes
-	$effect(() => {
-		if (viewKey) page = 1;
+		if (data && viewKey) page = 1;
 	});
 </script>
 
 <div class="space-y-3">
-	<SortFilterBar {config} bind:view searchPlaceholder="Search repos" />
 	{#if visible.length}
 		<p class="text-muted-foreground text-xs tabular-nums">{summary}</p>
 		<ul class="divide-y">

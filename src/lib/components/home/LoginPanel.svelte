@@ -23,7 +23,7 @@
 	];
 
 	// Quick links to the signed-in user's own pages, order tuned for the welcome card
-	const USER_PILL_SLUGS = ['stats', 'analytics', 'repos', 'activity', 'tasks'];
+	const USER_PILL_SLUGS = ['stats', 'contributions', 'tasks', 'analytics', 'activity', 'repos'];
 	const pills = $derived(
 		user
 			? USER_PILL_SLUGS.map((slug) => ({

@@ -7,7 +7,13 @@ import {
 	hasEnoughExternal,
 	contributionRows,
 	contributionsConfig,
-	contributionOwners
+	contributionOwners,
+	contributionTotals,
+	contributionYearBars,
+	topContributionRepos,
+	visibleContributions,
+	acrossYears,
+	defaultContributionsView
 } from '$lib/views/contributions';
 import type { AuthoredContributions } from '$lib/types';
 
@@ -23,7 +29,9 @@ const data: AuthoredContributions = {
 					lastAt: '2024-06-01',
 					prs: 3,
 					mergedPrs: 2,
+					closedPrs: 1,
 					issues: 1,
+					closedIssues: 1,
 					additions: 50,
 					deletions: 10
 				},
@@ -33,7 +41,9 @@ const data: AuthoredContributions = {
 					lastAt: '2024-03-01',
 					prs: 2,
 					mergedPrs: 1,
+					closedPrs: 0,
 					issues: 0,
+					closedIssues: 0,
 					additions: 20,
 					deletions: 5
 				}
@@ -48,7 +58,9 @@ const data: AuthoredContributions = {
 					lastAt: '2023-11-01',
 					prs: 1,
 					mergedPrs: 1,
+					closedPrs: 0,
 					issues: 0,
+					closedIssues: 0,
 					additions: 5,
 					deletions: 0
 				}
@@ -71,7 +83,9 @@ const unmerged: AuthoredContributions = {
 					lastAt: '2024-05-01',
 					prs: 4,
 					mergedPrs: 0,
+					closedPrs: 2,
 					issues: 2,
+					closedIssues: 1,
 					additions: 0,
 					deletions: 0
 				}
@@ -82,7 +96,13 @@ const unmerged: AuthoredContributions = {
 
 describe('summarize', () => {
 	it('sums opened PRs, merged PRs and issues across repos', () => {
-		expect(summarize(data.years[0].repos)).toEqual({ prs: 5, mergedPrs: 3, issues: 1 });
+		expect(summarize(data.years[0].repos)).toEqual({
+			prs: 5,
+			mergedPrs: 3,
+			closedPrs: 1,
+			issues: 1,
+			closedIssues: 1
+		});
 	});
 });
 
@@ -147,7 +167,9 @@ describe('hasEnoughExternal', () => {
 						lastAt: '2024-01-01',
 						prs: 1,
 						mergedPrs: index === 0 ? 1 : 0,
+						closedPrs: 0,
 						issues: 0,
+						closedIssues: 0,
 						additions: 0,
 						deletions: 0
 					}))
@@ -169,7 +191,9 @@ describe('hasEnoughExternal', () => {
 						lastAt: '2024-01-01',
 						prs: 1,
 						mergedPrs: 1,
+						closedPrs: 0,
 						issues: 0,
+						closedIssues: 0,
 						additions: 0,
 						deletions: 0
 					}))
@@ -233,7 +257,9 @@ describe('contributionsConfig', () => {
 				lastAt: '2024-01-01',
 				prs: 2,
 				mergedPrs: 0,
+				closedPrs: 1,
 				issues: 4,
+				closedIssues: 3,
 				additions: 0,
 				deletions: 0,
 				year: 2024
@@ -263,5 +289,73 @@ describe('contributionsConfig', () => {
 		const external = rows.filter((row) => scope?.test(row, 'external'));
 		expect(external.length).toBeGreaterThan(0);
 		expect(external.every((row) => !row.owned)).toBe(true);
+	});
+});
+
+describe('contribution summary and charts', () => {
+	const rows = contributionRows(data);
+
+	it('totals repos, owners and years once each', () => {
+		const totals = contributionTotals(rows);
+		expect(totals).toMatchObject({
+			repos: 2,
+			owners: 2,
+			prs: 6,
+			mergedPrs: 4,
+			closedPrs: 1,
+			issues: 1,
+			closedIssues: 1
+		});
+		expect(totals.additions).toBe(75);
+		expect(totals.deletions).toBe(15);
+		expect(totals.years).toEqual([2023, 2024]);
+	});
+
+	it('builds one bar per year, oldest first, splitting both kinds by outcome', () => {
+		const bars = contributionYearBars(rows);
+		expect(bars.map((bar) => bar.label)).toEqual(['2023', '2024']);
+		expect(bars[1].values).toEqual({
+			merged: 3,
+			closed: 1,
+			open: 1,
+			closedIssues: 1,
+			openIssues: 0
+		});
+		expect(bars[1].total).toBe(6);
+	});
+
+	it('ranks repos by the active metric and links to each one', () => {
+		const merged = topContributionRepos(rows, 'merged', 10);
+		expect(merged.map((slice) => [slice.label, slice.value])).toEqual([
+			['me/own', 3],
+			['acme/api', 1]
+		]);
+		expect(merged[0].href).toBe('/me/own');
+		expect(topContributionRepos(rows, 'issues', 10).map((slice) => slice.label)).toEqual([
+			'me/own'
+		]);
+	});
+
+	it('breaks each repo bar into parts that sum to its own value', () => {
+		const [top] = topContributionRepos(rows, '', 10);
+		expect(top.segments?.map((part) => [part.key, part.value])).toEqual([
+			['merged', 3],
+			['closed', 1],
+			['closedIssues', 1]
+		]);
+		expect(top.segments?.reduce((sum, part) => sum + part.value, 0)).toBe(top.value);
+	});
+
+	it('leaves a single-series metric as a plain bar', () => {
+		expect(topContributionRepos(rows, 'merged', 10)[0].segments).toEqual([]);
+	});
+
+	it('follows the list filters, and lifts only the year for the all-years chart', () => {
+		const view = {
+			...defaultContributionsView(),
+			filters: { activity: '', year: '2024', scope: 'external' }
+		};
+		expect(visibleContributions(data, view).map((row) => row.repo)).toEqual(['acme/api']);
+		expect(contributionYearBars(visibleContributions(data, acrossYears(view)))).toHaveLength(1);
 	});
 });

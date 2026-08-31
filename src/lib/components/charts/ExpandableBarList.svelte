@@ -16,7 +16,8 @@
 		colored = false,
 		format = compactNumber,
 		animate = false,
-		align = 'start'
+		align = 'start',
+		labelWidth
 	}: {
 		data: Slice[];
 		collapsed?: number;
@@ -27,6 +28,7 @@
 		format?: (value: number) => string;
 		animate?: boolean;
 		align?: 'start' | 'center' | 'end';
+		labelWidth?: string;
 	} = $props();
 
 	// null keeps the default collapsed count, a number is an explicit expanded limit
@@ -36,7 +38,7 @@
 	const more = $derived(data.length - current);
 </script>
 
-<HBarList data={shown} {valueLabel} {color} {colored} {format} {animate} />
+<HBarList data={shown} {valueLabel} {color} {colored} {format} {animate} {labelWidth} />
 
 {#if more > 0 || current > collapsed}
 	<div></div>

@@ -1,13 +1,16 @@
 // A user's authored work in one repo within a single year, owned means the repo sits
 // under the user's own namespace. lastAt is the most recent contribution that year, so
-// rows sort by recency. prs is every PR opened, mergedPrs only those that landed
+// rows sort by recency. prs is every PR opened, mergedPrs those that landed and closedPrs
+// those closed without merging, so the rest are still open. Issues split the same way
 export type AuthoredRepo = {
 	repo: string;
 	owned: boolean;
 	lastAt: string;
 	prs: number;
 	mergedPrs: number;
+	closedPrs: number;
 	issues: number;
+	closedIssues: number;
 	additions: number;
 	deletions: number;
 };

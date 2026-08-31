@@ -13,7 +13,8 @@
 		height = 9,
 		valueLabel = 'Value',
 		maxLabels,
-		barGap = 0.375
+		barGap = 0.375,
+		maxBarWidth = 128
 	}: {
 		data: Slice[];
 		color?: string;
@@ -22,6 +23,7 @@
 		valueLabel?: string;
 		maxLabels?: number;
 		barGap?: number;
+		maxBarWidth?: number;
 	} = $props();
 
 	const max = $derived(niceMax(Math.max(0, ...data.map((point) => point.value))));
@@ -43,7 +45,7 @@
 	>
 		{#each data as point (point.label)}
 			<div
-				class="flex h-full flex-1 items-end"
+				class="flex h-full flex-1 items-end justify-center"
 				role="img"
 				aria-label="{point.label}: {formatNumber(point.value)}"
 				onpointermove={(event) =>
@@ -53,9 +55,8 @@
 				<!-- Zero-value bars still get a short muted stub so they stay visible without an axis -->
 				<div
 					class="hover:brightness-110 w-full rounded-t-sm transition-[height]"
-					style="height: {(point.value / max) * 100}%; background-color: {point.value > 0
-						? fill(point)
-						: 'var(--muted)'}; min-height: 2px"
+					style="height: {(point.value / max) * 100}%; max-width: {maxBarWidth}px;
+						background-color: {point.value > 0 ? fill(point) : 'var(--muted)'}; min-height: 2px"
 				></div>
 			</div>
 		{/each}

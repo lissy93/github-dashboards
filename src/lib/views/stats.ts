@@ -7,6 +7,7 @@ import {
 	monthLabel
 } from '$lib/utils/datetime';
 import { stackColor } from '$lib/components/charts/chart';
+import { paths } from '$lib/config';
 import type {
 	ActivityRhythm,
 	ContributionDay,
@@ -177,6 +178,7 @@ export function topRepos(repos: Repo[], metric: RepoMetric, maps: MetricMaps, li
 		.map(({ repo, value }) => ({
 			label: repo.name,
 			value,
+			href: paths.repo(repo.owner, repo.name),
 			rows: [
 				{ label: metric.short, value: show(value) },
 				{ label: 'Language', value: repo.language?.name ?? 'n/a' },

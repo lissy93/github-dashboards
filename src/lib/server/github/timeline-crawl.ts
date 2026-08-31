@@ -104,6 +104,17 @@ function merge<T extends { id: string }>(...groups: T[][]): T[] {
 	return [...new Map(groups.flat().map((node) => [node.id, node])).values()];
 }
 
+// A round that turned nothing up keeps the stored crawl, so its row and watermark stay put
+export function settled<T>(current: Crawl<T>, next: Crawl<T>): Crawl<T> {
+	const same =
+		next.cursor === current.cursor &&
+		next.complete === current.complete &&
+		next.total === current.total &&
+		next.openTotal === current.openTotal &&
+		JSON.stringify(next.nodes) === JSON.stringify(current.nodes);
+	return same ? current : next;
+}
+
 // Sweep changed items, then resume the older backfill from the checkpoint. The watermark
 // is taken before fetching, so updates landing mid-sync are swept again next time
 async function syncKind<T extends { id: string }>(
@@ -118,27 +129,27 @@ async function syncKind<T extends { id: string }>(
 
 	const updated = await fetchUpdatedBatch<T>(source, kind, current.syncedAt);
 	if (current.complete) {
-		return {
+		return settled(current, {
 			...current,
 			nodes: merge(current.nodes, updated.nodes),
 			total: updated.total,
 			openTotal: updated.openTotal,
 			syncedAt
-		};
+		});
 	}
 
 	const older = await fetchBatch<T>(source, kind, {
 		cursor: current.cursor,
 		pages: BACKFILL_PAGES
 	});
-	return {
+	return settled(current, {
 		nodes: merge(current.nodes, older.nodes, updated.nodes),
 		cursor: older.cursor,
 		complete: older.complete,
 		total: updated.total,
 		openTotal: updated.openTotal,
 		syncedAt
-	};
+	});
 }
 
 // Crawl both kinds together. One kind failing mid-refresh keeps the other's progress

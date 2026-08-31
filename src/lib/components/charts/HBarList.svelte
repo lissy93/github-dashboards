@@ -27,6 +27,7 @@
 	} = $props();
 
 	const max = $derived(Math.max(1, ...data.map((row) => row.value)));
+	const width = (row: Slice) => (row.value / max) * 100;
 	const fill = (row: Slice, index: number) => (colored ? (row.color ?? seriesColor(index)) : color);
 	const tip = chartTip();
 	const rowsFor = (row: Slice) =>
@@ -41,7 +42,11 @@
 			style="grid-template-columns: {labelWidth} 1fr auto"
 			transition:slide={{ duration: animate ? 200 : 0 }}
 			onpointermove={(event) =>
-				tip.show(event, { title: row.label, color: fill(row, index), rows: rowsFor(row) })}
+				tip.show(event, {
+					title: row.label,
+					color: row.segments?.length ? undefined : fill(row, index),
+					rows: rowsFor(row)
+				})}
 			onpointerleave={tip.hide}
 		>
 			<span class="text-muted-foreground flex min-w-0 items-center gap-1.5">
@@ -54,13 +59,25 @@
 						onerror={(event) => ((event.currentTarget as HTMLImageElement).style.display = 'none')}
 					/>
 				{/if}
-				<span class="truncate">{row.label}</span>
+				{#if row.href}
+					<a href={row.href} class="truncate hover:underline">{row.label}</a>
+				{:else}
+					<span class="truncate">{row.label}</span>
+				{/if}
 			</span>
 			<span class="bg-muted/40 h-2 overflow-hidden rounded-full">
-				<span
-					class="block h-full rounded-full"
-					style="width: {(row.value / max) * 100}%; background-color: {fill(row, index)}"
-				></span>
+				<span class="flex h-full overflow-hidden rounded-full" style="width: {width(row)}%">
+					{#each row.segments ?? [] as segment (segment.key)}
+						<span
+							class="h-full"
+							style="width: {row.value
+								? (segment.value / row.value) * 100
+								: 0}%; background-color: {segment.color}"
+						></span>
+					{:else}
+						<span class="h-full w-full" style="background-color: {fill(row, index)}"></span>
+					{/each}
+				</span>
 			</span>
 			<span class="text-right font-medium tabular-nums">{format(row.value)}</span>
 		</li>

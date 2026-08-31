@@ -1,6 +1,7 @@
 import { monthStartOf, weekStartOf } from '$lib/utils/datetime';
 import { formatNumber } from '$lib/utils/format';
 import { faviconUrl } from '$lib/utils/favicon';
+import { paths } from '$lib/config';
 import type { Slice } from '$lib/types/charts';
 import type { AnalyticsItem, TrafficDay } from '$lib/types';
 
@@ -72,6 +73,7 @@ export type PeriodPoint = {
 };
 
 const shortRepo = (repo: string) => repo.split('/')[1] ?? repo;
+const repoPath = (repo: string) => paths.repo(repo.split('/')[0], shortRepo(repo));
 
 function windowOf(key: string): AnalyticsWindow {
 	return ANALYTICS_WINDOWS.find((window) => window.key === key) ?? ALL_TIME;
@@ -261,6 +263,7 @@ export function viewsByRepo(daily: TrafficDay[], view: AnalyticsView, limit = 10
 		.map(([repo, value]) => ({
 			label: shortRepo(repo),
 			value: value.views,
+			href: repoPath(repo),
 			rows: [
 				{ label: 'Repo', value: repo },
 				{ label: 'Views', value: formatNumber(value.views) },

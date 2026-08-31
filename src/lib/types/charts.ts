@@ -11,12 +11,17 @@ export type LegendItem = {
 	hint?: string;
 };
 
-// A chart datum, rows override the default tooltip detail when present
+// One coloured part of a bar, the parts summing to the bar's own value
+export type BarSegment = { key: string; label: string; color: string; value: number };
+
+// A chart datum, rows override the default tooltip and segments split the bar into parts
 export type Slice = {
 	label: string;
 	value: number;
 	color?: string;
 	icon?: string;
+	href?: string;
+	segments?: BarSegment[];
 	rows?: TipRow[];
 };
 // One scatter dot: x/y plot position, r drives the dot size, rows feed the tooltip

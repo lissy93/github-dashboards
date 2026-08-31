@@ -35,7 +35,9 @@ export function reduceAuthored(state: AuthoredState, login: string): AuthoredCon
 				lastAt: createdAt,
 				prs: 0,
 				mergedPrs: 0,
+				closedPrs: 0,
 				issues: 0,
+				closedIssues: 0,
 				additions: 0,
 				deletions: 0
 			};
@@ -46,12 +48,15 @@ export function reduceAuthored(state: AuthoredState, login: string): AuthoredCon
 	};
 
 	for (const node of state.issues.nodes) {
-		record(node.createdAt, node.repository.nameWithOwner).issues += 1;
+		const entry = record(node.createdAt, node.repository.nameWithOwner);
+		entry.issues += 1;
+		if (node.closedAt) entry.closedIssues += 1;
 	}
 	for (const node of state.prs.nodes) {
 		const entry = record(node.createdAt, node.repository.nameWithOwner);
 		entry.prs += 1;
 		if (node.merged) entry.mergedPrs += 1;
+		else if (node.closedAt) entry.closedPrs += 1;
 		entry.additions += node.additions;
 		entry.deletions += node.deletions;
 	}

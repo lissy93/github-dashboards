@@ -17,10 +17,10 @@ function state(issues: IssueNode[], prs: PrNode[], complete = true): AuthoredSta
 	return { issues: crawl(issues, complete), prs: crawl(prs, complete) };
 }
 
-const issue = (repo: string, createdAt: string): IssueNode => ({
+const issue = (repo: string, createdAt: string, closedAt: string | null = null): IssueNode => ({
 	id: repo + createdAt,
 	createdAt,
-	closedAt: null,
+	closedAt,
 	stateReason: null,
 	repository: { nameWithOwner: repo }
 });
@@ -30,11 +30,12 @@ const pr = (
 	createdAt: string,
 	additions = 0,
 	deletions = 0,
-	merged = false
+	merged = false,
+	closedAt: string | null = null
 ): PrNode => ({
 	id: `${repo}${createdAt}${additions}`,
 	createdAt,
-	closedAt: null,
+	closedAt,
 	merged,
 	additions,
 	deletions,
@@ -86,6 +87,30 @@ describe('reduceAuthored', () => {
 			'me'
 		);
 		expect(result.years[0].repos[0]).toMatchObject({ prs: 2, mergedPrs: 1 });
+	});
+
+	// GitHub sets closedAt on merged PRs too, so merged has to win the split
+	it('splits pull requests into merged, closed and still open', () => {
+		const result = reduceAuthored(
+			state(
+				[],
+				[
+					pr('x/y', '2024-01-01', 0, 0, true, '2024-01-02'),
+					pr('x/y', '2024-02-01', 0, 0, false, '2024-02-02'),
+					pr('x/y', '2024-03-01')
+				]
+			),
+			'me'
+		);
+		expect(result.years[0].repos[0]).toMatchObject({ prs: 3, mergedPrs: 1, closedPrs: 1 });
+	});
+
+	it('counts closed issues, leaving the rest open', () => {
+		const result = reduceAuthored(
+			state([issue('x/y', '2024-01-01', '2024-04-01'), issue('x/y', '2024-02-01')], []),
+			'me'
+		);
+		expect(result.years[0].repos[0]).toMatchObject({ issues: 2, closedIssues: 1 });
 	});
 
 	it('sums additions and deletions across a repo PRs', () => {

@@ -145,9 +145,22 @@ export async function readCachedMany<T>(keys: string[]): Promise<Map<string, T>>
 	}
 }
 
-// Replace a stored value, used by resumable sync jobs that checkpoint their progress
-export async function writeCached<T>(key: string, value: T, ttl: number): Promise<void> {
+// Replace a checkpointed value, an unchanged one only bumps fetchedAt to spare the rewrite
+export async function writeCached<T>(
+	key: string,
+	value: T,
+	ttl: number,
+	previous?: T
+): Promise<void> {
 	try {
+		if (previous !== undefined && JSON.stringify(value) === JSON.stringify(previous)) {
+			await db
+				.update(cacheEntry)
+				.set({ fetchedAt: new Date(), ttl })
+				.where(eq(cacheEntry.key, key));
+			storageReachable = true;
+			return;
+		}
 		const packed = packValue(value) as object;
 		await db
 			.insert(cacheEntry)
@@ -264,7 +277,7 @@ export async function checkpointed<T>(
 		if (running) return running as Promise<T>;
 		const task = (async () => {
 			const state = await sync(current);
-			await writeCached(key, state, ttl);
+			await writeCached(key, state, ttl, current);
 			return state;
 		})().finally(() => checkpointSyncs.delete(key));
 		checkpointSyncs.set(key, task);
@@ -305,7 +318,7 @@ export async function advanceCheckpointed<T>(
 	const stored = await readCached<T>(key).catch(() => null);
 	const task = (async () => {
 		const state = await sync(stored?.value);
-		await writeCached(key, state, ttl);
+		await writeCached(key, state, ttl, stored?.value);
 		return state;
 	})().finally(() => checkpointSyncs.delete(key));
 	checkpointSyncs.set(key, task);
