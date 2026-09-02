@@ -51,6 +51,7 @@
 				height={mini ? 4 : 14}
 				ticks={cumulativeTicks(tl.points, tl.granularity)}
 				barGap={0.125}
+				zoom={!mini}
 			/>
 			{#if tl.sampled && !mini}
 				<p class="text-muted-foreground text-xs">{TIMELINE_SAMPLED_NOTE}</p>

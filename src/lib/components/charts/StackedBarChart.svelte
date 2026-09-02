@@ -4,6 +4,8 @@
 	import ChartTooltip from './ChartTooltip.svelte';
 	import ChartLegend from './ChartLegend.svelte';
 	import { legendState } from './legend.svelte';
+	import { chartBrush } from './brush.svelte';
+	import ChartBrush from './ChartBrush.svelte';
 	import { compactNumber, formatNumber } from '$lib/utils/format';
 	import type { StackBar, StackSeries } from '$lib/types/charts';
 
@@ -18,7 +20,8 @@
 		ticks,
 		barGap = 0.375,
 		maxBarWidth = 128,
-		miniView = false
+		miniView = false,
+		zoom = false
 	}: {
 		bars: StackBar[];
 		series: StackSeries[];
@@ -31,19 +34,46 @@
 		barGap?: number;
 		maxBarWidth?: number;
 		miniView?: boolean;
+		// drag across the bars to zoom, for time-ordered sets only
+		zoom?: boolean;
 	} = $props();
 
 	const legend = legendState();
 
-	const gap = $derived(bars.length > 100 ? barGap * 0.4 : barGap);
+	let plotWidth = $state(0);
+	// issues and PRs share bar labels but not series labels, so key on both
+	const resetKey = $derived(
+		[bars.length, bars[0]?.label, bars.at(-1)?.label, ...series.map((one) => one.label)].join('|')
+	);
+	// Bars are evenly spread, so the one under the cursor is just its share of the width
+	const brush = chartBrush(
+		(x) => {
+			const index = Math.floor((x / plotWidth) * view.bars.length);
+			return Math.min(view.bars.length - 1, Math.max(0, index));
+		},
+		{ resetKey: () => resetKey }
+	);
+	const drag = $derived(
+		zoom
+			? {
+					onpointerdown: brush.down,
+					onpointermove: brush.move,
+					onpointerup: brush.up,
+					onpointercancel: brush.cancel
+				}
+			: {}
+	);
+	const view = $derived({ bars: brush.slice(bars), ticks: ticks && brush.slice(ticks) });
+
+	const gap = $derived(view.bars.length > 100 ? barGap * 0.4 : barGap);
 
 	// Thin the x-axis labels so dense bar sets stay readable, bars still render in full
 	const labelStep = $derived(
-		maxLabels && bars.length > maxLabels ? Math.ceil(bars.length / maxLabels) : 1
+		maxLabels && view.bars.length > maxLabels ? Math.ceil(view.bars.length / maxLabels) : 1
 	);
 	// A caller may supply its own axis labels, else fall back to the thinned bar labels
 	const tickAt = (index: number, label: string) =>
-		ticks ? (ticks[index] ?? '') : index % labelStep === 0 ? label : '';
+		view.ticks ? (view.ticks[index] ?? '') : index % labelStep === 0 ? label : '';
 
 	// Append a unit to the total, dropping the trailing s for a count of one
 	const totalText = (value: number) => {
@@ -54,7 +84,7 @@
 
 	// Series that actually occur, so the legend stays honest
 	const occurring = $derived(
-		series.filter((entry) => bars.some((bar) => (bar.values[entry.key] ?? 0) > 0))
+		series.filter((entry) => view.bars.some((bar) => (bar.values[entry.key] ?? 0) > 0))
 	);
 	// Series still drawn, after any are toggled off from the legend
 	const shown = $derived(occurring.filter((entry) => !legend.hidden.has(entry.key)));
@@ -62,7 +92,7 @@
 	const barTotal = (bar: StackBar) =>
 		shown.reduce((sum, entry) => sum + (bar.values[entry.key] ?? 0), 0);
 
-	const peak = $derived(Math.max(1, ...bars.map(barTotal)));
+	const peak = $derived(Math.max(1, ...view.bars.map(barTotal)));
 	// Keep count-based grid steps on whole numbers, thinning them right down for the compact view
 	const Y_TICKS = $derived(miniView ? 2 : 5);
 	// Narrower y-axis gutter in the compact view so the bars get the space
@@ -75,7 +105,8 @@
 	);
 
 	// Legend entries carry each series' overall total and short explainer
-	const seriesTotal = (key: string) => bars.reduce((sum, bar) => sum + (bar.values[key] ?? 0), 0);
+	const seriesTotal = (key: string) =>
+		view.bars.reduce((sum, bar) => sum + (bar.values[key] ?? 0), 0);
 	const allItems = $derived(
 		occurring.map((entry) => ({
 			key: entry.key,
@@ -131,8 +162,13 @@
 						style="bottom: {(value / max) * 100}%"
 					></div>
 				{/each}
-				<div class="relative flex items-end" style="height: {height}rem; gap: {gap}rem">
-					{#each bars as bar (bar.label)}
+				<div
+					class="relative flex items-end {zoom ? 'touch-pan-y select-none' : ''}"
+					style="height: {height}rem; gap: {gap}rem"
+					bind:clientWidth={plotWidth}
+					{...drag}
+				>
+					{#each view.bars as bar (bar.label)}
 						<div
 							class="h-full flex-1"
 							role="img"
@@ -159,6 +195,7 @@
 							</div>
 						</div>
 					{/each}
+					{#if zoom}<ChartBrush {brush} class="-top-6" />{/if}
 				</div>
 			</div>
 		</div>
@@ -166,9 +203,9 @@
 		<div class="flex gap-1.5">
 			<div class="{gutter} shrink-0" aria-hidden="true"></div>
 			<div class="text-muted-foreground flex flex-1 text-[0.65rem]" style="gap: {gap}rem">
-				{#each bars as bar, index (bar.label)}
+				{#each view.bars as bar, index (bar.label)}
 					<span
-						class={ticks
+						class={view.ticks
 							? 'flex-1 overflow-visible text-center whitespace-nowrap'
 							: 'flex-1 truncate text-center'}
 					>

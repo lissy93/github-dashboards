@@ -24,8 +24,8 @@
 
 	// Showcase samples for the Try chips, tweak freely: page is a goard sub-path
 	const EXAMPLES: { user: string; repo?: string; page?: string }[] = [
+	  { user: 'lissy93', page: 'stats' },
 		{ user: 'MattIPv4', page: 'contributions' },
-		{ user: 'lissy93', page: 'stats' },
 		{ user: 'f', page: 'repos' },
 		{ user: 'sindresorhus', page: 'activity' },
 		{ user: 'home-assistant', repo: 'core', page: 'info/stats' },

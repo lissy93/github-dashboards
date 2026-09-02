@@ -7,6 +7,7 @@
 	import { loadJson } from '$lib/state/api';
 	import { starHistory, starGainStack, type StarBreakdown } from '$lib/views/stats';
 	import { restrictedGate } from '$lib/config/status';
+	import type { ChartRange } from '$lib/components/charts/brush.svelte';
 	import type { DisplayError } from '$lib/utils/errors';
 
 	let { user, loggedIn }: { user: string; loggedIn: boolean } = $props();
@@ -29,14 +30,26 @@
 	const covering = $derived(!gate && !!raw?.totalRepos && raw.coveredRepos !== raw.totalRepos);
 	const drawable = $derived(!!stack && stack.days.length >= 2);
 
+	// Follow the total chart's zoom, so the summary line never outruns what is drawn
+	let zoomed = $state<ChartRange | null>(null);
+	// The chart drops its own zoom on a view or data change, so drop our copy with it
+	const chartKey = $derived(`${starView}|${stack?.days.length ?? 0}`);
+	$effect(() => {
+		void chartKey;
+		zoomed = null;
+	});
+
 	// Average stars per day across the shown range, for the summary line
 	const perDay = $derived.by(() => {
 		if (!stack || !drawable) return null;
+		const range = starView === 'total' ? zoomed : null;
+		const from = range?.start ?? 0;
+		const to = range?.end ?? stack.days.length - 1;
 		const span = Math.max(
 			1,
-			(Date.parse(stack.days.at(-1)!) - Date.parse(stack.days[0])) / 86400000
+			(Date.parse(stack.days[to]) - Date.parse(stack.days[from])) / 86400000
 		);
-		return (stack.total.at(-1)! - stack.total[0]) / span;
+		return (stack.total[to] - stack.total[from]) / span;
 	});
 
 	// Reload when client-side navigation changes the viewed user
@@ -94,9 +107,10 @@
 					height={15}
 					maxLabels={12}
 					barGap={0.125}
+					zoom
 				/>
 			{:else}
-				<StackedAreaChart data={stack} />
+				<StackedAreaChart data={stack} onrange={(range) => (zoomed = range)} />
 			{/if}
 			{#if perDay !== null}
 				<p class="text-muted-foreground text-xs tabular-nums">

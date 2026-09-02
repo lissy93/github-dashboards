@@ -5,14 +5,22 @@
 	import ChartLegend from './ChartLegend.svelte';
 	import Gridlines from './Gridlines.svelte';
 	import { legendState } from './legend.svelte';
+	import { chartBrush, type ChartRange } from './brush.svelte';
+	import ChartBrush from './ChartBrush.svelte';
 	import { compactNumber, formatNumber, formatDate } from '$lib/utils/format';
 	import type { StarStack } from '$lib/views/stats';
 
 	let {
 		data,
 		height = 15,
-		smooth = true
-	}: { data: StarStack; height?: number; smooth?: boolean } = $props();
+		smooth = true,
+		onrange
+	}: {
+		data: StarStack;
+		height?: number;
+		smooth?: boolean;
+		onrange?: (range: ChartRange | null) => void;
+	} = $props();
 
 	const PAD = CHART_PAD;
 	const Y_TICKS = 5;
@@ -22,11 +30,23 @@
 	let svg = $state<SVGSVGElement>();
 	let hover = $state<number | null>(null);
 	const legend = legendState();
+	// Drag across the plot to zoom into a date span
+	const resetKey = $derived(`${data.days.length}|${data.days[0]}|${data.days.at(-1)}`);
+	const brush = chartBrush((x) => nearestIndex(geom.xs, x), {
+		resetKey: () => resetKey,
+		onchange: (range) => onrange?.(range)
+	});
+
+	const view = $derived({
+		days: brush.slice(data.days),
+		series: data.series.map((item) => ({ ...item, values: brush.slice(item.values) })),
+		total: brush.slice(data.total)
+	});
 
 	// Each band keyed and coloured up front, so hiding one never recolours the rest. The
 	// Other band stays muted, the top repos cycle the shared palette
 	const allBands = $derived(
-		data.series.map((item, index) => ({
+		view.series.map((item, index) => ({
 			...item,
 			key: String(index),
 			color: item.label === 'Other' ? 'var(--muted-foreground)' : stackColor(index)
@@ -35,7 +55,7 @@
 	const visible = $derived(allBands.filter((band) => !legend.hidden.has(band.key)));
 
 	const geom = $derived.by(() => {
-		const { days } = data;
+		const { days } = view;
 		const shown = visible;
 		// Total of the shown bands only, so hiding one rescales the axis
 		const total = days.map((_, day) => shown.reduce((sum, band) => sum + band.values[day], 0));
@@ -80,7 +100,7 @@
 
 	// A vertical line per calendar year, falling back to a few dates for short ranges
 	const xTicks = $derived.by(() => {
-		const days = data.days;
+		const days = view.days;
 		if (!days.length) return [];
 		const first = Date.parse(days[0]);
 		const last = Date.parse(days.at(-1)!);
@@ -105,12 +125,13 @@
 	const tip = chartTip();
 	// Show the per-repo breakdown for the day nearest the cursor, shown bands only
 	function move(event: PointerEvent) {
+		brush.move(event);
 		if (!svg || !geom.xs.length) return;
 		const x = event.clientX - svg.getBoundingClientRect().left;
 		const nearest = nearestIndex(geom.xs, x);
 		hover = nearest;
 		tip.show(event, {
-			title: formatDate(data.days[nearest]),
+			title: formatDate(view.days[nearest]),
 			rows: [
 				...visible.map((band) => ({
 					label: band.label,
@@ -129,16 +150,20 @@
 
 <div class="flex flex-col gap-3">
 	<ChartLegend items={legendItems} state={legend} totalLabel="Stars" />
-	<div class="w-full" style="height: {height}rem" bind:clientWidth={width}>
-		{#if width > 0 && data.days.length}
+	<div class="relative w-full" style="height: {height}rem" bind:clientWidth={width}>
+		{#if width > 0 && view.days.length}
 			<svg
 				bind:this={svg}
+				class="touch-pan-y select-none"
 				{width}
 				height={H}
 				role="img"
-				aria-label="Star history by repository, total {formatNumber(data.total.at(-1) ?? 0)}"
+				aria-label="Star history by repository, total {formatNumber(view.total.at(-1) ?? 0)}"
 				onpointermove={move}
 				onpointerleave={leave}
+				onpointerdown={brush.down}
+				onpointerup={brush.up}
+				onpointercancel={brush.cancel}
 			>
 				<Gridlines ticks={geom.yTicks} left={PAD.left} right={width - PAD.right} />
 
@@ -179,7 +204,7 @@
 					opacity="0.5"
 				/>
 
-				{#if hover !== null}
+				{#if hover !== null && hover < geom.xs.length}
 					<line
 						x1={geom.xs[hover]}
 						x2={geom.xs[hover]}
@@ -191,6 +216,7 @@
 				{/if}
 			</svg>
 		{/if}
+		<ChartBrush {brush} />
 	</div>
 </div>
 

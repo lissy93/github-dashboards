@@ -5,6 +5,8 @@
 	import ChartLegend from '$lib/components/charts/ChartLegend.svelte';
 	import Gridlines from '$lib/components/charts/Gridlines.svelte';
 	import { legendState } from '$lib/components/charts/legend.svelte';
+	import { chartBrush } from '$lib/components/charts/brush.svelte';
+	import ChartBrush from '$lib/components/charts/ChartBrush.svelte';
 	import { compactNumber, formatNumber, formatDate } from '$lib/utils/format';
 	import type { ChartData } from '$lib/views/analytics';
 
@@ -25,12 +27,21 @@
 	let svg = $state<SVGSVGElement>();
 	let hover = $state<number | null>(null);
 	const legend = legendState();
+	// Drag across the plot to zoom into a date span
+	const resetKey = $derived(
+		`${data.dates.length}|${data.dates[0]}|${data.dates.at(-1)}|${data.max}`
+	);
+	const brush = chartBrush((x) => nearestIndex(geom.xs, x), { resetKey: () => resetKey });
 
+	const view = $derived({
+		dates: brush.slice(data.dates),
+		series: data.series.map((item) => ({ ...item, values: brush.slice(item.values) }))
+	});
 	// Series still drawn, after any are toggled off from the legend
-	const visible = $derived(data.series.filter((item) => !legend.hidden.has(item.key)));
+	const visible = $derived(view.series.filter((item) => !legend.hidden.has(item.key)));
 
 	const geom = $derived.by(() => {
-		const { dates } = data;
+		const { dates } = view;
 		const times = dates.map((day) => Date.parse(day));
 		const first = times[0] ?? 0;
 		const span = (times.at(-1) ?? 0) - first || 1;
@@ -68,7 +79,7 @@
 
 	// Legend tooltip shows each line's latest value, a sum would mislead for running counts
 	const legendItems = $derived(
-		data.series.map((item) => ({
+		view.series.map((item) => ({
 			key: item.key,
 			label: item.label,
 			color: item.color,
@@ -79,12 +90,13 @@
 
 	const tip = chartTip();
 	function move(event: PointerEvent) {
+		brush.move(event);
 		if (!svg || !geom.xs.length) return;
 		const x = event.clientX - svg.getBoundingClientRect().left;
 		const nearest = nearestIndex(geom.xs, x);
 		hover = nearest;
 		tip.show(event, {
-			title: formatDate(data.dates[nearest]),
+			title: formatDate(view.dates[nearest]),
 			rows: visible.map((item) => ({
 				label: item.label,
 				value: unit
@@ -100,16 +112,20 @@
 	}
 </script>
 
-<div class="w-full" style="height: {height}rem" bind:clientWidth={width}>
-	{#if width > 0 && data.dates.length}
+<div class="relative w-full" style="height: {height}rem" bind:clientWidth={width}>
+	{#if width > 0 && view.dates.length}
 		<svg
 			bind:this={svg}
+			class="touch-pan-y select-none"
 			{width}
 			height={H}
 			role="img"
 			aria-label={label}
 			onpointermove={move}
 			onpointerleave={leave}
+			onpointerdown={brush.down}
+			onpointerup={brush.up}
+			onpointercancel={brush.cancel}
 		>
 			<Gridlines ticks={geom.yTicks} left={PAD.left} right={width - PAD.right} />
 
@@ -138,7 +154,7 @@
 				/>
 			{/each}
 
-			{#if hover !== null}
+			{#if hover !== null && hover < geom.xs.length}
 				<line
 					x1={geom.xs[hover]}
 					x2={geom.xs[hover]}
@@ -153,6 +169,7 @@
 			{/if}
 		</svg>
 	{/if}
+	<ChartBrush {brush} />
 </div>
 
 <ChartLegend items={legendItems} state={legend} totalLabel="Latest" class="mt-2" />

@@ -3,6 +3,8 @@
 	import { chartTip } from './chart-tip.svelte';
 	import ChartTooltip from './ChartTooltip.svelte';
 	import Gridlines from './Gridlines.svelte';
+	import { chartBrush } from './brush.svelte';
+	import ChartBrush from './ChartBrush.svelte';
 	import { compactNumber, formatNumber, formatDate } from '$lib/utils/format';
 
 	type Week = { week: string; additions: number; deletions: number };
@@ -15,9 +17,13 @@
 	let width = $state(0);
 	let svg = $state<SVGSVGElement>();
 	let hover = $state<number | null>(null);
+	// Drag across the plot to zoom into a span of weeks
+	const resetKey = $derived(`${data.length}|${data[0]?.week}|${data.at(-1)?.week}`);
+	const brush = chartBrush((x) => nearestIndex(geom.xs, x), { resetKey: () => resetKey });
+	const view = $derived(brush.slice(data));
 
 	const geom = $derived.by(() => {
-		const times = data.map((week) => Date.parse(week.week));
+		const times = view.map((week) => Date.parse(week.week));
 		const first = times[0];
 		const span = (times.at(-1) ?? 0) - first || 1;
 		const plotW = width - PAD.left - PAD.right;
@@ -25,14 +31,14 @@
 		const half = plotH / 2;
 		const zeroY = PAD.top + half;
 		// A shared scale top and bottom so added and removed lines read at one magnitude
-		const peak = Math.max(1, ...data.map((week) => Math.max(week.additions, week.deletions)));
+		const peak = Math.max(1, ...view.map((week) => Math.max(week.additions, week.deletions)));
 		const step = niceStep(peak, HALF_TICKS);
 		const top = Math.ceil(peak / step) * step;
 		const xs = times.map((time) => PAD.left + ((time - first) / span) * plotW);
 		const up = (value: number) => zeroY - (value / top) * half;
 		const down = (value: number) => zeroY + (value / top) * half;
-		const addPts = xs.map((x, index) => ({ x, y: up(data[index].additions) }));
-		const delPts = xs.map((x, index) => ({ x, y: down(data[index].deletions) }));
+		const addPts = xs.map((x, index) => ({ x, y: up(view[index].additions) }));
+		const delPts = xs.map((x, index) => ({ x, y: down(view[index].deletions) }));
 		const addArea = `${splinePath(addPts, true)} L${xs.at(-1)} ${zeroY} L${xs[0]} ${zeroY} Z`;
 		const delArea = `${splinePath(delPts, true)} L${xs.at(-1)} ${zeroY} L${xs[0]} ${zeroY} Z`;
 		const ticks: { label: string; y: number }[] = [];
@@ -45,9 +51,9 @@
 
 	// A vertical guide per calendar year, falling back to a few dates for short ranges
 	const xTicks = $derived.by(() => {
-		if (!data.length) return [];
-		const first = Date.parse(data[0].week);
-		const last = Date.parse(data.at(-1)!.week);
+		if (!view.length) return [];
+		const first = Date.parse(view[0].week);
+		const last = Date.parse(view.at(-1)!.week);
 		const span = last - first || 1;
 		return timeTicks(first, last).map((tick) => ({
 			label: tick.label,
@@ -58,11 +64,12 @@
 	const tip = chartTip();
 	// Surface the additions, deletions and net for the week nearest the cursor
 	function move(event: PointerEvent) {
+		brush.move(event);
 		if (!svg || !geom.xs.length) return;
 		const x = event.clientX - svg.getBoundingClientRect().left;
 		const nearest = nearestIndex(geom.xs, x);
 		hover = nearest;
-		const week = data[nearest];
+		const week = view[nearest];
 		tip.show(event, {
 			title: `Week of ${formatDate(week.week)}`,
 			rows: [
@@ -78,16 +85,20 @@
 	}
 </script>
 
-<div class="w-full" style="height: {height}rem" bind:clientWidth={width}>
-	{#if width > 0 && data.length}
+<div class="relative w-full" style="height: {height}rem" bind:clientWidth={width}>
+	{#if width > 0 && view.length}
 		<svg
 			bind:this={svg}
+			class="touch-pan-y select-none"
 			{width}
 			height={H}
 			role="img"
 			aria-label="Code churn over time, lines added above and removed below"
 			onpointermove={move}
 			onpointerleave={leave}
+			onpointerdown={brush.down}
+			onpointerup={brush.up}
+			onpointercancel={brush.cancel}
 		>
 			<Gridlines ticks={geom.ticks} left={PAD.left} right={width - PAD.right} />
 
@@ -113,7 +124,7 @@
 				opacity="0.4"
 			/>
 
-			{#if hover !== null}
+			{#if hover !== null && hover < geom.xs.length}
 				<line
 					x1={geom.xs[hover]}
 					x2={geom.xs[hover]}
@@ -125,6 +136,7 @@
 			{/if}
 		</svg>
 	{/if}
+	<ChartBrush {brush} />
 </div>
 
 <ChartTooltip data={tip.data} x={tip.x} y={tip.y} />

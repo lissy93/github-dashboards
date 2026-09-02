@@ -2,6 +2,8 @@
 	import { chartTip } from './chart-tip.svelte';
 	import { timeTicks, nearestIndex, CHART_PAD } from './chart';
 	import ChartTooltip from './ChartTooltip.svelte';
+	import { chartBrush } from './brush.svelte';
+	import ChartBrush from './ChartBrush.svelte';
 	import type { ReleaseCadence } from '$lib/views/repo-stats';
 
 	let { cadence, height = 5 }: { cadence: ReleaseCadence; height?: number } = $props();
@@ -14,14 +16,28 @@
 	let width = $state(0);
 	let svg = $state<SVGSVGElement>();
 	let hover = $state<number | null>(null);
+	// Drag across the strip to zoom into a run of releases
+	const resetKey = $derived.by(() => {
+		const { markers } = cadence;
+		return `${markers.length}|${markers[0]?.tag}|${markers.at(-1)?.tag}`;
+	});
+	const brush = chartBrush(
+		(x) =>
+			nearestIndex(
+				geom.dots.map((dot) => dot.cx),
+				x
+			),
+		{ resetKey: () => resetKey }
+	);
+	const view = $derived(brush.slice(cadence.markers));
 
 	const geom = $derived.by(() => {
-		const times = cadence.markers.map((marker) => marker.time);
+		const times = view.map((marker) => marker.time);
 		const first = Math.min(...times);
 		const span = Math.max(...times) - first || 1;
 		const plotW = width - PAD.left - PAD.right;
 		const axisY = PAD.top + (H - PAD.top - PAD.bottom) / 2;
-		const dots = cadence.markers.map((marker) => ({
+		const dots = view.map((marker) => ({
 			...marker,
 			cx: PAD.left + ((marker.time - first) / span) * plotW,
 			color: marker.prerelease ? PRE : STABLE
@@ -31,7 +47,7 @@
 
 	// A label per calendar year, falling back to a few dates for short spans
 	const xTicks = $derived.by(() => {
-		if (!cadence.markers.length) return [];
+		if (!view.length) return [];
 		const { first, span, plotW } = geom;
 		return timeTicks(first, first + span).map((tick) => ({
 			label: tick.label,
@@ -42,6 +58,7 @@
 	const tip = chartTip();
 	// Surface the release nearest the cursor with its gap since the previous one
 	function move(event: PointerEvent) {
+		brush.move(event);
 		if (!svg || !geom.dots.length) return;
 		const x = event.clientX - svg.getBoundingClientRect().left;
 		const nearest = nearestIndex(
@@ -66,16 +83,20 @@
 	}
 </script>
 
-<div class="w-full" style="height: {height}rem" bind:clientWidth={width}>
-	{#if width > 0 && cadence.markers.length}
+<div class="relative w-full" style="height: {height}rem" bind:clientWidth={width}>
+	{#if width > 0 && view.length}
 		<svg
 			bind:this={svg}
+			class="touch-pan-y select-none"
 			{width}
 			height={H}
 			role="img"
 			aria-label="Release cadence over time"
 			onpointermove={move}
 			onpointerleave={leave}
+			onpointerdown={brush.down}
+			onpointerup={brush.up}
+			onpointercancel={brush.cancel}
 		>
 			<line
 				class="stroke-chart-grid"
@@ -108,6 +129,7 @@
 			{/each}
 		</svg>
 	{/if}
+	<ChartBrush {brush} />
 </div>
 
 <ul class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
