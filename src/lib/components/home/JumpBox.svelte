@@ -24,10 +24,13 @@
 
 	// Showcase samples for the Try chips, tweak freely: page is a goard sub-path
 	const EXAMPLES: { user: string; repo?: string; page?: string }[] = [
+		{ user: 'MattIPv4', page: 'contributions' },
 		{ user: 'lissy93', page: 'stats' },
-		{ user: 'sveltejs', repo: 'svelte', page: 'code/supply-chain' },
-		{ user: 'torvalds', repo: 'linux', page: 'code/activity' },
-		{ user: 'anthropics', repo: 'claude-code' }
+		{ user: 'f', page: 'repos' },
+		{ user: 'sindresorhus', page: 'activity' },
+		{ user: 'home-assistant', repo: 'core', page: 'info/stats' },
+		{ user: 'huggingface', repo: 'transformers', page: 'tasks' },
+		{ user: 'lissy93', repo: 'awesome-privacy', page: 'code/supply-chain' }
 	];
 
 	// Each sample becomes a chip: href, name, owner avatar and an optional page icon
