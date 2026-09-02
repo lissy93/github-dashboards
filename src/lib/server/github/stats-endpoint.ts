@@ -60,7 +60,7 @@ function warmInBackground(key: string, run: () => Promise<unknown>): void {
 // a gentle "computing" notice and the strip can leave the metric blank
 export function statsPending(key: string, run: () => Promise<unknown>, label: string): never {
 	warmInBackground(key, run);
-	throw new AppError('pending', `GitHub is still computing the ${label}, check back shortly`, {
+	throw new AppError('pending', `GitHub is still computing the ${label}, it lands shortly`, {
 		expose: true
 	});
 }

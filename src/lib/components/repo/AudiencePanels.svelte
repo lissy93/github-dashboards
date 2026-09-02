@@ -9,7 +9,7 @@
 	let { people, loggedIn }: { people: RepoPeople; loggedIn: boolean } = $props();
 
 	const SECTIONS = [
-		{ key: 'stargazers', title: 'Stargazers', icon: Star, verb: 'Starred', noun: 'stars' },
+		{ key: 'stargazers', title: 'Stargazers', icon: Star, verb: 'Starred', noun: 'stargazers' },
 		{ key: 'forks', title: 'Forks', icon: GitFork, verb: 'Forked', noun: 'forks' },
 		{ key: 'watchers', title: 'Watchers', icon: Eye, verb: 'Watching', noun: 'watchers' }
 	] as const;

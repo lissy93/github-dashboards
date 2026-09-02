@@ -20,6 +20,7 @@
 	import { toDisplayError } from '$lib/utils/errors';
 	import { panelCause } from '$lib/config/status';
 	import { usePanelStatus } from '$lib/state/panel-status.svelte';
+	import { joinPendingRetry } from '$lib/state/pending-retry.svelte';
 	import type { StatusCause } from '$lib/types';
 
 	type Props = {
@@ -62,6 +63,9 @@
 	}: Props = $props();
 
 	const display = $derived(error != null ? toDisplayError(error) : undefined);
+
+	// Still warming server-side, so nudge the page load until it lands
+	$effect(() => (display?.pending ? joinPendingRetry() : undefined));
 
 	// Report this panel's settled status into the page store, so the page can summarise it
 	const status = usePanelStatus();

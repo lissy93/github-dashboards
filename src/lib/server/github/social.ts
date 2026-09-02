@@ -39,6 +39,8 @@ const FOLLOWERS_QUERY = `
 	}
 `;
 
+// Organization nodes are left unasked, since every field on them needs read:org and one
+// gated subfield would fail the whole query. They still count toward the total
 const SPONSORS_QUERY = `
 	query Sponsors($login: String!) {
 		user(login: $login) {
@@ -46,7 +48,6 @@ const SPONSORS_QUERY = `
 				totalCount
 				nodes {
 					... on User { login name avatarUrl }
-					... on Organization { login name avatarUrl }
 				}
 			}
 		}
@@ -137,9 +138,13 @@ export function getUserSocial(login: string): Promise<UserSocial> {
 	return cached(
 		`user:social:v2:${login.toLowerCase()}`,
 		async () => {
+			// Sponsors are a side card, so their failure must not cost the panel its followers
 			const [followers, sponsorData] = await Promise.all([
 				fetchFollowers(login),
-				fetchSponsors(login)
+				fetchSponsors(login).catch((caught) => {
+					log.warn(`sponsors failed for ${login}`, { code: toAppError(caught).code });
+					return { sponsorsTotal: 0, sponsors: [] };
+				})
 			]);
 			const newestFollowers = await fetchNewestFollowers(login, followers.total);
 			return {

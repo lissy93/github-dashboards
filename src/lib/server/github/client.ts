@@ -1,7 +1,7 @@
 import { config } from '$lib/server/env';
 import { activeToken, tokenSource, usingAppToken } from '$lib/server/auth/context';
 import { ensureAppToken } from '$lib/server/github/app-token';
-import { AppError, type ErrorCode } from '$lib/utils/errors';
+import { AppError, toAppError, type ErrorCode } from '$lib/utils/errors';
 import { createLogger } from '$lib/utils/logger';
 
 const log = createLogger('github');
@@ -267,6 +267,10 @@ export async function restTolerant<T>(
 // An empty list against a known non-zero count is GitHub's admin-only restriction on
 // stargazers/watchers, not a genuinely empty list
 export const looksRestricted = (knownCount: number, got: number) => knownCount > 0 && got === 0;
+
+// The same restriction refusing outright, a 403 on the app token and an internal error on a viewer's
+const REFUSED: ErrorCode[] = ['forbidden', 'upstream'];
+export const isRefusedList = (error: unknown) => REFUSED.includes(toAppError(error).code);
 
 // One aliased field per item, so a whole batch resolves in a single round trip
 export function batchedGraphql<T, D>(

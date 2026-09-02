@@ -1,8 +1,7 @@
 import { logError, toDisplayError, type DisplayError } from '$lib/utils/errors';
 import type { LoadResult } from '$lib/types';
 
-// Streamed panels give up waiting at this point, the fetch itself keeps running
-// and lands in the cache so a refresh serves it
+// Panels stop waiting here, the fetch runs on into the cache for the retry to pick up
 const SETTLE_TIMEOUT_MS = 30000;
 
 const stillLoading: DisplayError = {

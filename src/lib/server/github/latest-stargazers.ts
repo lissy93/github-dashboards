@@ -3,7 +3,7 @@ import { usingAppToken, withAppToken } from '$lib/server/auth/context';
 import { getUserOverview } from '$lib/server/github/user';
 import { cached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
-import { AppError } from '$lib/utils/errors';
+import { AppError, toAppError } from '$lib/utils/errors';
 import { createLogger } from '$lib/utils/logger';
 import type { Repo, RecentStar } from '$lib/types';
 
@@ -14,6 +14,8 @@ const TOP_REPOS = 40;
 const KEEP = 12;
 const CONCURRENCY = 6;
 const TTL = 6 * 3600;
+// Reason for the admin-only gate, which the panel restates through restrictedGate
+const RESTRICTED = 'GitHub restricts stargazer lists to repo admins';
 
 // The most recent stargazers across a user's owned repos, merged and deduped
 export function getLatestStargazers(login: string): Promise<RecentStar[]> {
@@ -25,8 +27,13 @@ export function getLatestStargazers(login: string): Promise<RecentStar[]> {
 				.filter((repo) => repo.stars > 0)
 				.sort((first, second) => second.stars - first.stars)
 				.slice(0, TOP_REPOS);
-			const perRepo = await mapLimit(targets, CONCURRENCY, (repo) => newestForRepo(repo));
-			const ok = perRepo.filter((result): result is RecentStar[] => result !== null);
+			// Every target shares one owner, so the busiest repo settles up front whether the
+			// lists are gated, sparing a fan-out that would only starve the panels beside it
+			const [lead, ...rest] = targets;
+			const probe = lead ? await newestForRepo(lead) : null;
+			if (probe?.length === 0) throw new AppError('forbidden', RESTRICTED);
+			const perRepo = await mapLimit(rest, CONCURRENCY, (repo) => newestForRepo(repo));
+			const ok = [probe, ...perRepo].filter((result): result is RecentStar[] => result !== null);
 			// Every fetch failing is a transient upstream problem, not a real restriction,
 			// so throw uncached and let the next visit retry rather than pinning a false gate
 			if (targets.length && !ok.length) {
@@ -36,7 +43,7 @@ export function getLatestStargazers(login: string): Promise<RecentStar[]> {
 			// A successful but empty list on repos that have stars means GitHub restricted it
 			// to admins, surface that instead of caching a false "no recent stars"
 			if (ok.length && !merged.length) {
-				throw new AppError('forbidden', 'GitHub restricts stargazer lists to repo admins');
+				throw new AppError('forbidden', RESTRICTED);
 			}
 			return merged;
 		},
@@ -71,7 +78,10 @@ async function newestForRepo(repo: Repo): Promise<RecentStar[] | null> {
 		let edges = await fetchNewest(repo);
 		// An empty list on a starred repo is the admin gate, the app token may be admin here
 		if (looksRestricted(repo.stars, edges.length) && !usingAppToken()) {
-			edges = await withAppToken(() => fetchNewest(repo));
+			edges = await withAppToken(() => fetchNewest(repo)).catch((error: unknown) => {
+				if (toAppError(error).code !== 'forbidden') throw error;
+				return edges;
+			});
 		}
 		return edges.map((edge) => ({
 			login: edge.node.login,
@@ -80,6 +90,8 @@ async function newestForRepo(repo: Repo): Promise<RecentStar[] | null> {
 			starredAt: edge.starredAt
 		}));
 	} catch (error) {
+		// A refused read is the same admin gate, just spelled as a 403, so report it as empty
+		if (toAppError(error).code === 'forbidden') return [];
 		log.warn(`stargazers failed for ${repo.nameWithOwner}`, error);
 		return null;
 	}

@@ -127,7 +127,7 @@
 	<RepoFlowPanels user={data.user} result={overview.result} />
 
 	{#if !data.isOrg}
-		<PeoplePanels user={data.user} result={overview.result} />
+		<PeoplePanels user={data.user} result={overview.result} loggedIn={!!data.viewerLogin} />
 	{/if}
 
 	<ProjectLifecycle

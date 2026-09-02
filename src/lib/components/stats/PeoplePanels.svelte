@@ -1,14 +1,20 @@
 <script lang="ts">
 	import { Users, Star, Heart, Building2 } from '@lucide/svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
+	import AsyncPanel from '$lib/components/common/AsyncPanel.svelte';
 	import SegmentedControl from '$lib/components/common/SegmentedControl.svelte';
 	import PeopleList from './PeopleList.svelte';
 	import { lazyEndpoint } from '$lib/state/lazy.svelte';
+	import { restrictedGate } from '$lib/config/status';
 	import { compactNumber, formatNumber, relativeTime } from '$lib/utils/format';
 	import type { OverviewResult } from '$lib/views/overview';
 	import type { RecentStar, UserSocial } from '$lib/types';
 
-	let { user, result }: { user: string; result: Promise<OverviewResult> | OverviewResult } =
+	let {
+		user,
+		result,
+		loggedIn
+	}: { user: string; result: Promise<OverviewResult> | OverviewResult; loggedIn: boolean } =
 		$props();
 
 	// Organizations and sponsors stack in one column, so keep each short
@@ -41,7 +47,13 @@
 		}))
 	);
 
-	const showSponsors = $derived(!!data && data.sponsorsTotal > 0);
+	// GitHub only shows stargazer lists to repo admins, so explain rather than look broken
+	const starGate = $derived(
+		stars.error?.code === 'forbidden' ? restrictedGate('recent stargazers', loggedIn) : null
+	);
+
+	// Sponsors kept private or behind the read:org scope still count toward the total
+	const sponsors = $derived(data?.sponsors.slice(0, SHOWN) ?? []);
 </script>
 
 <div class="grid gap-5 lg:grid-cols-3 lg:items-start">
@@ -72,38 +84,49 @@
 		title="Latest stargazers"
 		icon={Star}
 		loading={!stars.loaded}
-		error={stars.error}
-		empty={stars.loaded && !stars.error && !starRows.length}
-		emptyText="No recent stars"
+		error={starGate ? undefined : stars.error}
+		empty={!!starGate || (stars.loaded && !stars.error && !starRows.length)}
+		emptyText={starGate?.text ?? 'No recent stars'}
+		emptyHint={starGate?.hint}
+		cause={starGate?.cause}
 	>
 		{#if starRows.length}
 			<PeopleList people={starRows} />
 		{/if}
 	</Panel>
 
-	{#await result then res}
-		{@const organizations = res.ok ? res.data.profile.organizations : []}
-		{#if organizations.length || showSponsors}
-			<div class="grid gap-5">
-				{#if organizations.length}
-					<Panel title="Organizations" icon={Building2}>
-						<PeopleList people={organizations.slice(0, SHOWN)} />
-					</Panel>
-				{/if}
+	<div class="grid gap-5">
+		<AsyncPanel
+			title="Organizations"
+			icon={Building2}
+			{result}
+			empty={(overview) => !overview.profile.organizations.length}
+			emptyText="No public organizations"
+			emptyHint="GitHub only lists memberships set to public"
+		>
+			{#snippet children(overview)}
+				<PeopleList people={overview.profile.organizations.slice(0, SHOWN)} />
+			{/snippet}
+		</AsyncPanel>
 
-				{#if showSponsors && data}
-					<Panel title="Sponsors" icon={Heart}>
-						{#snippet actions()}
-							<span class="text-muted-foreground text-xs tabular-nums">
-								{formatNumber(data.sponsorsTotal)}{data.sponsorsTotal > data.sponsors.length
-									? '+'
-									: ''}
-							</span>
-						{/snippet}
-						<PeopleList people={data.sponsors.slice(0, SHOWN)} />
-					</Panel>
+		<Panel
+			title="Sponsors"
+			icon={Heart}
+			loading={!social.loaded}
+			error={social.error}
+			empty={social.loaded && !social.error && !sponsors.length}
+			emptyText="No sponsors yet"
+		>
+			{#snippet actions()}
+				{#if data?.sponsorsTotal}
+					<span class="text-muted-foreground text-xs tabular-nums">
+						{formatNumber(data.sponsorsTotal)}{data.sponsorsTotal > sponsors.length ? '+' : ''}
+					</span>
 				{/if}
-			</div>
-		{/if}
-	{/await}
+			{/snippet}
+			{#if sponsors.length}
+				<PeopleList people={sponsors} />
+			{/if}
+		</Panel>
+	</div>
 </div>

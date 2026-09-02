@@ -2,7 +2,7 @@ import type { Repo, RepoStarHistory } from '$lib/types';
 import { inArray, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { repoStarsDaily } from '$lib/server/db/schema';
-import { graphql, looksRestricted } from '$lib/server/github/client';
+import { graphql, isRefusedList, looksRestricted } from '$lib/server/github/client';
 import { usingAppToken, withAppToken } from '$lib/server/auth/context';
 import { getUserOverview } from '$lib/server/github/user';
 import { getRepo } from '$lib/server/github/repo';
@@ -39,7 +39,7 @@ type BackfillState = { restricted: boolean };
 // Per-repo star history across a user's owned repos, reconstructed and cached
 export function getUserStarHistory(login: string): Promise<StarBreakdown> {
 	return cached(
-		`user:star-history:v6:${login.toLowerCase()}`,
+		`user:star-history:v7:${login.toLowerCase()}`,
 		async () => {
 			const { ownedRepos } = await getUserOverview(login);
 			const starred = ownedRepos.filter((repo) => repo.stars > 0).slice(0, MAX_REPOS);
@@ -50,9 +50,10 @@ export function getUserStarHistory(login: string): Promise<StarBreakdown> {
 				...starred.filter((repo) => known.has(repo.nameWithOwner.toLowerCase()))
 			].slice(0, REFRESH_REPOS);
 			let failures = 0;
+			let refused = 0;
 			await mapLimit(targets, CONCURRENCY, async (repo) => {
 				try {
-					await backfillRepo(repo);
+					if (await backfillRepo(repo)) refused += 1;
 				} catch (error) {
 					failures += 1;
 					log.warn(`backfill failed for ${repo.nameWithOwner}`, error);
@@ -67,7 +68,8 @@ export function getUserStarHistory(login: string): Promise<StarBreakdown> {
 				...buildBreakdown(rows, starred, TOP_REPOS),
 				coveredRepos: covered,
 				totalRepos: starred.length,
-				restricted: starred.length > 0 && covered === 0
+				// Only a real refusal is the gate, nothing stored yet is just history still building
+				restricted: refused > 0 && covered === 0
 			};
 		},
 		AGGREGATE_TTL
@@ -76,21 +78,21 @@ export function getUserStarHistory(login: string): Promise<StarBreakdown> {
 
 // Whether this repo's star curve is already cached, for SSR-vs-stream gating
 export const isRepoStarHistoryCached = (owner: string, name: string) =>
-	isCached(`repo:star-history:v3:${owner}/${name}`.toLowerCase());
+	isCached(`repo:star-history:v4:${owner}/${name}`.toLowerCase());
 
 // One repo's reconstructed star curve, for the repo stars page and panel. Reuses
 // the per-repo backfill cache and the shared interpolation, as a single series
 export function getRepoStarHistory(owner: string, name: string): Promise<RepoStarHistory> {
 	return cached(
-		`repo:star-history:v3:${owner}/${name}`.toLowerCase(),
+		`repo:star-history:v4:${owner}/${name}`.toLowerCase(),
 		async () => {
 			const repo = await getRepo(owner, name);
 			if (!repo || repo.stars === 0)
 				return { days: [], stars: [], sampled: false, restricted: false };
 			const restricted = await backfillRepo(repo);
 			const rows = await readRows([repo.nameWithOwner]);
-			// History stored by an earlier allowed walk beats hiding it behind the gate
-			if (restricted && !rows.length)
+			// Stored history from an earlier allowed walk beats the gate, one daily total is not history
+			if (restricted && rows.length < 2)
 				return { days: [], stars: [], sampled: false, restricted: true };
 			const breakdown = buildBreakdown(rows, [repo], 1);
 			return {
@@ -110,8 +112,7 @@ type StarConn = {
 	edges: { starredAt: string }[];
 };
 
-// totalCount stays readable even when GitHub hides the edges, which is how we tell an
-// admin-only restriction from a genuinely unstarred repo
+// totalCount tells an emptied list from a genuinely unstarred repo, where the walk is allowed
 const STAR_QUERY = `
 	query RepoStars($owner: String!, $name: String!, $cursor: String, $direction: OrderDirection!) {
 		repository(owner: $owner, name: $name) {
@@ -140,20 +141,26 @@ async function fetchStarPage(
 	return data.repository?.stargazers ?? null;
 }
 
+type Walk = { days: string[]; total: number; responded: boolean; refused: boolean };
+
 // Walk stargazer pages in one direction up to maxPages, collecting star dates in fetch
 // order. total is GitHub's authoritative count, read even when the list itself is hidden;
 // responded is false only when no page came back at all, which marks a transient miss
-async function walkStars(
-	repo: Repo,
-	direction: Direction,
-	maxPages: number
-): Promise<{ days: string[]; total: number; responded: boolean }> {
+async function walkStars(repo: Repo, direction: Direction, maxPages: number): Promise<Walk> {
 	const days: string[] = [];
 	let total = repo.stars;
 	let responded = false;
+	let refused = false;
 	let cursor: string | null = null;
 	for (let page = 0; page < maxPages; page++) {
-		const conn = await fetchStarPage(repo, direction, cursor);
+		// GitHub now refuses the whole list to non-admins, which is the gate, not a failure
+		const conn: StarConn | null = await fetchStarPage(repo, direction, cursor).catch(
+			(error: unknown) => {
+				if (!isRefusedList(error)) throw error;
+				refused = true;
+				return null;
+			}
+		);
 		if (!conn) break;
 		responded = true;
 		total = conn.totalCount;
@@ -161,7 +168,7 @@ async function walkStars(
 		if (!conn.edges.length || !conn.pageInfo.hasNextPage || !conn.pageInfo.endCursor) break;
 		cursor = conn.pageInfo.endCursor;
 	}
-	return { days, total, responded };
+	return { days, total, responded, refused };
 }
 
 // One walk of the stargazer list under the current token. Small repos are read whole
@@ -170,11 +177,12 @@ async function walkCurve(repo: Repo): Promise<{
 	points: Point[];
 	total: number;
 	responded: boolean;
+	refused: boolean;
 }> {
 	const lastPage = Math.max(1, Math.ceil(repo.stars / PER_PAGE));
 	if (isFullWalk(lastPage)) {
-		const { days, total, responded } = await walkStars(repo, 'ASC', lastPage);
-		return { points: curvePoints(days, [], total), total, responded };
+		const { days, total, responded, refused } = await walkStars(repo, 'ASC', lastPage);
+		return { points: curvePoints(days, [], total), total, responded, refused };
 	}
 	const budget = pageBudget(lastPage);
 	const [oldest, newest] = await Promise.all([
@@ -185,7 +193,8 @@ async function walkCurve(repo: Repo): Promise<{
 	return {
 		points: curvePoints(oldest.days, newest.days, total),
 		total,
-		responded: oldest.responded || newest.responded
+		responded: oldest.responded || newest.responded,
+		refused: oldest.refused || newest.refused
 	};
 }
 
@@ -206,14 +215,14 @@ async function backfillRepo(repo: Repo): Promise<boolean> {
 		walk = await withAppToken(() => walkCurve(repo));
 	}
 
-	// No page coming back at all is a transient upstream miss, not a restriction; throw
-	// uncached so the next visit retries instead of pinning a false gate for hours
-	if (!walk.responded)
+	// A silent miss is transient, not a restriction; throw uncached so the next visit
+	// retries instead of pinning a false gate for hours. A refusal is the gate itself
+	if (!walk.responded && !walk.refused)
 		throw new AppError('upstream', `No stargazer response for ${repo.nameWithOwner}`, {
 			expose: false
 		});
 
-	const restricted = looksRestricted(walk.total, walk.points.length);
+	const restricted = walk.refused || looksRestricted(walk.total, walk.points.length);
 	if (walk.points.length) {
 		walk.points.push({ day: today(), stars: walk.total });
 		await writePoints(repoKey, walk.points);
