@@ -1,8 +1,8 @@
 import { logError, toDisplayError, type DisplayError } from '$lib/utils/errors';
 import type { LoadResult } from '$lib/types';
 
-// Panels stop waiting here, the fetch runs on into the cache for the retry to pick up
-const SETTLE_TIMEOUT_MS = 30000;
+// Panels give up here, under Vercel's 30s cap, while the fetch runs on into the cache
+const SETTLE_TIMEOUT_MS = 25000;
 
 const stillLoading: DisplayError = {
 	title: 'still loading',

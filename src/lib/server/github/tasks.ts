@@ -268,10 +268,12 @@ export async function getTaskList(
 ): Promise<TaskList> {
 	const { profile } = await getUserOverview(login);
 	const open = () => bucketList(profile.login, profile.isOrg, bucket, 'open');
-	const [openList, closed] = await Promise.all([
-		fresh ? withForceFresh(open) : open(),
-		bucketList(profile.login, profile.isOrg, bucket, 'closed')
-	]);
+	// Closed history is a bonus, losing it just flags the list as incomplete
+	const closedList = bucketList(profile.login, profile.isOrg, bucket, 'closed').catch((caught) => {
+		logError('task-closed', caught);
+		return { items: [], total: 0, capped: true };
+	});
+	const [openList, closed] = await Promise.all([fresh ? withForceFresh(open) : open(), closedList]);
 	return mergeTaskLists(openList, closed);
 }
 

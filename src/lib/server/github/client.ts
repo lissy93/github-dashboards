@@ -10,6 +10,8 @@ const MAX_ATTEMPTS = 4;
 const BACKOFF_MS = 500;
 // GitHub gateway hiccups that a quick retry usually clears
 const RETRYABLE_STATUS = new Set([502, 503, 504]);
+// Failing slower than this is GitHub timing out, and a retry would only do it again
+const SLOW_FAIL_MS = 5000;
 // Cap concurrent GitHub requests process-wide. The lazy per-repo enrichment (stats,
 // contributors, traffic) fans out hundreds of requests at once; left unbounded that
 // burst trips GitHub's secondary rate limits, which surface as cascading 502s across
@@ -115,7 +117,7 @@ function context(res: Response): string {
 	return parts.length ? ` (${parts.join(', ')})` : '';
 }
 
-// Fetch through the concurrency gate with auth and a timeout, retrying gateway failures
+// Fetch through the concurrency gate with auth and a timeout, retrying quick gateway failures
 async function call(url: string, init: RequestInit = {}, label = 'request'): Promise<Response> {
 	// App-identity requests ride the installation token, freshen it before headers bind
 	if (usingAppToken()) await ensureAppToken();
@@ -123,13 +125,15 @@ async function call(url: string, init: RequestInit = {}, label = 'request'): Pro
 	try {
 		let lastError: unknown;
 		for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+			const started = Date.now();
+			const canRetry = () => attempt < MAX_ATTEMPTS && Date.now() - started < SLOW_FAIL_MS;
 			try {
 				const res = await fetch(url, {
 					...init,
 					headers: { ...baseHeaders(), ...init.headers },
 					signal: AbortSignal.timeout(TIMEOUT_MS)
 				});
-				if (RETRYABLE_STATUS.has(res.status) && attempt < MAX_ATTEMPTS) {
+				if (RETRYABLE_STATUS.has(res.status) && canRetry()) {
 					await res.body?.cancel();
 					log.warn(`GitHub ${res.status} on ${label}, retry ${attempt} of ${MAX_ATTEMPTS - 1}`);
 					await wait(backoff(attempt));
@@ -138,10 +142,8 @@ async function call(url: string, init: RequestInit = {}, label = 'request'): Pro
 				return res;
 			} catch (error) {
 				lastError = error;
-				if (attempt < MAX_ATTEMPTS) {
-					await wait(backoff(attempt));
-					continue;
-				}
+				if (!canRetry()) break;
+				await wait(backoff(attempt));
 			}
 		}
 		if (lastError instanceof DOMException && lastError.name === 'TimeoutError')
