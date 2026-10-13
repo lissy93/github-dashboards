@@ -6,7 +6,7 @@ import {
 	ISSUE_FIELDS,
 	type RawNode
 } from '$lib/server/github/tasks';
-import { cached, isCachedAll } from '$lib/server/cache';
+import { cached } from '$lib/server/cache';
 import type { TaskList } from '$lib/types';
 
 // PR nodes carry checks and diff stats, so keep the page small to dodge timeouts
@@ -131,16 +131,6 @@ export async function getRepoPullRequestsAll(owner: string, name: string): Promi
 	]);
 	return mergeTaskLists(open, closed);
 }
-
-export const isRepoIssuesAllCached = (owner: string, name: string): Promise<boolean> =>
-	isCachedAll(issuesKey(owner, name), closedIssuesKey(owner, name));
-
-export const isRepoPullRequestsAllCached = (owner: string, name: string): Promise<boolean> =>
-	isCachedAll(prsKey(owner, name), closedPrsKey(owner, name));
-
-// Both open lists warm and expire independently, so the overview is only ready when each is
-export const isRepoTasksCached = (owner: string, name: string): Promise<boolean> =>
-	isCachedAll(issuesKey(owner, name), prsKey(owner, name));
 
 // Both open lists together, for the combined repo tasks page
 export async function getRepoTasks(

@@ -1,6 +1,6 @@
 import { graphql } from '$lib/server/github/client';
 import { getUserOverview } from '$lib/server/github/user';
-import { cached, isCached } from '$lib/server/cache';
+import { cached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
 import { AppError, logError } from '$lib/utils/errors';
 import type {
@@ -171,9 +171,6 @@ function sumTotals(years: YearCalendar[]): ContributionTotals {
 }
 
 const statsKey = (login: string) => `user:contributions:4:${login.toLowerCase()}`;
-
-// Whether contributions are cached, so the page renders inline vs streams
-export const isContributionsCached = (login: string) => isCached(statsKey(login));
 
 // All-time contributions for a user, one calendar per year, newest first
 export function getUserContributions(login: string): Promise<UserContributions> {

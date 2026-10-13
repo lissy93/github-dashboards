@@ -22,8 +22,22 @@
 
 	// Toggle between all repos and only those the user does not own. Seed the default from
 	// the first paint's data so warm data renders external straight away with no flip
-	const settled = $derived(result instanceof Promise ? null : result);
+	let settled = $state(untrack(() => (result instanceof Promise ? null : result)));
 	const seed = untrack(() => settled);
+
+	// A streamed result lands in settled once it resolves, so the default still gets decided
+	$effect(() => {
+		const current = result;
+		if (!(current instanceof Promise)) {
+			settled = current;
+			return;
+		}
+		let active = true;
+		current.then((value) => {
+			if (active) settled = value;
+		});
+		return () => (active = false);
+	});
 	const seedExternal = seed?.ok && seed.data.complete ? hasEnoughExternal(seed.data) : false;
 	let externalOnly = $state(seedExternal);
 	let decidedFor = $state<string | null>(

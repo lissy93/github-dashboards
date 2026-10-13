@@ -89,8 +89,8 @@ function isFresh(fetchedAt: Date, ttl: number): boolean {
 }
 
 // Whether a key has any stored value, fresh or stale (served instantly either way).
-// This is only a hint for SSR-vs-stream gating, so a DB failure falls back to
-// "not cached" (stream it) rather than crashing the page that asked.
+// This is only a hint, so a DB failure falls back to "not cached" rather than
+// crashing the page that asked.
 export async function isCached(key: string): Promise<boolean> {
 	try {
 		const [existing] = await db
@@ -106,10 +106,6 @@ export async function isCached(key: string): Promise<boolean> {
 		return false;
 	}
 }
-
-// Every key warm, for pages that only render inline once each half is seeded
-export const isCachedAll = (...keys: string[]): Promise<boolean> =>
-	Promise.all(keys.map(isCached)).then((all) => all.every(Boolean));
 
 // Read any stored value and its age without triggering a refresh
 export async function readCached<T>(

@@ -1,9 +1,9 @@
-import { syncActivity, getActivityPage, isSynced } from '$lib/server/github/activity';
-import { settle } from '$lib/server/load';
+import { syncActivity, getActivityPage } from '$lib/server/github/activity';
+import { inlineReady, settle } from '$lib/server/load';
 import { logError } from '$lib/utils/errors';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params, parent }) => {
+export const load: PageServerLoad = async ({ params, parent, isDataRequest }) => {
 	// Orgs have no personal events feed, so skip the work and flag it for the page
 	const { isOrg } = await parent();
 	if (isOrg) return { user: params.user, isOrg: true as const };
@@ -16,8 +16,5 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 			.catch((caught) => logError('activity-sync', caught))
 			.then(() => getActivityPage(params.user))
 	);
-
-	// Render inline once seeded for SEO, stream only the cold first build
-	const ready = await isSynced(params.user);
-	return { user: params.user, isOrg: false as const, result: ready ? await result : result };
+	return inlineReady({ user: params.user, isOrg: false as const, result }, isDataRequest);
 };

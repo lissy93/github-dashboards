@@ -3,7 +3,7 @@ import type { ContributorRow, WeekChurn, RepoContributors } from '$lib/types';
 import { restResponse } from '$lib/server/github/client';
 import { fetchStatsEndpoint, statsPending } from '$lib/server/github/stats-endpoint';
 import { enrichOwnedRepos } from '$lib/server/github/enrich';
-import { cached, isCached } from '$lib/server/cache';
+import { cached } from '$lib/server/cache';
 import { db } from '$lib/server/db';
 import { repoChurnWeekly } from '$lib/server/db/schema';
 import { AppError, rootReason } from '$lib/utils/errors';
@@ -166,9 +166,6 @@ export const CONTRIBUTORS_KEY_PREFIX = 'repo:contributors:v3:';
 
 const repoKey = (owner: string, name: string) =>
 	`${CONTRIBUTORS_KEY_PREFIX}${owner}/${name}`.toLowerCase();
-
-export const isRepoContributorsCached = (owner: string, name: string) =>
-	isCached(repoKey(owner, name));
 
 // Ranked contributor leaderboard for a single repo, with commits, lines and activity
 export function getRepoContributors(owner: string, name: string): Promise<RepoContributors> {

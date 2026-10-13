@@ -12,7 +12,7 @@ import type {
 } from '$lib/types';
 import { graphql, rest, restResponse } from '$lib/server/github/client';
 import { withAppToken } from '$lib/server/auth/context';
-import { cached, isCached } from '$lib/server/cache';
+import { cached } from '$lib/server/cache';
 import { formatDateTime, plural } from '$lib/utils/format';
 import { fetchVulns, severityOf } from '$lib/server/github/supply-chain';
 import { AppError, logError } from '$lib/utils/errors';
@@ -535,8 +535,6 @@ async function fetchSecurity(owner: string, name: string): Promise<RepoSecurity>
 }
 
 const key = (owner: string, name: string) => `repo:security:v5:${owner}/${name}`.toLowerCase();
-
-export const isRepoSecurityCached = (owner: string, name: string) => isCached(key(owner, name));
 
 // Most probes read maintainer-only settings, so fetch under the app token to keep this
 // shared-cached result the same for every viewer rather than leaking one owner's setup

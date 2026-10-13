@@ -1,6 +1,6 @@
 import type { ReleaseRow, RepoReleases } from '$lib/types';
 import { rest } from '$lib/server/github/client';
-import { advanceCheckpointed, checkpointed, isCached, readCached } from '$lib/server/cache';
+import { advanceCheckpointed, checkpointed, readCached } from '$lib/server/cache';
 import { logError } from '$lib/utils/errors';
 
 // Releases rarely change, so cache them for a day
@@ -23,7 +23,6 @@ type RawRelease = {
 type ReleaseState = { rows: ReleaseRow[]; nextPage: number; complete: boolean };
 
 const key = (owner: string, name: string) => `repo:releases:v3:${owner}/${name}`.toLowerCase();
-export const isRepoReleasesCached = (owner: string, name: string) => isCached(key(owner, name));
 
 function toRow(raw: RawRelease): ReleaseRow {
 	return {

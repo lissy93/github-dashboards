@@ -64,7 +64,7 @@ export function revalidatingResult<T, Raw = T>(options: Options<T, Raw>) {
 		setPhase('refreshing');
 		(async () => {
 			try {
-				const raw = await fetchApi<Raw>(url, REVALIDATE_TIMEOUT_MS);
+				const raw = await fetchApi<Raw>(url, REVALIDATE_TIMEOUT_MS, true);
 				if (!active) return;
 				fresh = { ok: true, data: options.map ? options.map(raw) : (raw as unknown as T) };
 				setPhase('fresh');

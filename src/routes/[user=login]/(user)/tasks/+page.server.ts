@@ -1,14 +1,11 @@
-import { getTaskData, isTaskReady } from '$lib/server/github/tasks';
-import { getUserIssuePrTimeline, isUserTimelineCached } from '$lib/server/github/user-timeline';
-import {
-	getAuthoredTimeline,
-	isAuthoredTimelineCached
-} from '$lib/server/github/authored-timeline';
-import { settle } from '$lib/server/load';
+import { getTaskData } from '$lib/server/github/tasks';
+import { getUserIssuePrTimeline } from '$lib/server/github/user-timeline';
+import { getAuthoredTimeline } from '$lib/server/github/authored-timeline';
+import { inlineReady, settle } from '$lib/server/load';
 import { previewBuckets, TASKS_SUMMARY_PREVIEW } from '$lib/views/overview';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params, parent, locals }) => {
+export const load: PageServerLoad = async ({ params, parent, locals, isDataRequest }) => {
 	const { isOrg } = await parent();
 	// Non-owners see the authored lists, so chart that same authored work
 	const mine = !isOrg && locals.user?.login.toLowerCase() !== params.user.toLowerCase();
@@ -22,16 +19,5 @@ export const load: PageServerLoad = async ({ params, parent, locals }) => {
 		'user-timeline',
 		mine ? getAuthoredTimeline(params.user) : getUserIssuePrTimeline(params.user)
 	);
-
-	// Render inline once seeded for SEO, stream only the cold first build
-	const [ready, timelineReady] = await Promise.all([
-		isTaskReady(params.user),
-		mine ? isAuthoredTimelineCached(params.user) : isUserTimelineCached(params.user)
-	]);
-	return {
-		user: params.user,
-		mine,
-		result: ready ? await result : result,
-		timeline: timelineReady ? await timeline : timeline
-	};
+	return inlineReady({ user: params.user, mine, result, timeline }, isDataRequest);
 };

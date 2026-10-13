@@ -7,7 +7,7 @@ import type {
 	TimelineCore
 } from '$lib/types';
 import { median, monthStartOf, weekStartOf } from '$lib/utils/datetime';
-import { advanceCheckpointed, checkpointed, isCached, readCached } from '$lib/server/cache';
+import { advanceCheckpointed, checkpointed, readCached } from '$lib/server/cache';
 import {
 	syncCrawl,
 	type Crawl,
@@ -259,9 +259,6 @@ export function buildTimelineState(state: TimelineState): RepoTimeline {
 
 export const repoTimelineKey = (owner: string, name: string) =>
 	`repo:timeline-state:v1:${owner}/${name}`.toLowerCase();
-
-export const isRepoTimelineCached = (owner: string, name: string) =>
-	isCached(repoTimelineKey(owner, name));
 
 // Serve the last good timeline immediately, refreshing recent rows and resuming older
 // history in the background. A cold repo fetches one bounded batch before first render

@@ -1,6 +1,6 @@
 import { batchedGraphql, graphql } from '$lib/server/github/client';
 import { getUserOverview } from '$lib/server/github/user';
-import { cached, isCached } from '$lib/server/cache';
+import { cached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
 import { createLogger } from '$lib/utils/logger';
 import { AppError } from '$lib/utils/errors';
@@ -53,10 +53,6 @@ type LanguageData = {
 };
 
 const languageKey = (login: string) => `user:language-data:3:${login.toLowerCase()}`;
-
-// Both language views share one cache entry so they can never refresh out of step
-export const isRepoLanguagesCached = (login: string) => isCached(languageKey(login));
-export const isLanguagesCached = isRepoLanguagesCached;
 
 // Fetch the per-repo map and aggregate totals as one atomic cached dataset
 function getLanguageData(login: string): Promise<LanguageData> {
@@ -123,9 +119,6 @@ const ONE_REPO_QUERY = `
 
 const oneRepoKey = (owner: string, name: string) =>
 	`repo:languages:v1:${owner}/${name}`.toLowerCase();
-
-export const isRepoLanguageUsageCached = (owner: string, name: string) =>
-	isCached(oneRepoKey(owner, name));
 
 // Byte breakdown by language for a single repo, coloured from GitHub's palette
 export function getRepoLanguageUsage(owner: string, name: string): Promise<LanguageUsage[]> {

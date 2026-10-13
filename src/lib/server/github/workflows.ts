@@ -1,6 +1,6 @@
 import type { RepoWorkflows, WorkflowSummary, RepoRunActivity } from '$lib/types';
 import { restTolerant } from '$lib/server/github/client';
-import { advanceCheckpointed, checkpointed, cached, isCached, readCached } from '$lib/server/cache';
+import { advanceCheckpointed, checkpointed, cached, readCached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
 import { accumulateOutcomes } from '$lib/server/github/outcome-history';
 import { bucketOutcomes, type OutcomeKind } from '$lib/utils/outcomes';
@@ -130,7 +130,6 @@ async function sync(owner: string, name: string, current?: WorkflowState): Promi
 
 const key = (owner: string, name: string) =>
 	`repo:workflows-state:v2:${owner}/${name}`.toLowerCase();
-export const isRepoWorkflowsCached = (owner: string, name: string) => isCached(key(owner, name));
 
 function toResult(state: WorkflowState): RepoWorkflows {
 	const complete =

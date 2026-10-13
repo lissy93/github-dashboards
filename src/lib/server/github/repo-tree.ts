@@ -1,5 +1,5 @@
 import { graphql, rest } from '$lib/server/github/client';
-import { cached, isCached } from '$lib/server/cache';
+import { cached } from '$lib/server/cache';
 import { createLogger } from '$lib/utils/logger';
 import type { RepoTree, TreeNode } from '$lib/types';
 
@@ -112,8 +112,6 @@ async function resolveBranch(
 	const ref = repository?.defaultBranchRef;
 	return ref?.target ? { name: ref.name, oid: ref.target.oid } : null;
 }
-
-export const isRepoTreeCached = (owner: string, name: string) => isCached(treeKey(owner, name));
 
 // Full file tree for a repo's default branch, cached and served stale-while-revalidate.
 // The commit oid is used as the tree ref so branch names with slashes still resolve

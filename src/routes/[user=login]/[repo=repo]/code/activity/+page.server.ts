@@ -1,10 +1,10 @@
-import { syncRepoActivity, getActivityPage, isRepoSynced } from '$lib/server/github/activity';
+import { syncRepoActivity, getActivityPage } from '$lib/server/github/activity';
 import { COMMUNITY_EXCLUDE } from '$lib/config/activity';
-import { settle } from '$lib/server/load';
+import { inlineReady, settle } from '$lib/server/load';
 import { logError } from '$lib/utils/errors';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params, parent }) => {
+export const load: PageServerLoad = async ({ params, parent, isDataRequest }) => {
 	// the layout 404s hidden repos, so gate on it before fanning out
 	await parent();
 	const repo = `${params.user}/${params.repo}`;
@@ -16,6 +16,5 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 			.catch((caught) => logError('repo-activity-sync', caught))
 			.then(() => getActivityPage(null, { repo, exclude: COMMUNITY_EXCLUDE }))
 	);
-	const ready = await isRepoSynced(params.user, params.repo);
-	return { result: ready ? await result : result };
+	return inlineReady({ result }, isDataRequest);
 };

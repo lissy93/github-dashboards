@@ -1,6 +1,6 @@
 import { paginate } from '$lib/server/github/client';
 import { getUserOverview } from '$lib/server/github/user';
-import { cached, isCached, isCachedAll, withForceFresh } from '$lib/server/cache';
+import { cached, withForceFresh } from '$lib/server/cache';
 import { TASK_BUCKET_INFO } from '$lib/config/tasks';
 import { logError } from '$lib/utils/errors';
 import type {
@@ -257,9 +257,6 @@ export async function getTaskData(login: string): Promise<TaskData> {
 	return { login: profile.login, isOrg, buckets };
 }
 
-// Whether the buckets are already seeded, so the page renders inline vs streams
-export const isTaskReady = (login: string) => isCached(bucketKey('reviewPrs', login));
-
 // Open plus recently closed work for one bucket, only the open half worth freshening on land
 export async function getTaskList(
 	login: string,
@@ -276,6 +273,3 @@ export async function getTaskList(
 	const [openList, closed] = await Promise.all([fresh ? withForceFresh(open) : open(), closedList]);
 	return mergeTaskLists(openList, closed);
 }
-
-export const isTaskListCached = (login: string, bucket: TaskBucket): Promise<boolean> =>
-	isCachedAll(bucketKey(bucket, login), bucketKey(bucket, login, 'closed'));

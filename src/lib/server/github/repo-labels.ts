@@ -1,6 +1,6 @@
 import type { LabelCount } from '$lib/types';
 import { paginate } from '$lib/server/github/client';
-import { cached, isCached } from '$lib/server/cache';
+import { cached } from '$lib/server/cache';
 
 // Labels move slowly, so cache them alongside the other day-scale repo stats
 const TTL = 6 * 3600;
@@ -54,8 +54,6 @@ async function fetchLabels(owner: string, name: string): Promise<RepoLabels> {
 }
 
 const key = (owner: string, name: string) => `repo:labels:v1:${owner}/${name}`.toLowerCase();
-
-export const isRepoLabelsCached = (owner: string, name: string) => isCached(key(owner, name));
 
 // Label usage across a repo's issues and PRs, for the work-mix treemap
 export function getRepoLabels(owner: string, name: string): Promise<RepoLabels> {

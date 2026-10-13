@@ -9,7 +9,7 @@ import {
 	timelineContribution
 } from '$lib/server/github/repo-timeline';
 import { getUserOverview, refreshUserOverview } from '$lib/server/github/user';
-import { cached, isCached, readCachedMany, writeCached } from '$lib/server/cache';
+import { cached, readCachedMany, writeCached } from '$lib/server/cache';
 import { logError } from '$lib/utils/errors';
 
 // Short freshness on the aggregate, the on-land ?fresh path forces a rebuild when needed
@@ -120,8 +120,6 @@ async function assemble(
 	});
 	return { timeline: { ...core, resolution: emptyResolution(), baseline }, incomplete, drifted };
 }
-
-export const isUserTimelineCached = (login: string) => isCached(key(login));
 
 // Serve the last aggregate instantly, rebuilding from the repo caches in the background.
 // A cold user with nothing crawled seeds its top repo so the first paint shows real bars

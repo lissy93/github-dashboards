@@ -2,7 +2,7 @@ import { and, asc, desc, eq, gt, ilike, lt, notInArray, or, sql, type SQL } from
 import { graphql, rest, paginate } from '$lib/server/github/client';
 import { getRepo } from '$lib/server/github/repo';
 import { buildPunchCard } from '$lib/utils/punch-card';
-import { cached, isCached, readCached, writeCached } from '$lib/server/cache';
+import { cached, readCached, writeCached } from '$lib/server/cache';
 import { logError, rootReason } from '$lib/utils/errors';
 import { createLogger } from '$lib/utils/logger';
 import { db } from '$lib/server/db';
@@ -520,20 +520,10 @@ export async function backfillRepoActivity(
 	return task;
 }
 
-// Whether this user has been synced before, so the page renders inline vs streams
-export const isSynced = (login: string) => isCached(`activity:sync:${login.toLowerCase()}`);
-
-// Same gate for repo-wide feeds
-export const isRepoSynced = (owner: string, repo: string) =>
-	isCached(`activity:repo-sync:${owner}/${repo}`.toLowerCase());
-
 // Refreshed hourly, the heavy backfill behind it is itself cached for a day
 const RHYTHM_TTL = 3600;
 
 const rhythmKey = (login: string) => `activity:rhythm:v1:${login.toLowerCase()}`;
-
-// Whether the rhythm is built, so the stats page renders inline vs streams
-export const isRhythmReady = (login: string) => isCached(rhythmKey(login));
 
 // Hour and weekday converted to UTC so the rhythm is timezone-stable
 const utc = (part: string) =>
@@ -558,9 +548,6 @@ export function getActivityRhythm(login: string): Promise<ActivityRhythm> {
 }
 
 const lifecycleKey = (login: string) => `activity:lifecycle:v5:${login.toLowerCase()}`;
-
-// Whether lifecycle activity is cached, so the stats page can stream cold work
-export const isLifecycleActivityReady = (login: string) => isCached(lifecycleKey(login));
 
 // Merge stored events with commit contribution months, deduped per repo
 export function mergeLifecycleMonths(

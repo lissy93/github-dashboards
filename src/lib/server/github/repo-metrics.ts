@@ -1,7 +1,7 @@
 import { buildPunchCard } from '$lib/utils/punch-card';
 import { graphql } from '$lib/server/github/client';
 import { fetchStatsEndpoint, statsPending } from '$lib/server/github/stats-endpoint';
-import { cached, isCached } from '$lib/server/cache';
+import { cached } from '$lib/server/cache';
 import type { ActivityRhythm } from '$lib/types';
 
 // Stats move slowly and the /stats endpoints are costly to warm, so cache them a day
@@ -40,9 +40,6 @@ type RecentRaw = {
 	} | null;
 };
 
-export const isRepoRecentCommitsCached = (owner: string, name: string) =>
-	isCached(`repo:recent-commits:v1:${repoName(owner, name)}`);
-
 // Commits in the last window and the window before it, for the strip's change figure
 export function getRepoRecentCommits(owner: string, name: string): Promise<RepoRecentCommits> {
 	return cached(
@@ -60,9 +57,6 @@ export function getRepoRecentCommits(owner: string, name: string): Promise<RepoR
 
 // ---- Punch card -----------------------------------------------------------
 // When commits land, as a weekday-by-hour grid. All-time, so cache only
-
-export const isRepoPunchCardCached = (owner: string, name: string) =>
-	isCached(`repo:punch-card:v1:${repoName(owner, name)}`);
 
 export function getRepoPunchCard(owner: string, name: string): Promise<ActivityRhythm> {
 	const repo = repoName(owner, name);

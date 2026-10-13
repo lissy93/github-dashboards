@@ -12,8 +12,7 @@ vi.mock('$lib/server/auth/context', () => ({
 	withAppToken: (run: () => unknown) => run()
 }));
 vi.mock('$lib/server/cache', () => ({
-	cached: (_key: string, fetcher: () => unknown) => fetcher(),
-	isCached: () => false
+	cached: (_key: string, fetcher: () => unknown) => fetcher()
 }));
 
 const { getRepoPeople } = await import('$lib/server/github/repo-people');

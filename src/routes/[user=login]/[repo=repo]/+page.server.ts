@@ -1,17 +1,17 @@
-import { getRepoTasks, isRepoTasksCached } from '$lib/server/github/repo-tasks';
+import { getRepoTasks } from '$lib/server/github/repo-tasks';
 import { getRepoIssuePrTimeline } from '$lib/server/github/repo-timeline';
 import { getActivityPage, syncRepoActivity } from '$lib/server/github/activity';
 import { getRepoStarHistory } from '$lib/server/github/star-history';
-import { getRepoWorkflows, isRepoWorkflowsCached } from '$lib/server/github/workflows';
-import { getRepoDeployments, isRepoDeploymentsCached } from '$lib/server/github/deployments';
-import { getRepoPages, isRepoPagesCached } from '$lib/server/github/pages';
-import { getRepoReleases, isRepoReleasesCached } from '$lib/server/github/releases';
+import { getRepoWorkflows } from '$lib/server/github/workflows';
+import { getRepoDeployments } from '$lib/server/github/deployments';
+import { getRepoPages } from '$lib/server/github/pages';
+import { getRepoReleases } from '$lib/server/github/releases';
 import { getRepoSecurity } from '$lib/server/github/security';
-import { getRepoCommitGraph, isRepoCommitGraphCached } from '$lib/server/github/repo-commits';
-import { getRepoTree, isRepoTreeCached } from '$lib/server/github/repo-tree';
-import { getSupplyChain, isSupplyChainCached } from '$lib/server/github/supply-chain';
+import { getRepoCommitGraph } from '$lib/server/github/repo-commits';
+import { getRepoTree } from '$lib/server/github/repo-tree';
+import { getSupplyChain } from '$lib/server/github/supply-chain';
 import { licenseRiskSlices, severitySlices } from '$lib/views/supply-chain';
-import { settle } from '$lib/server/load';
+import { inlineReady, settle } from '$lib/server/load';
 import { logError } from '$lib/utils/errors';
 import type { PageServerLoad } from './$types';
 
@@ -19,7 +19,7 @@ const PREVIEW = 6;
 const ACTIVITY_PREVIEW = 10;
 const HISTORY_PREVIEW = 12;
 
-export const load: PageServerLoad = async ({ params, parent }) => {
+export const load: PageServerLoad = async ({ params, parent, isDataRequest }) => {
 	// the layout 404s hidden repos, so gate on it before fanning out
 	await parent();
 	const owner = params.user;
@@ -64,8 +64,7 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 	);
 
 	// Refresh repo-wide events best-effort then read the preview, so the panel shows all
-	// contributors' activity rather than only what a user-level sync happened to store.
-	// Streamed (not awaited) to keep the page fast
+	// contributors' activity rather than only what a user-level sync happened to store
 	const activity = settle(
 		'repo-activity',
 		syncRepoActivity(owner, name)
@@ -73,33 +72,23 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 			.then(() => getActivityPage(null, { repo: `${owner}/${name}`, limit: ACTIVITY_PREVIEW }))
 	);
 
-	// Render the open lists and ops summaries inline when already cached, stream only a cold miss
-	const [tasksReady, wfReady, depReady, pgReady, relReady, graphReady, treeReady, scReady] =
-		await Promise.all([
-			isRepoTasksCached(owner, name),
-			isRepoWorkflowsCached(owner, name),
-			isRepoDeploymentsCached(owner, name),
-			isRepoPagesCached(owner, name),
-			isRepoReleasesCached(owner, name),
-			isRepoCommitGraphCached(owner, name),
-			isRepoTreeCached(owner, name),
-			isSupplyChainCached(owner, name)
-		]);
-
-	return {
-		preview: PREVIEW,
-		historyPreview: HISTORY_PREVIEW,
-		tasks: tasksReady ? await tasks : tasks,
-		timeline,
-		stars,
-		workflows: wfReady ? await workflows : workflows,
-		deployments: depReady ? await deployments : deployments,
-		pages: pgReady ? await pages : pages,
-		releases: relReady ? await releases : releases,
-		security,
-		activity,
-		graph: graphReady ? await graph : graph,
-		tree: treeReady ? await tree : tree,
-		supplyChain: scReady ? await supplyChain : supplyChain
-	};
+	return inlineReady(
+		{
+			preview: PREVIEW,
+			historyPreview: HISTORY_PREVIEW,
+			tasks,
+			timeline,
+			stars,
+			workflows,
+			deployments,
+			pages,
+			releases,
+			security,
+			activity,
+			graph,
+			tree,
+			supplyChain
+		},
+		isDataRequest
+	);
 };

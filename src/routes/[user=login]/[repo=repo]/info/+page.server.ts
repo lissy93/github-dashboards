@@ -1,12 +1,11 @@
-import { getRepoSecurity, isRepoSecurityCached } from '$lib/server/github/security';
-import { getRepoContributors, isRepoContributorsCached } from '$lib/server/github/contributors';
+import { getRepoSecurity } from '$lib/server/github/security';
+import { getRepoContributors } from '$lib/server/github/contributors';
 import { canSeeTraffic, getRepoTrafficSummary } from '$lib/server/github/traffic';
-import { settle } from '$lib/server/load';
+import { inlineReady, settle } from '$lib/server/load';
 import type { PageServerLoad } from './$types';
 
-// Panel summaries for the Info landing page. Each source streams so a slow one never
-// blocks the others, and cached hits render inline
-export const load: PageServerLoad = async ({ params, locals, parent }) => {
+// Panel summaries for the Info landing page, each source streams so a slow one never blocks the rest
+export const load: PageServerLoad = async ({ params, locals, parent, isDataRequest }) => {
 	// the layout 404s hidden repos, so gate on it before fanning out
 	await parent();
 	const { user, repo } = params;
@@ -16,14 +15,5 @@ export const load: PageServerLoad = async ({ params, locals, parent }) => {
 	const canTraffic = canSeeTraffic(user, locals.user?.login);
 	const traffic = canTraffic ? settle('repo-traffic', getRepoTrafficSummary(user, repo)) : null;
 
-	const [secReady, contribReady] = await Promise.all([
-		isRepoSecurityCached(user, repo),
-		isRepoContributorsCached(user, repo)
-	]);
-
-	return {
-		security: secReady ? await security : security,
-		contributors: contribReady ? await contributors : contributors,
-		traffic
-	};
+	return inlineReady({ security, contributors, traffic }, isDataRequest);
 };

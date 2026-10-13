@@ -1,5 +1,5 @@
 import { graphql } from '$lib/server/github/client';
-import { cached, isCached } from '$lib/server/cache';
+import { cached } from '$lib/server/cache';
 import type { CommitPage, CommitPr, CommitRef, GraphCommit, RepoCommitGraph } from '$lib/types';
 
 const TTL = 900;
@@ -208,9 +208,6 @@ export async function getRepoCommitPage(
 	for (const commit of page.commits) commit.refs = refs.byOid[commit.oid] ?? [];
 	return page;
 }
-
-export const isRepoCommitGraphCached = (owner: string, name: string) =>
-	isCached(graphKey(owner, name));
 
 // Initial history graph for the default branch: the first page plus the branch and tag
 // context the picker and labels need. Further pages stream in via getRepoCommitPage

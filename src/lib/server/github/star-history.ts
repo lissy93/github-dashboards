@@ -7,7 +7,7 @@ import { usingAppToken, withAppToken } from '$lib/server/auth/context';
 import { getUserOverview } from '$lib/server/github/user';
 import { getRepo } from '$lib/server/github/repo';
 import { preferTotals } from '$lib/server/github/stars';
-import { cached, isCached, readCached, writeCached } from '$lib/server/cache';
+import { cached, readCached, writeCached } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
 import { createLogger } from '$lib/utils/logger';
 import { AppError, rootReason } from '$lib/utils/errors';
@@ -75,10 +75,6 @@ export function getUserStarHistory(login: string): Promise<StarBreakdown> {
 		AGGREGATE_TTL
 	);
 }
-
-// Whether this repo's star curve is already cached, for SSR-vs-stream gating
-export const isRepoStarHistoryCached = (owner: string, name: string) =>
-	isCached(`repo:star-history:v4:${owner}/${name}`.toLowerCase());
 
 // One repo's reconstructed star curve, for the repo stars page and panel. Reuses
 // the per-repo backfill cache and the shared interpolation, as a single series

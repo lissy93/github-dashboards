@@ -1,6 +1,6 @@
 import type { RepoPages } from '$lib/types';
 import { restTolerant } from '$lib/server/github/client';
-import { cached, isCached } from '$lib/server/cache';
+import { cached } from '$lib/server/cache';
 
 // Pages config rarely changes, refresh every 15 minutes
 const TTL = 900;
@@ -73,8 +73,6 @@ async function fetchPages(owner: string, name: string): Promise<RepoPages> {
 }
 
 const key = (owner: string, name: string) => `repo:pages:v3:${owner}/${name}`.toLowerCase();
-
-export const isRepoPagesCached = (owner: string, name: string) => isCached(key(owner, name));
 
 export function getRepoPages(owner: string, name: string): Promise<RepoPages> {
 	return cached(key(owner, name), () => fetchPages(owner, name), TTL);

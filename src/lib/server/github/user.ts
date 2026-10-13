@@ -1,6 +1,6 @@
 import { batchedGraphql, graphql, rest } from '$lib/server/github/client';
 import { snapshotStars } from '$lib/server/github/stars';
-import { cached, isCached, readCached, writeCached } from '$lib/server/cache';
+import { cached, readCached, writeCached } from '$lib/server/cache';
 import { AppError, rootReason, toAppError } from '$lib/utils/errors';
 import { createLogger } from '$lib/utils/logger';
 import type { Org, Repo, UserOverview, UserProfile } from '$lib/types';
@@ -296,15 +296,6 @@ function mapProfile(owner: RawOwner, ownedRepos: Repo[]): UserProfile {
 const overviewKey = (login: string) => `user:overview-state:v1:${login.toLowerCase()}`;
 const legacyOverviewKey = (login: string) => `user:overview:9:${login.toLowerCase()}`;
 const syncing = new Map<string, Promise<OverviewState>>();
-
-// Whether this overview is already cached, so the page can render it inline
-export async function isUserOverviewCached(login: string): Promise<boolean> {
-	const [current, legacy] = await Promise.all([
-		isCached(overviewKey(login)),
-		isCached(legacyOverviewKey(login))
-	]);
-	return current || legacy;
-}
 
 function toOverview(state: OverviewState): UserOverview {
 	const ownedRepos = state.owned.nodes.map(mapRepo);

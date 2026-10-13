@@ -9,7 +9,7 @@ import type {
 } from '$lib/types';
 import { graphql, rest, paginate } from '$lib/server/github/client';
 import { withAppToken } from '$lib/server/auth/context';
-import { cached, isCached } from '$lib/server/cache';
+import { cached } from '$lib/server/cache';
 import { createLogger } from '$lib/utils/logger';
 
 const log = createLogger('supply-chain');
@@ -337,8 +337,6 @@ async function fetchSupplyChain(owner: string, name: string): Promise<SupplyChai
 }
 
 const key = (owner: string, name: string) => `repo:supply-chain:v2:${owner}/${name}`.toLowerCase();
-
-export const isSupplyChainCached = (owner: string, name: string) => isCached(key(owner, name));
 
 // Dependency inventory, licences and open advisories for a repo, cached with SWR
 export function getSupplyChain(owner: string, name: string): Promise<SupplyChain> {

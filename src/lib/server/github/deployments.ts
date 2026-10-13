@@ -1,6 +1,6 @@
 import type { DeployRecord, EnvironmentSummary, RepoDeployments } from '$lib/types';
 import { paginate } from '$lib/server/github/client';
-import { cached, isCached } from '$lib/server/cache';
+import { cached } from '$lib/server/cache';
 import { accumulateOutcomes } from '$lib/server/github/outcome-history';
 import { bucketOutcomes } from '$lib/utils/outcomes';
 import { deployBand } from '$lib/views/repo-deployments';
@@ -163,8 +163,6 @@ async function fetchDeployments(owner: string, name: string): Promise<RepoDeploy
 }
 
 const key = (owner: string, name: string) => `repo:deployments:v2:${owner}/${name}`.toLowerCase();
-
-export const isRepoDeploymentsCached = (owner: string, name: string) => isCached(key(owner, name));
 
 export function getRepoDeployments(owner: string, name: string): Promise<RepoDeployments> {
 	return cached(key(owner, name), () => fetchDeployments(owner, name), TTL);

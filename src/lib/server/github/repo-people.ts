@@ -1,7 +1,7 @@
 import type { AudienceSection, PersonRow, RepoPeople } from '$lib/types';
 import { graphql, isRefusedList, looksRestricted } from '$lib/server/github/client';
 import { usingAppToken, withAppToken } from '$lib/server/auth/context';
-import { cached, isCached } from '$lib/server/cache';
+import { cached } from '$lib/server/cache';
 
 const TTL = 6 * 3600;
 // Short side panels, so only a handful of faces each
@@ -120,8 +120,6 @@ const anyGated = (people: RepoPeople) =>
 	[people.forks, people.watchers].some((section) => section.unavailable);
 
 const key = (owner: string, name: string) => `repo:people:v5:${owner}/${name}`.toLowerCase();
-
-export const isRepoPeopleCached = (owner: string, name: string) => isCached(key(owner, name));
 
 // Stargazers, forks and watchers for a repo, the audience behind the contributors.
 // A non-admin viewer gets gated lists, so retry those once on the app token before caching
