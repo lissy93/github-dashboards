@@ -1,11 +1,12 @@
 import { paginate } from '$lib/server/github/client';
 import {
 	toItem,
-	mergeTaskLists,
 	PR_FIELDS,
+	CLOSED_PR_FIELDS,
 	ISSUE_FIELDS,
 	type RawNode
 } from '$lib/server/github/tasks';
+import { mergeTaskLists } from '$lib/views/tasks';
 import { cached } from '$lib/server/cache';
 import type { TaskList } from '$lib/types';
 
@@ -15,18 +16,20 @@ const MAX_PAGES = 4;
 // Open work changes often, so refresh on visit but throttle rapid navigation
 const TTL = 300;
 
-const PR_QUERY = `
+const prQuery = (fields: string) => `
 	query RepoPRs($owner: String!, $name: String!, $cursor: String, $states: [PullRequestState!]) {
 		repository(owner: $owner, name: $name) {
 			pullRequests(states: $states, first: ${PER_PAGE}, after: $cursor,
 				orderBy: { field: UPDATED_AT, direction: DESC }) {
 				totalCount
 				pageInfo { hasNextPage endCursor }
-				nodes { ${PR_FIELDS} }
+				nodes { ${fields} }
 			}
 		}
 	}
 `;
+const PR_QUERY = prQuery(PR_FIELDS);
+const CLOSED_PR_QUERY = prQuery(CLOSED_PR_FIELDS);
 
 const ISSUE_QUERY = `
 	query RepoIssues($owner: String!, $name: String!, $cursor: String, $states: [IssueState!]) {
@@ -49,6 +52,12 @@ type Conn = {
 type PrPage = { repository: { pullRequests: Conn } | null };
 type IssuePage = { repository: { issues: Conn } | null };
 
+// Closed PR lists leave out CI status, see CLOSED_PR_FIELDS
+function queryFor(kind: 'pr' | 'issue', states: string[]): string {
+	if (kind === 'issue') return ISSUE_QUERY;
+	return states.includes('OPEN') ? PR_QUERY : CLOSED_PR_QUERY;
+}
+
 // Walk an issue or PR connection up to the page cap, tagging the kind so the shared
 // mapper builds the right row. capped is set when GitHub has more than we hold
 async function collect(
@@ -60,7 +69,7 @@ async function collect(
 	const typename = kind === 'pr' ? 'PullRequest' : 'Issue';
 	let total = 0;
 	const { nodes } = await paginate<Omit<RawNode, '__typename'>, PrPage | IssuePage>(
-		kind === 'pr' ? PR_QUERY : ISSUE_QUERY,
+		queryFor(kind, states),
 		{ owner, name, states },
 		(data) => {
 			const conn =

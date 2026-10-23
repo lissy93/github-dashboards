@@ -1,4 +1,4 @@
-import { getTaskList } from '$lib/server/github/tasks';
+import { getClosedTaskList, getTaskList } from '$lib/server/github/tasks';
 import { getUserIssuePrTimeline } from '$lib/server/github/user-timeline';
 import { getAuthoredTimeline } from '$lib/server/github/authored-timeline';
 import { inlineReady, settle } from '$lib/server/load';
@@ -11,10 +11,15 @@ export const load: PageServerLoad = async ({ params, isDataRequest }) => {
 	const { mine, title } = TASK_BUCKET_INFO[bucket];
 
 	const result = settle('task-list', getTaskList(params.user, bucket));
+	// Closed history is the slow half, so it streams in apart from the open list
+	const closed = settle('task-list-closed', getClosedTaskList(params.user, bucket));
 	// The authored lists chart the user's own contributions, the review lists the on-repos totals
 	const timeline = settle(
 		'user-timeline',
 		mine ? getAuthoredTimeline(params.user) : getUserIssuePrTimeline(params.user)
 	);
-	return inlineReady({ user: params.user, bucket, mine, title, result, timeline }, isDataRequest);
+	return inlineReady(
+		{ user: params.user, bucket, mine, title, result, closed, timeline },
+		isDataRequest
+	);
 };

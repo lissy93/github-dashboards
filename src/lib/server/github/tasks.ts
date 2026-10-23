@@ -24,7 +24,7 @@ const TTL = 300;
 const CLOSED_TTL = 3600;
 
 // Field lists shared with the repo task lists, so both build the same TaskItem rows
-export const PR_FIELDS = `
+export const CLOSED_PR_FIELDS = `
 	id number title url state isDraft createdAt updatedAt
 	reviewDecision additions deletions changedFiles
 	repository { nameWithOwner }
@@ -32,6 +32,9 @@ export const PR_FIELDS = `
 	assignees(first: 5) { nodes { login avatarUrl } }
 	labels(first: 10) { nodes { name color } }
 	comments { totalCount }
+`;
+// Open PRs add CI status, by far the priciest field and no use once a PR is closed
+export const PR_FIELDS = `${CLOSED_PR_FIELDS}
 	commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
 `;
 export const ISSUE_FIELDS = `
@@ -43,19 +46,21 @@ export const ISSUE_FIELDS = `
 	comments { totalCount }
 `;
 
-const SEARCH = `
+const searchQuery = (prFields: string) => `
 	query TaskSearch($q: String!, $cursor: String) {
 		search(query: $q, type: ISSUE, first: ${PER_PAGE}, after: $cursor) {
 			issueCount
 			pageInfo { hasNextPage endCursor }
 			nodes {
 				__typename
-				... on PullRequest { ${PR_FIELDS} }
+				... on PullRequest { ${prFields} }
 				... on Issue { ${ISSUE_FIELDS} }
 			}
 		}
 	}
 `;
+const SEARCH = searchQuery(PR_FIELDS);
+const CLOSED_SEARCH = searchQuery(CLOSED_PR_FIELDS);
 
 export type RawNode = {
 	__typename: 'PullRequest' | 'Issue';
@@ -158,12 +163,13 @@ type SearchPage = {
 // and reports no next page at that ceiling, so truncation is detected against the
 // true issueCount rather than the page cursor
 async function searchAll(
+	query: string,
 	q: string,
 	maxPages: number
 ): Promise<{ nodes: RawNode[]; truncated: boolean }> {
 	let issueCount = 0;
 	const { nodes } = await paginate<RawNode, SearchPage>(
-		SEARCH,
+		query,
 		{ q },
 		({ search }) => {
 			issueCount = search.issueCount;
@@ -186,8 +192,9 @@ async function fetchBucket(
 	const queries = sources(login, isOrg, kind, mine, state);
 	if (!queries.length) return { items: [], total: 0, capped: false };
 
+	const query = state === 'open' ? SEARCH : CLOSED_SEARCH;
 	const maxPages = state === 'open' ? MAX_PAGES : CLOSED_MAX_PAGES;
-	const settled = await Promise.allSettled(queries.map((q) => searchAll(q, maxPages)));
+	const settled = await Promise.allSettled(queries.map((q) => searchAll(query, q, maxPages)));
 	const failed = settled.filter(
 		(result): result is PromiseRejectedResult => result.status === 'rejected'
 	);
@@ -232,15 +239,6 @@ function bucketList(
 	);
 }
 
-// Merge an open and closed list into one, keeping totals and the capped flag
-export function mergeTaskLists(open: TaskList, closed: TaskList): TaskList {
-	return {
-		items: [...open.items, ...closed.items],
-		total: open.total + closed.total,
-		capped: open.capped || closed.capped
-	};
-}
-
 // Every bucket's open list, for the overview previews and the summary board
 export async function getTaskData(login: string): Promise<TaskData> {
 	const { profile } = await getUserOverview(login);
@@ -257,7 +255,7 @@ export async function getTaskData(login: string): Promise<TaskData> {
 	return { login: profile.login, isOrg, buckets };
 }
 
-// Open plus recently closed work for one bucket, only the open half worth freshening on land
+// One bucket's open work, the half worth freshening on land
 export async function getTaskList(
 	login: string,
 	bucket: TaskBucket,
@@ -265,11 +263,14 @@ export async function getTaskList(
 ): Promise<TaskList> {
 	const { profile } = await getUserOverview(login);
 	const open = () => bucketList(profile.login, profile.isOrg, bucket, 'open');
-	// Closed history is a bonus, losing it just flags the list as incomplete
-	const closedList = bucketList(profile.login, profile.isOrg, bucket, 'closed').catch((caught) => {
+	return fresh ? withForceFresh(open) : open();
+}
+
+// One bucket's recently closed work, a bonus so losing it just flags the list incomplete
+export async function getClosedTaskList(login: string, bucket: TaskBucket): Promise<TaskList> {
+	const { profile } = await getUserOverview(login);
+	return bucketList(profile.login, profile.isOrg, bucket, 'closed').catch((caught) => {
 		logError('task-closed', caught);
 		return { items: [], total: 0, capped: true };
 	});
-	const [openList, closed] = await Promise.all([fresh ? withForceFresh(open) : open(), closedList]);
-	return mergeTaskLists(openList, closed);
 }

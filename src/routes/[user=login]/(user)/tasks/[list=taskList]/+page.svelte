@@ -46,5 +46,11 @@
 			{/if}
 		{/snippet}
 	</TotalTimelinePanel>
-	<AsyncTaskList result={tasks.result} kind={meta.kind} title={meta.title} empty={meta.empty} />
+	<AsyncTaskList
+		result={tasks.result}
+		closed={data.closed}
+		kind={meta.kind}
+		title={meta.title}
+		empty={meta.empty}
+	/>
 </div>

@@ -4,24 +4,29 @@
 	import Pagination from '$lib/components/common/Pagination.svelte';
 	import ItemRow from '$lib/components/tasks/ItemRow.svelte';
 	import { applyView, defaultView, type View } from '$lib/utils/sort-filter';
-	import { taskConfig } from '$lib/views/tasks';
+	import { mergeTaskLists, taskConfig } from '$lib/views/tasks';
 	import { compactNumber } from '$lib/utils/format';
 	import type { TaskList } from '$lib/types';
 
 	type Props = {
 		list: TaskList;
+		// Closed history that streamed in after the list, merged without resetting the view
+		closed?: TaskList | null;
+		// Status line for that closed history, e.g. still loading
+		note?: string;
 		kind: 'pr' | 'issue' | 'mixed';
 		title: string;
 		empty: string;
 	};
-	let { list, kind, title, empty }: Props = $props();
+	let { list, closed, note, kind, title, empty }: Props = $props();
 
 	const PAGE_SIZE = 25;
-	const config = $derived(taskConfig(list.items, kind));
+	const all = $derived(closed ? mergeTaskLists(list, closed) : list);
+	const config = $derived(taskConfig(all.items, kind));
 
 	let view = $state<View>(untrack(() => defaultView(config)));
 	let page = $state(1);
-	const visible = $derived(applyView(list.items, config, view));
+	const visible = $derived(applyView(all.items, config, view));
 	const totalPages = $derived(Math.max(1, Math.ceil(visible.length / PAGE_SIZE)));
 	const shown = $derived(visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE));
 	const viewKey = $derived(
@@ -42,14 +47,17 @@
 	});
 </script>
 
-{#if !list.items.length}
+{#if !all.items.length}
 	<p class="text-muted-foreground py-16 text-center text-sm">{empty}</p>
 {:else}
 	<div class="space-y-3">
 		<SortFilterBar {config} bind:view searchPlaceholder="Search {title.toLowerCase()}" />
-		{#if list.capped}
+		{#if note}
+			<p class="text-muted-foreground text-xs">{note}</p>
+		{/if}
+		{#if all.capped}
 			<p class="text-muted-foreground text-xs">
-				Showing the {compactNumber(list.items.length)} most recent of {compactNumber(list.total)}
+				Showing the {compactNumber(all.items.length)} most recent of {compactNumber(all.total)}
 				{title}
 			</p>
 		{/if}

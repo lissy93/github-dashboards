@@ -1,5 +1,5 @@
 import type { FilterDef, SortDef, SortFilterConfig } from '$lib/utils/sort-filter';
-import type { TaskItem } from '$lib/types';
+import type { TaskItem, TaskList } from '$lib/types';
 
 const CHECK_OPTIONS = [
 	{ value: 'success', label: 'Passing' },
@@ -88,5 +88,14 @@ export function taskConfig(
 				.join(' ')}`,
 		sorts,
 		filters
+	};
+}
+
+// Merge an open and closed list into one, keeping totals and the capped flag
+export function mergeTaskLists(open: TaskList, closed: TaskList): TaskList {
+	return {
+		items: [...open.items, ...closed.items],
+		total: open.total + closed.total,
+		capped: open.capped || closed.capped
 	};
 }
