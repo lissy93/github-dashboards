@@ -1,7 +1,9 @@
 import type { TrafficCount, RepoTrafficSummary, RepoTraffic } from '$lib/types';
-import { inArray, sql } from 'drizzle-orm';
+import { desc, inArray, max, sql } from 'drizzle-orm';
 import { restTolerant } from '$lib/server/github/client';
+import { withAppToken } from '$lib/server/auth/context';
 import { cached } from '$lib/server/cache';
+import { mapLimit } from '$lib/server/concurrency';
 import { db } from '$lib/server/db';
 import { repoTrafficDaily } from '$lib/server/db/schema';
 import { rootReason } from '$lib/utils/errors';
@@ -9,6 +11,10 @@ import { createLogger } from '$lib/utils/logger';
 import type { TrafficDay } from '$lib/types';
 
 const log = createLogger('traffic');
+
+// Bounds the cron sweep, two GitHub calls per repo under a 30s cap
+const MAX_TRACKED_REPOS = 150;
+const SNAPSHOT_CONCURRENCY = 6;
 
 type DailyPoint = { timestamp: string; count: number; uniques: number };
 type ViewsResponse = TrafficCount & { views: DailyPoint[] };
@@ -92,6 +98,24 @@ async function fetchSummary(owner: string, repo: string): Promise<RepoTrafficSum
 export function getRepoTrafficSummary(owner: string, repo: string): Promise<RepoTrafficSummary> {
 	return cached(`repo:traffic-summary:v1:${owner}/${repo}`.toLowerCase(), () =>
 		fetchSummary(owner, repo)
+	);
+}
+
+// Daily cron re-snapshot of tracked repos, so history never gaps past GitHub's 14 day window
+export async function snapshotTrackedTraffic(): Promise<void> {
+	const tracked = await db
+		.select({ repo: repoTrafficDaily.repo })
+		.from(repoTrafficDaily)
+		.groupBy(repoTrafficDaily.repo)
+		.orderBy(desc(max(repoTrafficDaily.day)))
+		.limit(MAX_TRACKED_REPOS);
+	await withAppToken(() =>
+		mapLimit(tracked, SNAPSHOT_CONCURRENCY, ({ repo }) => {
+			const [owner, name] = repo.split('/');
+			return fetchSummary(owner, name).catch((error) =>
+				log.warn(`could not refresh traffic for ${repo}`, { reason: rootReason(error) })
+			);
+		})
 	);
 }
 

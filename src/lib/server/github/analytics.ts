@@ -1,23 +1,27 @@
 import { getUserOverview } from '$lib/server/github/user';
 import { getRepoTraffic, getTrafficHistory } from '$lib/server/github/traffic';
-import { checkpointed, cached } from '$lib/server/cache';
+import { checkpointed } from '$lib/server/cache';
 import { mapLimit } from '$lib/server/concurrency';
 import { logError } from '$lib/utils/errors';
-import type { AnalyticsItem, UserAnalytics } from '$lib/types';
+import type { AnalyticsItem, TrafficDay, UserAnalytics } from '$lib/types';
 
 // Full traffic for many repos is heavy, so bound the fan-out and the repo count
 const REPOS_PER_SYNC = 12;
 const CONCURRENCY = 5;
 const TTL = 900;
 
-type AnalyticsState = {
-	data: UserAnalytics;
-	covered: string[];
-	nextIndex: number;
-	source: string[];
-};
+// Daily history is read live rather than checkpointed, so the chart never lags the snapshots
+type Live = Pick<UserAnalytics, 'capped' | 'paths' | 'referrers'>;
+type AnalyticsState = Live & { covered: string[]; nextIndex: number; source: string[] };
 
-const key = (login: string) => `user:analytics-state:v1:${login.toLowerCase()}`;
+const key = (login: string) => `user:analytics-state:v2:${login.toLowerCase()}`;
+
+// Dashboard shape, listing every repo that has any traffic
+function toAnalytics(daily: TrafficDay[], { capped, paths, referrers }: Live): UserAnalytics {
+	const repos = [...new Set([...daily, ...paths, ...referrers].map((item) => item.repo))].sort();
+	return { repos, capped, daily, paths, referrers };
+}
+
 // Refresh a rotating repo batch, preserving successful data from earlier batches
 async function syncAnalytics(login: string, current?: AnalyticsState): Promise<AnalyticsState> {
 	const { ownedRepos } = await getUserOverview(login);
@@ -31,8 +35,8 @@ async function syncAnalytics(login: string, current?: AnalyticsState): Promise<A
 		{ length: Math.min(REPOS_PER_SYNC, source.length) },
 		(_, index) => source[(start + index) % source.length]
 	);
-	let paths = (current?.data.paths ?? []).filter((item) => names.includes(item.repo));
-	let referrers = (current?.data.referrers ?? []).filter((item) => names.includes(item.repo));
+	let paths = (current?.paths ?? []).filter((item) => names.includes(item.repo));
+	let referrers = (current?.referrers ?? []).filter((item) => names.includes(item.repo));
 	const covered = new Set((current?.covered ?? []).filter((name) => names.includes(name)));
 	await mapLimit(targets, CONCURRENCY, async (repo) => {
 		try {
@@ -49,23 +53,11 @@ async function syncAnalytics(login: string, current?: AnalyticsState): Promise<A
 		}
 	});
 
-	const daily = await getTrafficHistory(names);
-	const repos = [
-		...new Set([
-			...daily.map((row) => row.repo),
-			...paths.map((item) => item.repo),
-			...referrers.map((item) => item.repo)
-		])
-	].sort();
 	return {
-		data: {
-			repos,
-			// More repos than one batch covers means the live paths are a rotating sample
-			capped: source.length > targets.length,
-			daily,
-			paths,
-			referrers
-		},
+		// More repos than one batch covers means the live paths are a rotating sample
+		capped: source.length > targets.length,
+		paths,
+		referrers,
 		covered: [...covered],
 		nextIndex: source.length ? (start + targets.length) % source.length : 0,
 		source: names
@@ -77,26 +69,18 @@ export async function getUserAnalytics(login: string): Promise<UserAnalytics> {
 	const state = await checkpointed<AnalyticsState>('user-analytics', key(login), TTL, (current) =>
 		syncAnalytics(login, current)
 	);
-	return state.data;
+	return toAnalytics(await getTrafficHistory(state.source), state);
 }
 
-const repoKey = (owner: string, name: string) => `repo:analytics:1:${owner}/${name}`.toLowerCase();
-
-// Traffic analytics for a single repo, shaped like UserAnalytics so the dashboard
-// component renders it unchanged. Reuses the per-repo traffic cache and snapshots
-async function fetchRepoAnalytics(owner: string, name: string): Promise<UserAnalytics> {
+// Traffic analytics for one repo, shaped like UserAnalytics so the same dashboard renders it
+export async function getRepoAnalytics(owner: string, name: string): Promise<UserAnalytics> {
 	const nameWithOwner = `${owner}/${name}`;
+	const tag = (item: Omit<AnalyticsItem, 'repo'>) => ({ ...item, repo: nameWithOwner });
 	const traffic = await getRepoTraffic(owner, name);
 	const daily = await getTrafficHistory([nameWithOwner]);
-	const paths: AnalyticsItem[] = traffic.topPaths.map((item) => ({ ...item, repo: nameWithOwner }));
-	const referrers: AnalyticsItem[] = traffic.topReferrers.map((item) => ({
-		...item,
-		repo: nameWithOwner
-	}));
-	const repos = daily.length || paths.length || referrers.length ? [nameWithOwner] : [];
-	return { repos, capped: false, daily, paths, referrers };
-}
-
-export function getRepoAnalytics(owner: string, name: string): Promise<UserAnalytics> {
-	return cached(repoKey(owner, name), () => fetchRepoAnalytics(owner, name));
+	return toAnalytics(daily, {
+		capped: false,
+		paths: traffic.topPaths.map(tag),
+		referrers: traffic.topReferrers.map(tag)
+	});
 }
