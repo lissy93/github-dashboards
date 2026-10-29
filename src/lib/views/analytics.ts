@@ -94,10 +94,12 @@ export function deltaHint(view: AnalyticsView): string | undefined {
 	return key === 'all' ? undefined : `${label} vs previous ${short}`;
 }
 
+const DAY_MS = 86400000;
+
 // UTC day string `days` back from now, empty for an unbounded window
 function cutoffDay(days: number): string {
 	if (!Number.isFinite(days)) return '';
-	return new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+	return new Date(Date.now() - days * DAY_MS).toISOString().slice(0, 10);
 }
 
 // Snap a day to the first day of its bucket, so rows group by period
@@ -112,6 +114,36 @@ function inView(daily: TrafficDay[], view: AnalyticsView): TrafficDay[] {
 	return daily.filter(
 		(row) => (!view.repo || row.repo === view.repo) && (!cutoff || row.day >= cutoff)
 	);
+}
+
+const MAX_FILLED_GAP_DAYS = 3;
+
+// Quiet days arrive as zeros so a missing row is lost data, bridge short gaps with a straight line
+export function fillGaps(daily: TrafficDay[]): TrafficDay[] {
+	const sorted = [...daily].sort(
+		(a, b) => a.repo.localeCompare(b.repo) || a.day.localeCompare(b.day)
+	);
+	return sorted.flatMap((row, index) => {
+		const prev = sorted[index - 1];
+		const steps =
+			prev?.repo === row.repo ? (Date.parse(row.day) - Date.parse(prev.day)) / DAY_MS : 1;
+		if (steps > MAX_FILLED_GAP_DAYS + 1) return [row];
+		const estimates = Array.from({ length: steps - 1 }, (_, gap): TrafficDay => {
+			const step = gap + 1;
+			const at = (key: Exclude<MetricKey, 'returning'>) =>
+				Math.round(prev[key] + ((row[key] - prev[key]) * step) / steps);
+			const day = new Date(Date.parse(prev.day) + step * DAY_MS).toISOString().slice(0, 10);
+			return {
+				...row,
+				day,
+				views: at('views'),
+				uniqueViews: at('uniqueViews'),
+				clones: at('clones'),
+				uniqueClones: at('uniqueClones')
+			};
+		});
+		return [...estimates, row];
+	});
 }
 
 // Sum repo-days into one point per period, combining all repos in view

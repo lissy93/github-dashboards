@@ -25,6 +25,7 @@
 	import {
 		defaultAnalyticsView,
 		aggregate,
+		fillGaps,
 		chartData,
 		totals,
 		topPaths,
@@ -63,13 +64,14 @@
 
 	const data = $derived(analytics.data);
 	const repos = $derived(data ? repoOptions(data.repos) : []);
-	const hasHistory = $derived(!!data && data.daily.length > 0);
-	const points = $derived(data ? aggregate(data.daily, view) : []);
+	const daily = $derived(data ? fillGaps(data.daily) : []);
+	const hasHistory = $derived(daily.length > 0);
+	const points = $derived(aggregate(daily, view));
 	const chart = $derived(chartData(points, view.metrics));
-	const metricTotals = $derived(data ? totals(data.daily, view) : []);
+	const metricTotals = $derived(data ? totals(daily, view) : []);
 	const paths = $derived(data ? topPaths(data.paths, view.repo, 200) : []);
 	const referrers = $derived(data ? topReferrers(data.referrers, view.repo, 100) : []);
-	const byRepo = $derived(data ? viewsByRepo(data.daily, view, 100) : []);
+	const byRepo = $derived(viewsByRepo(daily, view, 100));
 	const showByRepo = $derived(repos.length > 1 && !view.repo);
 
 	const rangeScope = $derived(scopeLabel(view));

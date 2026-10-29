@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
 	aggregate,
+	fillGaps,
 	totals,
 	topPaths,
 	topReferrers,
@@ -159,5 +160,40 @@ describe('deltaHint', () => {
 
 	it('has nothing to compare against over all time', () => {
 		expect(deltaHint(view({ windowKey: 'all' }))).toBeUndefined();
+	});
+});
+
+describe('fillGaps', () => {
+	const days = (rows: TrafficDay[]) => rows.map((row) => [row.day, row.views, row.clones]);
+
+	it('bridges a short gap with straight-line estimates', () => {
+		const rows = fillGaps([
+			day('me/a', '2026-09-03', 100, 50, 10),
+			day('me/a', '2026-09-06', 400, 80, 40)
+		]);
+		expect(days(rows)).toEqual([
+			['2026-09-03', 100, 10],
+			['2026-09-04', 200, 20],
+			['2026-09-05', 300, 30],
+			['2026-09-06', 400, 40]
+		]);
+	});
+
+	it('leaves gaps longer than the limit visibly missing', () => {
+		const rows = fillGaps([day('me/a', '2026-09-01', 10, 5), day('me/a', '2026-09-06', 20, 5)]);
+		expect(rows).toHaveLength(2);
+	});
+
+	it('never bridges across repos and keeps real zero days as they are', () => {
+		const rows = fillGaps([
+			day('me/a', '2026-09-01', 10, 5),
+			day('me/a', '2026-09-02', 0, 0),
+			day('me/b', '2026-09-04', 30, 9)
+		]);
+		expect(rows.map((row) => [row.repo, row.day, row.views])).toEqual([
+			['me/a', '2026-09-01', 10],
+			['me/a', '2026-09-02', 0],
+			['me/b', '2026-09-04', 30]
+		]);
 	});
 });
