@@ -1,26 +1,32 @@
 import { json } from '@sveltejs/kit';
-import { getTaskData, getTaskList } from '$lib/server/github/tasks';
+import { getTaskData, getTaskList, type TaskState } from '$lib/server/github/tasks';
 import { TASK_BUCKET_INFO } from '$lib/config/tasks';
 import { previewBuckets } from '$lib/views/overview';
-import { withForceFresh } from '$lib/server/cache';
+import { withForceFresh, type FreshMode } from '$lib/server/cache';
 import { apiError } from '$lib/server/response';
 import type { TaskBucket } from '$lib/types';
 import type { RequestHandler } from './$types';
 
-// User review queues, fresh on land for a signed-in viewer. bucket= is one open list,
-// preview= trims every bucket, neither is the lot
+// Signed-in viewers freshen on land with fresh=1, and refresh=1 refetches even unexpired lists
+function freshMode(url: URL, signedIn: boolean): FreshMode | undefined {
+	if (!signedIn) return undefined;
+	if (url.searchParams.has('refresh')) return 'all';
+	return url.searchParams.has('fresh') ? 'stale' : undefined;
+}
+
+// User review queues: bucket= one list (state=closed for its history), preview= every bucket trimmed
 export const GET: RequestHandler = async ({ params, locals, url, setHeaders }) => {
 	setHeaders({ 'cache-control': 'private, no-store' });
-	const fresh = url.searchParams.has('fresh') && !!locals.user;
+	const fresh = freshMode(url, !!locals.user);
 	const preview = Number(url.searchParams.get('preview')) || 0;
 	const bucket = url.searchParams.get('bucket') as TaskBucket | null;
+	const state: TaskState = url.searchParams.get('state') === 'closed' ? 'closed' : 'open';
 	try {
-		// Only the open half revalidates, the page streams closed history in separately
 		if (bucket && TASK_BUCKET_INFO[bucket])
-			return json(await getTaskList(params.user, bucket, fresh));
+			return json(await getTaskList(params.user, bucket, state, fresh));
 		if (bucket) return json({ items: [], total: 0, capped: false });
 		const run = () => getTaskData(params.user);
-		const data = fresh ? await withForceFresh(run) : await run();
+		const data = fresh ? await withForceFresh(run, fresh) : await run();
 		return json(preview ? previewBuckets(data, preview) : data);
 	} catch (caught) {
 		return apiError('task-endpoint', caught);

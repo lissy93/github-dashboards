@@ -18,6 +18,8 @@ type Options<T, Raw> = {
 	enabled: () => boolean;
 	// Reshape the fresh payload, e.g. slice a preview or unwrap a page
 	map?: (raw: Raw) => T;
+	// Endpoint an explicit update hits, refetching even data the cache still holds fresh
+	refresh?: () => string;
 };
 
 // Live revalidations across the page, rolled into one freshness row in the status report
@@ -46,40 +48,57 @@ function syncFreshness(status: PanelStatusStore | undefined): void {
 // fresh copy in. The endpoint writes through the shared cache so anonymous viewers ride it
 export function revalidatingResult<T, Raw = T>(options: Options<T, Raw>) {
 	let fresh = $state<LoadResult<T>>();
+	let refreshing = $state(false);
+	let failed = $state(false);
 	const result = $derived(fresh ?? options.initial());
 	const status = usePanelStatus();
 	const id = Symbol();
+	// Bumped per fetch, so a slower older response never replaces a newer one
+	let round = 0;
 
 	const setPhase = (phase: Phase) => {
 		phases.set(id, phase);
 		syncFreshness(status);
 	};
 
+	// Swap a fresh copy in, keeping the shown one on failure since a stale panel beats a broken one
+	async function revalidate(url: string): Promise<void> {
+		const current = ++round;
+		setPhase('refreshing');
+		try {
+			const raw = await fetchApi<Raw>(url, REVALIDATE_TIMEOUT_MS, true);
+			if (current !== round) return;
+			fresh = { ok: true, data: options.map ? options.map(raw) : (raw as unknown as T) };
+			failed = false;
+			setPhase('fresh');
+		} catch (error) {
+			log.warn(`failed to revalidate ${url}`, error);
+			if (current !== round) return;
+			failed = true;
+			setPhase('stale');
+		}
+	}
+
 	$effect(() => {
 		const url = options.url();
 		const enabled = options.enabled();
 		fresh = undefined;
-		if (!enabled) return;
-		let active = true;
-		setPhase('refreshing');
-		(async () => {
-			try {
-				const raw = await fetchApi<Raw>(url, REVALIDATE_TIMEOUT_MS, true);
-				if (!active) return;
-				fresh = { ok: true, data: options.map ? options.map(raw) : (raw as unknown as T) };
-				setPhase('fresh');
-			} catch (error) {
-				// Keep the cached copy on failure, a slightly stale panel beats a broken one
-				log.warn(`failed to revalidate ${url}`, error);
-				if (active) setPhase('stale');
-			}
-		})();
+		failed = false;
+		if (enabled) void revalidate(url);
 		return () => {
-			active = false;
+			round++;
 			phases.delete(id);
 			syncFreshness(status);
 		};
 	});
+
+	async function refresh(): Promise<void> {
+		const url = options.refresh?.();
+		if (!url || refreshing || !options.enabled()) return;
+		refreshing = true;
+		await revalidate(url);
+		refreshing = false;
+	}
 
 	return {
 		get result() {
@@ -88,6 +107,14 @@ export function revalidatingResult<T, Raw = T>(options: Options<T, Raw>) {
 		// Whether a fresh copy has replaced the initial data
 		get refreshed() {
 			return fresh !== undefined;
-		}
+		},
+		get refreshing() {
+			return refreshing;
+		},
+		// The last revalidation failed, so the data shown may be out of date
+		get failed() {
+			return failed;
+		},
+		refresh
 	};
 }

@@ -3,6 +3,7 @@ import { createLogger } from './logger';
 export type ErrorCode =
 	| 'not_found'
 	| 'unauthorized'
+	| 'session_expired'
 	| 'forbidden'
 	| 'rate_limited'
 	| 'upstream'
@@ -14,6 +15,7 @@ export type ErrorCode =
 const STATUS: Record<ErrorCode, number> = {
 	not_found: 404,
 	unauthorized: 401,
+	session_expired: 401,
 	forbidden: 403,
 	rate_limited: 429,
 	upstream: 502,

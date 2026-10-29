@@ -57,6 +57,7 @@ export function restrictedGate(
 const CAUSE_BY_CODE: Partial<Record<ErrorCode, StatusCause>> = {
 	forbidden: 'forbidden',
 	unauthorized: 'needs_auth',
+	session_expired: 'needs_auth',
 	rate_limited: 'rate_limited',
 	not_found: 'not_found',
 	pending: 'pending',

@@ -91,11 +91,15 @@ export function taskConfig(
 	};
 }
 
-// Merge an open and closed list into one, keeping totals and the capped flag
+// Merge an open and closed list, an item in both (closed since one was cached) keeps its newest copy
 export function mergeTaskLists(open: TaskList, closed: TaskList): TaskList {
+	const byId = new Map<string, TaskItem>();
+	for (const item of [...open.items, ...closed.items])
+		if (item.updatedAt >= (byId.get(item.id)?.updatedAt ?? '')) byId.set(item.id, item);
+	const duplicates = open.items.length + closed.items.length - byId.size;
 	return {
-		items: [...open.items, ...closed.items],
-		total: open.total + closed.total,
+		items: [...byId.values()],
+		total: open.total + closed.total - duplicates,
 		capped: open.capped || closed.capped
 	};
 }

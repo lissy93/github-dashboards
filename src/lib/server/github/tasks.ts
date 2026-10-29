@@ -1,6 +1,6 @@
 import { paginate } from '$lib/server/github/client';
 import { getUserOverview } from '$lib/server/github/user';
-import { cached, withForceFresh } from '$lib/server/cache';
+import { cached, withForceFresh, type FreshMode } from '$lib/server/cache';
 import { TASK_BUCKET_INFO } from '$lib/config/tasks';
 import { logError } from '$lib/utils/errors';
 import type {
@@ -16,7 +16,8 @@ import type {
 // GitHub search returns at most 100 per page and 1000 results per query total
 const PER_PAGE = 100;
 const MAX_PAGES = 10;
-// Closed history is long, so hold only the most recent of it
+// Closed history is long, so hold only the most recent of it. Full 100-row closed PR pages 502 GitHub
+const CLOSED_PER_PAGE = 50;
 const CLOSED_MAX_PAGES = 2;
 // Open work changes often, so refresh on visit but throttle rapid navigation
 const TTL = 300;
@@ -26,15 +27,16 @@ const CLOSED_TTL = 3600;
 // Field lists shared with the repo task lists, so both build the same TaskItem rows
 export const CLOSED_PR_FIELDS = `
 	id number title url state isDraft createdAt updatedAt
-	reviewDecision additions deletions changedFiles
+	additions deletions changedFiles
 	repository { nameWithOwner }
 	author { login avatarUrl }
 	assignees(first: 5) { nodes { login avatarUrl } }
 	labels(first: 10) { nodes { name color } }
 	comments { totalCount }
 `;
-// Open PRs add CI status, by far the priciest field and no use once a PR is closed
+// Open PRs add review and CI status, the priciest fields and no use once a PR is closed
 export const PR_FIELDS = `${CLOSED_PR_FIELDS}
+	reviewDecision
 	commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
 `;
 export const ISSUE_FIELDS = `
@@ -46,9 +48,9 @@ export const ISSUE_FIELDS = `
 	comments { totalCount }
 `;
 
-const searchQuery = (prFields: string) => `
+const searchQuery = (prFields: string, perPage: number) => `
 	query TaskSearch($q: String!, $cursor: String) {
-		search(query: $q, type: ISSUE, first: ${PER_PAGE}, after: $cursor) {
+		search(query: $q, type: ISSUE, first: ${perPage}, after: $cursor) {
 			issueCount
 			pageInfo { hasNextPage endCursor }
 			nodes {
@@ -59,8 +61,8 @@ const searchQuery = (prFields: string) => `
 		}
 	}
 `;
-const SEARCH = searchQuery(PR_FIELDS);
-const CLOSED_SEARCH = searchQuery(CLOSED_PR_FIELDS);
+const SEARCH = searchQuery(PR_FIELDS, PER_PAGE);
+const CLOSED_SEARCH = searchQuery(CLOSED_PR_FIELDS, CLOSED_PER_PAGE);
 
 export type RawNode = {
 	__typename: 'PullRequest' | 'Issue';
@@ -132,7 +134,7 @@ export function toItem(node: RawNode): TaskItem {
 	};
 }
 
-type TaskState = 'open' | 'closed';
+export type TaskState = 'open' | 'closed';
 
 // The search queries that make up one bucket. Authored lists make no sense for an
 // org, and only PRs carry a review request
@@ -255,21 +257,21 @@ export async function getTaskData(login: string): Promise<TaskData> {
 	return { login: profile.login, isOrg, buckets };
 }
 
-// One bucket's open work, the half worth freshening on land
+// One bucket's open or recent closed work, only the list itself forced fresh, never the overview
 export async function getTaskList(
 	login: string,
 	bucket: TaskBucket,
-	fresh = false
+	state: TaskState = 'open',
+	fresh?: FreshMode
 ): Promise<TaskList> {
 	const { profile } = await getUserOverview(login);
-	const open = () => bucketList(profile.login, profile.isOrg, bucket, 'open');
-	return fresh ? withForceFresh(open) : open();
+	const list = () => bucketList(profile.login, profile.isOrg, bucket, state);
+	return fresh ? withForceFresh(list, fresh) : list();
 }
 
 // One bucket's recently closed work, a bonus so losing it just flags the list incomplete
-export async function getClosedTaskList(login: string, bucket: TaskBucket): Promise<TaskList> {
-	const { profile } = await getUserOverview(login);
-	return bucketList(profile.login, profile.isOrg, bucket, 'closed').catch((caught) => {
+export function getClosedTaskList(login: string, bucket: TaskBucket): Promise<TaskList> {
+	return getTaskList(login, bucket, 'closed').catch((caught) => {
 		logError('task-closed', caught);
 		return { items: [], total: 0, capped: true };
 	});

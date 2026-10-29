@@ -56,7 +56,8 @@ function baseHeaders(): Record<string, string> {
 // GitHub response to error code, a 403 with Retry-After is a rate limit not forbidden
 function codeFor(res: Response): ErrorCode {
 	const { status } = res;
-	if (status === 401) return 'unauthorized';
+	// GitHub rejecting a viewer's token means their sign-in was revoked, not that the data is private
+	if (status === 401) return tokenSource() === 'viewer' ? 'session_expired' : 'unauthorized';
 	if (status === 404) return 'not_found';
 	const rateLimited =
 		res.headers.get('x-ratelimit-remaining') === '0' || res.headers.has('retry-after');

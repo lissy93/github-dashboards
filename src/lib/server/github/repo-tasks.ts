@@ -52,7 +52,7 @@ type Conn = {
 type PrPage = { repository: { pullRequests: Conn } | null };
 type IssuePage = { repository: { issues: Conn } | null };
 
-// Closed PR lists leave out CI status, see CLOSED_PR_FIELDS
+// Closed PR lists leave out CI and review status, see CLOSED_PR_FIELDS
 function queryFor(kind: 'pr' | 'issue', states: string[]): string {
 	if (kind === 'issue') return ISSUE_QUERY;
 	return states.includes('OPEN') ? PR_QUERY : CLOSED_PR_QUERY;

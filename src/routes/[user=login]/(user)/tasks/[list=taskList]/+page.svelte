@@ -15,11 +15,23 @@
 
 	// All-time totals for this list's kind across the user's repos
 	const timeline = progressiveUserTimeline(() => data);
-	const tasks = revalidatingResult({
-		url: () => `/api/${data.user}/tasks?fresh=1&bucket=${data.bucket}`,
-		initial: () => data.result,
-		enabled: () => !!data.viewerLogin
-	});
+	// Open and closed halves both freshen on land, so a just-closed item never lingers as open
+	const list = (state: 'open' | 'closed', initial: () => PageData['result']) => {
+		const api = (mode: string) =>
+			`/api/${data.user}/tasks?${mode}=1&bucket=${data.bucket}&state=${state}`;
+		return revalidatingResult({
+			url: () => api('fresh'),
+			refresh: () => api('refresh'),
+			initial,
+			enabled: () => !!data.viewerLogin
+		});
+	};
+	const open = list('open', () => data.result);
+	const closed = list('closed', () => data.closed);
+	const parts = [open, closed];
+	const refresh = () => Promise.all([timeline.refresh(), ...parts.map((part) => part.refresh())]);
+	const refreshing = $derived(timeline.refreshing || parts.some((part) => part.refreshing));
+	const refreshFailed = $derived(timeline.refreshFailed || parts.some((part) => part.failed));
 </script>
 
 <PageMeta
@@ -38,17 +50,17 @@
 		{#snippet actions()}
 			{#if data.viewerLogin}
 				<RefreshButton
-					onclick={timeline.refresh}
-					busy={timeline.refreshing}
-					failed={timeline.refreshFailed}
-					hint="Refresh the chart from GitHub now"
+					onclick={refresh}
+					busy={refreshing}
+					failed={refreshFailed}
+					hint="Refresh the chart and list from GitHub now"
 				/>
 			{/if}
 		{/snippet}
 	</TotalTimelinePanel>
 	<AsyncTaskList
-		result={tasks.result}
-		closed={data.closed}
+		result={open.result}
+		closed={closed.result}
 		kind={meta.kind}
 		title={meta.title}
 		empty={meta.empty}

@@ -1,4 +1,5 @@
 import { beginLoading } from '$lib/state/loading.svelte';
+import { noteSession } from '$lib/state/session.svelte';
 import { createLogger } from '$lib/utils/logger';
 import type { DisplayError } from '$lib/utils/errors';
 import type { LoadResult } from '$lib/types';
@@ -32,7 +33,10 @@ export async function fetchApi<T>(
 	try {
 		const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
 		const body = await response.json();
-		if (!response.ok) throw body;
+		if (!response.ok) {
+			noteSession(body);
+			throw body;
+		}
 		return body as T;
 	} finally {
 		end();
@@ -45,6 +49,7 @@ async function attempt<T>(key: string, endpoint: string): Promise<LoadResult<T>>
 		const response = await fetch(`/api/${key}`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
 		const body = (await response.json()) as T | DisplayError;
 		if (response.ok) return { ok: true as const, data: body as T };
+		noteSession(body);
 		return { ok: false as const, error: body as DisplayError };
 	} catch (error) {
 		log.warn(`failed to load ${endpoint}`, error);

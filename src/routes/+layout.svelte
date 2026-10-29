@@ -7,6 +7,7 @@
 	import PanelStatusReport from '$lib/components/common/PanelStatusReport.svelte';
 	import { providePanelStatus } from '$lib/state/panel-status.svelte';
 	import { provideNavTree } from '$lib/state/nav-tree.svelte';
+	import { session } from '$lib/state/session.svelte';
 
 	let { children, data } = $props();
 
@@ -26,6 +27,19 @@
 					: 'Rate limited, showing cached data'
 			});
 		else status.remove('rate-limit');
+	});
+
+	// A revoked sign-in leaves every panel on cached data, which used to read all-green
+	const signInRejected = $derived(!!data.user && session.expired);
+	$effect(() => {
+		if (signInRejected)
+			status.set({
+				id: 'session',
+				title: 'GitHub sign-in',
+				cause: 'needs_auth',
+				detail: 'GitHub rejected your sign-in, sign in again to refresh data'
+			});
+		else status.remove('session');
 	});
 
 	// Top-of-page banner styles by severity: info nudges, warning degrades, error blocks
@@ -68,6 +82,13 @@
 			<a href="/auth/github" class="underline underline-offset-2">Sign in</a> for a higher limit.{/if}
 	{/snippet}
 	{@render banner('error', rateText)}
+{/if}
+{#if signInRejected}
+	{#snippet sessionText()}
+		GitHub rejected your sign-in, it may have been revoked, so data can't refresh.
+		<a href="/auth/github" class="underline underline-offset-2">Sign in again</a>
+	{/snippet}
+	{@render banner('error', sessionText)}
 {/if}
 {#if data.storageDegraded}
 	{#snippet storageText()}Storage unavailable, showing live data without cache{/snippet}

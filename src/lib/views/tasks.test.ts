@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { taskConfig } from '$lib/views/tasks';
+import { mergeTaskLists, taskConfig } from '$lib/views/tasks';
 import { applyView, defaultView } from '$lib/utils/sort-filter';
 import type { TaskItem } from '$lib/types';
 
@@ -67,5 +67,28 @@ describe('taskConfig', () => {
 		expect(taskConfig([items[0]], 'pr').filters?.some((filter) => filter.key === 'author')).toBe(
 			false
 		);
+	});
+});
+
+describe('mergeTaskLists', () => {
+	const list = (...rows: TaskItem[]) => ({ items: rows, total: rows.length, capped: false });
+
+	it('keeps the newest copy of an item closed since the open list was cached', () => {
+		const stale = item({ id: 'a', state: 'open', updatedAt: '2026-10-27T00:00:00Z' });
+		const closed = item({ id: 'a', state: 'closed', updatedAt: '2026-10-29T00:00:00Z' });
+		const merged = mergeTaskLists(list(stale, item({ id: 'b' })), list(closed));
+		expect(merged.items.map((row) => [row.id, row.state])).toEqual([
+			['a', 'closed'],
+			['b', 'open']
+		]);
+		expect(merged.total).toBe(2);
+	});
+
+	it('keeps an item reopened since the closed list was cached open', () => {
+		const reopened = item({ id: 'a', state: 'open', updatedAt: '2026-10-29T00:00:00Z' });
+		const stale = item({ id: 'a', state: 'closed', updatedAt: '2026-10-27T00:00:00Z' });
+		expect(mergeTaskLists(list(reopened), list(stale)).items.map((row) => row.state)).toEqual([
+			'open'
+		]);
 	});
 });

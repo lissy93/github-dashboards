@@ -35,6 +35,16 @@ describe('PR queries', () => {
 		expect(asksForChecks().length).toBeGreaterThan(0);
 	});
 
+	it('keeps closed review PR pages small and free of review status, full pages 502 GitHub', async () => {
+		await getClosedTaskList('octocat', 'reviewPrs');
+		const queries = paginate.mock.calls.map(([query]) => query);
+		expect(queries.length).toBeGreaterThan(0);
+		for (const query of queries) {
+			expect(query).not.toContain('reviewDecision');
+			expect(query).toContain('first: 50');
+		}
+	});
+
 	it('skips CI status on closed repo PRs only', async () => {
 		await getRepoPullRequestsAll('octocat', 'hello-world');
 		const byState = paginate.mock.calls.map(([query, vars]) => ({

@@ -12,18 +12,17 @@ const log = createLogger('cache');
 // Dedupes concurrent fetches for the same key so we never fire duplicate work
 const inflight = new Map<string, Promise<unknown>>();
 
-// Request-scoped flag the freshen-on-land endpoints set, so a stale entry waits for its
-// refresh instead of serving stale. Fresh entries and cold misses are unaffected
-const freshStore = new AsyncLocalStorage<boolean>();
+// Freshen-on-land waits on stale entries, an explicit update refetches even fresh ones
+export type FreshMode = 'stale' | 'all';
+const freshStore = new AsyncLocalStorage<FreshMode>();
 
-// Run a block that revalidates stale cache entries inline rather than in the background
-export function withForceFresh<T>(run: () => T): T {
-	return freshStore.run(true, run);
+// Run a block that revalidates cache entries inline, so a failure reaches the caller
+export function withForceFresh<T>(run: () => T, mode: FreshMode = 'stale'): T {
+	return freshStore.run(mode, run);
 }
 
-function forceFreshRequested(): boolean {
-	return freshStore.getStore() === true;
-}
+const forceFreshRequested = () => freshStore.getStore() !== undefined;
+const refetchAll = () => freshStore.getStore() === 'all';
 
 // Values past this size gzip well (file trees, crawl states), smaller ones stay plain
 const PACK_MIN_BYTES = 4096;
@@ -236,18 +235,12 @@ export async function cached<T>(
 		return fetcher();
 	}
 
-	if (existing && isFresh(existing.fetchedAt, ttl)) return unpackValue<T>(existing.value);
+	if (existing && isFresh(existing.fetchedAt, ttl) && !refetchAll())
+		return unpackValue<T>(existing.value);
 
 	if (existing) {
-		// A revalidation request waits for the fresh value, falling back to stale on failure
-		if (forceFreshRequested()) {
-			try {
-				return await refresh(key, fetcher, ttl, existing.value);
-			} catch (error) {
-				log.warn(`forced refresh failed for ${key}`, { code: toAppError(error).code });
-				return unpackValue<T>(existing.value);
-			}
-		}
+		// Stale served as fresh hid real failures, so a revalidation request gets the error
+		if (forceFreshRequested()) return refresh(key, fetcher, ttl, existing.value);
 		refresh(key, fetcher, ttl, existing.value).catch((error) =>
 			log.warn(`background refresh failed for ${key}`, { code: toAppError(error).code })
 		);
@@ -288,15 +281,8 @@ export async function checkpointed<T>(
 	}
 	if (!stored) return run();
 	if (Date.now() - stored.fetchedAt.getTime() >= ttl * 1000) {
-		// A revalidation request waits for one more sync round, falling back to stored on failure
-		if (forceFreshRequested()) {
-			try {
-				return await run(stored.value);
-			} catch (caught) {
-				logError(scope, caught);
-				return stored.value;
-			}
-		}
+		// A revalidation request waits for one more sync round and sees its failure
+		if (forceFreshRequested()) return run(stored.value);
 		void run(stored.value).catch((caught) => logError(scope, caught));
 	}
 	return stored.value;
