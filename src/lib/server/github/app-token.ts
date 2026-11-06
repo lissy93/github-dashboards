@@ -47,7 +47,7 @@ async function mint(): Promise<void> {
 			headers: {
 				Authorization: `Bearer ${appJwt()}`,
 				Accept: 'application/vnd.github+json',
-				'User-Agent': 'goard'
+				'User-Agent': 'github-dashboards'
 			},
 			signal: AbortSignal.timeout(10_000)
 		}

@@ -1,5 +1,6 @@
 import { beginLoading } from '$lib/state/loading.svelte';
 import { noteSession } from '$lib/state/session.svelte';
+import { isChallenged, reverify } from '$lib/state/challenge';
 import { createLogger } from '$lib/utils/logger';
 import type { DisplayError } from '$lib/utils/errors';
 import type { LoadResult } from '$lib/types';
@@ -21,6 +22,13 @@ export const isTransient = (error: DisplayError) =>
 // Share one request per endpoint so panels mounting together never double-fetch
 const inflight = new Map<string, Promise<LoadResult<unknown>>>();
 
+// Bot check expired, no point retrying since reverify() reloads instead
+const CHALLENGED: DisplayError = {
+	title: 'verification expired',
+	message: 'Reload the page to keep loading data',
+	code: 'forbidden'
+};
+
 // Fetch one of our api routes, throwing the parsed apiError body on failure so
 // panels can render the server's message through toDisplayError. Background pollers
 // pass background=true so long deepen loops don't keep the top progress bar lit
@@ -32,6 +40,10 @@ export async function fetchApi<T>(
 	const end = background ? noop : beginLoading();
 	try {
 		const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+		if (isChallenged(response)) {
+			reverify();
+			throw CHALLENGED;
+		}
 		const body = await response.json();
 		if (!response.ok) {
 			noteSession(body);
@@ -47,6 +59,10 @@ export async function fetchApi<T>(
 async function attempt<T>(key: string, endpoint: string): Promise<LoadResult<T>> {
 	try {
 		const response = await fetch(`/api/${key}`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+		if (isChallenged(response)) {
+			reverify();
+			return { ok: false as const, error: CHALLENGED };
+		}
 		const body = (await response.json()) as T | DisplayError;
 		if (response.ok) return { ok: true as const, data: body as T };
 		noteSession(body);

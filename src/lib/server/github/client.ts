@@ -48,7 +48,7 @@ function baseHeaders(): Record<string, string> {
 	const token = activeToken();
 	return {
 		...(token ? { Authorization: `Bearer ${token}` } : {}),
-		'User-Agent': 'goard',
+		'User-Agent': 'github-dashboards',
 		Accept: 'application/vnd.github+json'
 	};
 }

@@ -1,4 +1,4 @@
-export const APP_NAME = 'goard';
+export const APP_NAME = 'github-dashboards';
 export const APP_DESCRIPTION = 'A fast GitHub status board for users and repos';
 export const GITHUB_WEB = 'https://github.com';
 

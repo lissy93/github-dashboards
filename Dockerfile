@@ -24,7 +24,7 @@ WORKDIR /app
 ARG VERSION=dev
 ARG REVISION=unknown
 ARG CREATED=unknown
-LABEL org.opencontainers.image.title="goard" \
+LABEL org.opencontainers.image.title="github-dashboards" \
       org.opencontainers.image.description="GitHub insights dashboard" \
       org.opencontainers.image.source="https://github.com/lissy93/goard" \
       org.opencontainers.image.licenses="MIT" \

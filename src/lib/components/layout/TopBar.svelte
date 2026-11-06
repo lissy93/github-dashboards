@@ -19,9 +19,10 @@
 		{#if nav?.tree}
 			<NavDrawer tree={nav.tree} />
 		{/if}
-		<a href="/" class="flex items-center gap-2 font-semibold">
+		<!-- The full name crowds the bar on phones, so just the logo there -->
+		<a href="/" aria-label={APP_NAME} class="flex items-center gap-2 font-semibold">
 			<Logo size={22} />
-			{APP_NAME}
+			<span class="max-sm:hidden">{APP_NAME}</span>
 		</a>
 		<CommandPalette {user} class="ml-auto w-full max-w-xs" />
 		<ThemeToggle />

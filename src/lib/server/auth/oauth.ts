@@ -49,7 +49,7 @@ async function fetchViewer(token: string): Promise<Omit<Session, 'token'>> {
 	const res = await fetch(`${config.GITHUB_API}/user`, {
 		headers: {
 			Authorization: `Bearer ${token}`,
-			'User-Agent': 'goard',
+			'User-Agent': 'github-dashboards',
 			Accept: 'application/vnd.github+json'
 		},
 		signal: AbortSignal.timeout(TIMEOUT_MS)

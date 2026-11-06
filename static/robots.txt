@@ -1,3 +1,6 @@
-# allow crawling everything by default
+# only the homepage is crawlable, the rest sits behind a bot check
 User-agent: *
-Disallow:
+Allow: /$
+Allow: /_app/
+Allow: /logo.svg
+Disallow: /

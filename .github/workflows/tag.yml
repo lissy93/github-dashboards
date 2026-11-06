@@ -173,7 +173,7 @@ jobs:
           fi
 
           {
-            printf 'goard v%s 🚀\n\n' "$VERSION"
+            printf 'github-dashboards v%s 🚀\n\n' "$VERSION"
             if [ -n "$PR_NUMBER" ]; then
               printf 'PR: #%s - %s\n' "$PR_NUMBER" "$PR_TITLE"
             else

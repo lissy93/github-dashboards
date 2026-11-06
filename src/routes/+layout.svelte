@@ -1,6 +1,8 @@
 <script lang="ts">
 	import './layout.css';
 	import { TriangleAlert, CircleAlert, Info } from '@lucide/svelte';
+	import { page } from '$app/state';
+	import { beforeNavigate } from '$app/navigation';
 	import TopBar from '$lib/components/layout/TopBar.svelte';
 	import LoadProgress from '$lib/components/layout/LoadProgress.svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
@@ -13,6 +15,19 @@
 
 	const status = providePanelStatus();
 	provideNavTree();
+
+	// Only home skips the bot check, so leaving it takes a full page load
+	const landedHome = page.url.pathname === '/';
+	beforeNavigate(({ to, willUnload, cancel }) => {
+		if (!landedHome || willUnload || !to || to.url.pathname === '/') return;
+		cancel();
+		location.assign(to.url.href);
+	});
+
+	// Full loads ignore preloaded data, so don't bother preloading on hover
+	$effect(() => {
+		if (landedHome) document.body.dataset.sveltekitPreloadData = 'off';
+	});
 
 	// A rate limit means every panel is on cached data, so flag it in the status report
 	// rather than letting it read all-green
