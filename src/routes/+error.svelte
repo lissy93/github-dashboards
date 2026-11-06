@@ -5,9 +5,10 @@
 	import Icon from '$lib/components/common/Icon.svelte';
 	import { reverify } from '$lib/state/challenge';
 
-	// A bare 403 is the firewall's bot check, our own 403s always have a message
+	// A bare 403 or 429 is the firewall's bot check, ours always have a message
 	$effect(() => {
-		if (page.status === 403 && page.error?.message === 'Error: 403') reverify();
+		const bare = page.error?.message === `Error: ${page.status}`;
+		if (bare && (page.status === 403 || page.status === 429)) reverify();
 	});
 </script>
 
