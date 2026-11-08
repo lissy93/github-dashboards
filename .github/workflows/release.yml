@@ -39,14 +39,14 @@ jobs:
       TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - name: 🛎️ Checkout tag
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: refs/tags/${{ env.TAG }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: 🔧 Setup Node.js
-        uses: actions/setup-node@v6 # zizmor: ignore[cache-poisoning]
+        uses: actions/setup-node@v7 # zizmor: ignore[cache-poisoning]
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -61,12 +61,13 @@ jobs:
         id: package
         run: |
           set -euo pipefail
-          STAGING="goard-release-staging"
+          STAGING="github-dashboards-release-staging"
           mkdir -p "$STAGING"
           cp -r build              "$STAGING/"
           cp    package.json       "$STAGING/"
           cp    package-lock.json  "$STAGING/"
           cp    .env.example       "$STAGING/"
+          cp    LICENSE            "$STAGING/"
           TARBALL="github-dashboards-${TAG}.tar.gz"
           tar -czf "$TARBALL" -C "$STAGING" .
           echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
@@ -85,7 +86,7 @@ jobs:
 
       - name: 🪪 Generate build provenance attestation
         id: attest
-        if: github.event.repository.private == false # continute only if repo is public
+        if: github.event.repository.private == false # continue only if repo is public
         uses: actions/attest-build-provenance@v4
         with:
           subject-path: ${{ steps.package.outputs.tarball }}
@@ -109,7 +110,7 @@ jobs:
           CURRENT_TAG: ${{ env.TAG }}
         run: |
           set -euo pipefail
-          PREV=$({ echo "$CURRENT_TAG"; git tag | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; } \
+          PREV=$({ echo "$CURRENT_TAG"; git tag | grep -E '^[0-9]+\.[0-9]+\.0$' || true; } \
             | sort -uV \
             | awk -v cur="$CURRENT_TAG" '$0 == cur { print prev; exit } { prev = $0 }')
           echo "tag=$PREV" >> "$GITHUB_OUTPUT"

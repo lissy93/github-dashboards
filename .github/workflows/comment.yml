@@ -1,0 +1,152 @@
+# Comments on and labels the issues a release resolves, once its tag is pushed
+# Reads the PR, author and resolved issues from the tag message written by tag.yml
+#
+# Triggered by:
+# - Push of a version tag (created by the Tag workflow)
+# - Manual dispatch with any existing tag, to retry a failed or missed run
+#
+# Safe to re-run, issues already commented on for a version are skipped
+
+name: 🛩️ Comment
+
+on:
+  push:
+    tags: ['*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing git tag to comment for (e.g. 1.2.3)'
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  comment:
+    name: 🛩️ Comment on Resolved Issues
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read # read the tag message
+      issues: write # comment on and label issues
+    steps:
+      - name: 🛩️ Comment on and label resolved issues
+        uses: actions/github-script@v9
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        with:
+          github-token: ${{ secrets.BOT_TOKEN || secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const version = process.env.TAG;
+            if (!/^\d+\.\d+\.\d+$/.test(version)) {
+              core.setFailed(`Invalid tag '${version}', must be semver (e.g. 1.2.3)`);
+              return;
+            }
+
+            // Pull the PR, author and resolved issues out of the tag message
+            const { data: ref } = await github.rest.git.getRef({ owner, repo, ref: `tags/${version}` });
+            if (ref.object.type !== 'tag') {
+              core.info(`${version} is a lightweight tag with no message, nothing to do`);
+              return;
+            }
+            const { data: tag } = await github.rest.git.getTag({ owner, repo, tag_sha: ref.object.sha });
+            const field = (name) => tag.message.match(new RegExp(`^${name}: (.+)$`, 'm'))?.[1] || '';
+            const prNumber = field('PR').match(/^#(\d+)/)?.[1];
+            const prAuthor = field('Author').replace(/^@/, '');
+            const issues = [...field('Resolves').matchAll(/#(\d+)/g)].map((m) => Number(m[1]));
+            if (!prNumber || !issues.length) {
+              core.info(`${version} doesn't resolve any issues, nothing to do`);
+              return;
+            }
+
+            const labelName = `🛩️ Released ${version}`;
+            try {
+              await github.rest.issues.createLabel({
+                owner, repo,
+                name: labelName,
+                color: 'EDEDED',
+                description: `Included in release v${version}`,
+              });
+              core.info(`Created label: ${labelName}`);
+            } catch (e) {
+              if (e.status !== 422) throw e;
+              core.info(`Label already exists: ${labelName}`);
+            }
+
+            // Public sponsors, so we don't ask them to sponsor us again
+            const sponsors = new Set();
+            try {
+              const query = `query($login: String!, $cursor: String) {
+                user(login: $login) { sponsors(first: 100, after: $cursor) {
+                  nodes { ... on User { login } ... on Organization { login } }
+                  pageInfo { hasNextPage endCursor }
+                } }
+              }`;
+              let cursor = null;
+              do {
+                const { user } = await github.graphql(query, { login: owner, cursor });
+                user.sponsors.nodes.forEach((n) => n?.login && sponsors.add(n.login.toLowerCase()));
+                cursor = user.sponsors.pageInfo.hasNextPage ? user.sponsors.pageInfo.endCursor : null;
+              } while (cursor);
+            } catch (e) {
+              core.warning(`Failed to fetch sponsors: ${e.message}`);
+            }
+
+            const creditAuthor = prAuthor && prAuthor.toLowerCase() !== 'lissy93';
+            const marker = `released-${version}`;
+            const rows = [];
+            for (const issue_number of issues) {
+              try {
+                const [{ data: issue }, comments] = await Promise.all([
+                  github.rest.issues.get({ owner, repo, issue_number }),
+                  github.paginate(github.rest.issues.listComments, {
+                    owner, repo, issue_number, per_page: 100,
+                  }),
+                ]);
+                const alreadyCommented = comments.some((c) => c.body?.includes(marker));
+                if (!alreadyCommented) {
+                  const author = issue.user?.login;
+                  const created = new Date(issue.created_at);
+                  const sixMonthsAgo = new Date();
+                  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+                  const sevenDaysAgo = new Date();
+                  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                  const parts = [
+                    author ? `Hey @${author},` : 'Hey,',
+                    `this has now been implemented${creditAuthor ? ` by @${prAuthor}` : ''} in #${prNumber},`,
+                    `and will be released shortly in ${version} 😇`,
+                  ];
+                  if (created < sixMonthsAgo) parts.push(`\nWe're sorry this one took so long 😔`);
+                  if (created > sevenDaysAgo) {
+                    parts.push(sponsors.has(author?.toLowerCase())
+                      ? `\nThank you for supporting GitHub Dashboards' development with your sponsorship 💖`
+                      : `\nIf you're enjoying GitHub Dashboards, consider ` +
+                        `[sponsoring us](https://github.com/sponsors/lissy93) on GitHub to help with development 💖`);
+                  }
+                  parts.push(`<!-- ${marker} -->`);
+                  await github.rest.issues.createComment({ owner, repo, issue_number, body: parts.join(' ') });
+                }
+                await github.rest.issues.addLabels({
+                  owner, repo, issue_number, labels: [labelName, '✅ Fixed'],
+                });
+                rows.push([`#${issue_number}`, alreadyCommented ? '⏭️ Already commented, labelled' : '✅ Commented and labelled']);
+              } catch (e) {
+                core.warning(`Failed to process #${issue_number}: ${e.message}`);
+                rows.push([`#${issue_number}`, `❌ ${e.message}`]);
+              }
+            }
+
+            await core.summary
+              .addHeading(`🛩️ Released ${version}`, 2)
+              .addRaw(`Issues resolved by #${prNumber}`, true)
+              .addTable([[{ data: 'Issue', header: true }, { data: 'Result', header: true }], ...rows])
+              .write();
+            if (rows.some(([, result]) => result.startsWith('❌'))) {
+              core.setFailed('Some issues could not be updated, re-run this workflow to retry');
+            }
