@@ -47,5 +47,5 @@ export type ActivityRhythm = {
 	peak: { weekday: number; hour: number; count: number } | null;
 };
 
-// Active months held in Goard's timeline, keyed by lower-case owner/repo
+// Active months held in our timeline, keyed by lower-case owner/repo
 export type RepoActivityMonths = Record<string, string[]>;

@@ -22,9 +22,9 @@
 
 	const kindWords = { user: 'user', repo: 'repo', 'repo-page': 'page' } as const;
 
-	// Showcase samples for the Try chips, tweak freely: page is a goard sub-path
+	// Showcase samples for the Try chips, tweak freely: page is an app sub-path
 	const EXAMPLES: { user: string; repo?: string; page?: string }[] = [
-	  { user: 'lissy93', page: 'stats' },
+		{ user: 'lissy93', page: 'stats' },
 		{ user: 'MattIPv4', page: 'contributions' },
 		{ user: 'f', page: 'repos' },
 		{ user: 'sindresorhus', page: 'activity' },
