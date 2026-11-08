@@ -12,10 +12,6 @@ updates:
       - '📦 Dependencies'
     assignees:
       - lissy93
-    commit-message:
-      prefix: '⬆️ '
-      prefix-development: '⬆️ '
-      include: scope
     versioning-strategy: increase
     groups:
       security:
@@ -44,9 +40,6 @@ updates:
       - '📦 Dependencies'
     assignees:
       - lissy93
-    commit-message:
-      prefix: '⬆️ '
-      include: scope
     groups:
       github-actions:
         patterns:
