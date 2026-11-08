@@ -94,13 +94,13 @@
 	aria-label="Go to anything"
 	aria-keyshortcuts={isMac ? 'Meta+K' : 'Control+K'}
 	class={cn(
-		'dark:bg-input/30 border-input hover:border-ring text-muted-foreground flex h-9 items-center gap-2 rounded-md border px-2.5 text-sm shadow-xs transition-colors max-sm:size-9 max-sm:justify-center max-sm:px-0',
+		'flex h-9 items-center gap-2 rounded-md border border-input px-2.5 text-sm text-muted-foreground shadow-xs transition-colors hover:border-ring max-sm:size-9 max-sm:justify-center max-sm:px-0 dark:bg-input/30',
 		className
 	)}
 >
 	<Icon icon={Search} size={15} />
 	<span class="max-sm:hidden">Go to anything</span>
-	<kbd class="bg-muted ml-auto rounded border px-1.5 font-mono text-[0.65rem] max-sm:hidden">
+	<kbd class="ml-auto rounded border bg-muted px-1.5 font-mono text-[0.65rem] max-sm:hidden">
 		{isMac ? '⌘' : 'Ctrl'} K
 	</kbd>
 </button>
@@ -134,7 +134,7 @@
 						{#if link.parent}<span class="text-muted-foreground">{link.parent} /</span>{/if}
 						{link.label}
 						{#if link.external}
-							<Icon icon={ExternalLink} size={12} class="text-muted-foreground ml-auto" />
+							<Icon icon={ExternalLink} size={12} class="ml-auto text-muted-foreground" />
 						{/if}
 					</Command.LinkItem>
 				{/each}
@@ -147,7 +147,7 @@
 							<Icon icon={BookMarked} class="text-muted-foreground" />
 							{repo.name}
 							<span
-								class="text-muted-foreground ml-auto flex items-center gap-1 text-xs tabular-nums"
+								class="ml-auto flex items-center gap-1 text-xs text-muted-foreground tabular-nums"
 							>
 								<Icon icon={Star} size={12} />{compactNumber(repo.stars)}
 							</span>
@@ -157,9 +157,9 @@
 			{/if}
 		{/each}
 		{#if !target}
-			<p role="status" class="text-muted-foreground px-3 py-6 text-center text-sm">
+			<p role="status" class="px-3 py-6 text-center text-sm text-muted-foreground">
 				{#if query.trim()}
-					<Icon icon={TriangleAlert} size={13} class="text-warning mr-1 inline" />
+					<Icon icon={TriangleAlert} size={13} class="mr-1 inline text-warning" />
 					Not recognised, try a user, owner/repo or GitHub URL
 				{:else}
 					Type a user, owner/repo, or paste any GitHub URL

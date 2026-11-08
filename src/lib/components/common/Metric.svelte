@@ -27,7 +27,7 @@
 	<Tooltip.Root>
 		<Tooltip.Trigger
 			aria-label={label}
-			class="text-muted-foreground hover:text-foreground focus-visible:ring-ring relative z-10 flex items-center gap-1 rounded tabular-nums transition-colors focus-visible:ring-1 focus-visible:outline-none"
+			class="relative z-10 flex items-center gap-1 rounded text-muted-foreground tabular-nums transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
 		>
 			{#if dot !== undefined}
 				<span

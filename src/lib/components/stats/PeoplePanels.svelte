@@ -119,7 +119,7 @@
 		>
 			{#snippet actions()}
 				{#if data?.sponsorsTotal}
-					<span class="text-muted-foreground text-xs tabular-nums">
+					<span class="text-xs text-muted-foreground tabular-nums">
 						{formatNumber(data.sponsorsTotal)}{data.sponsorsTotal > sponsors.length ? '+' : ''}
 					</span>
 				{/if}

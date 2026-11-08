@@ -24,11 +24,11 @@
 {:then res}
 	<Panel {title} {icon} {href} error={res.ok ? undefined : res.error}>
 		{#if res.ok}
-			<p class="text-muted-foreground text-sm">
+			<p class="text-sm text-muted-foreground">
 				{res.data != null ? summary(res.data) : emptyText}
 			</p>
 			{#if description && res.data != null}
-				<p class="text-muted-foreground/70 mt-1 text-xs">{description}</p>
+				<p class="mt-1 text-xs text-muted-foreground/70">{description}</p>
 			{/if}
 		{/if}
 	</Panel>

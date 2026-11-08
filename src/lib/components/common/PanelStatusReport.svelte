@@ -99,7 +99,7 @@
 				: ''}"
 		/>
 		<Hint text={tip} class="{color} shrink-0">{meta.label}</Hint>
-		<span class="text-foreground shrink-0 font-medium">{report.title}</span>
+		<span class="shrink-0 font-medium text-foreground">{report.title}</span>
 		{#if long}
 			<span class="text-foreground opacity-50">Click for details</span>
 		{/if}
@@ -113,7 +113,7 @@
 				type="button"
 				onclick={() => (open = !open)}
 				aria-expanded={open}
-				class="text-muted-foreground hover:text-foreground flex flex-1 items-center gap-2 py-2 transition-colors"
+				class="flex flex-1 items-center gap-2 py-2 text-muted-foreground transition-colors hover:text-foreground"
 			>
 				<Icon
 					icon={ChevronRight}
@@ -150,7 +150,7 @@
 									onclick={() => toggle(report.id)}
 									aria-expanded={expanded.has(report.id)}
 									aria-label="Toggle detail for {report.title}"
-									class="text-muted-foreground hover:text-foreground ml-auto shrink-0 transition-colors"
+									class="ml-auto shrink-0 text-muted-foreground transition-colors hover:text-foreground"
 								>
 									<Icon
 										icon={ChevronRight}
@@ -161,7 +161,7 @@
 							{/if}
 						</div>
 						{#if long && expanded.has(report.id)}
-							<p class="text-muted-foreground px-1 pb-1 pl-7 break-words">{detail}</p>
+							<p class="px-1 pb-1 pl-7 break-words text-muted-foreground">{detail}</p>
 						{/if}
 					</li>
 				{/each}

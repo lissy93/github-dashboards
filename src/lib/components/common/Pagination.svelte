@@ -40,7 +40,7 @@
 		</Button>
 		{#each items as item, index (index)}
 			{#if item === null}
-				<span class="text-muted-foreground px-1 text-sm">…</span>
+				<span class="px-1 text-sm text-muted-foreground">…</span>
 			{:else}
 				<Button
 					variant={item === page ? 'default' : 'outline'}

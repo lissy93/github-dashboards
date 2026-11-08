@@ -15,11 +15,11 @@
 			<div class="flex items-center gap-2 text-sm">
 				<span class="size-2.5 shrink-0 rounded-sm" style="background-color: {eco.color}"></span>
 				<span class="font-medium">{eco.name}</span>
-				<span class="text-muted-foreground ml-auto tabular-nums">{compactNumber(eco.total)}</span>
+				<span class="ml-auto text-muted-foreground tabular-nums">{compactNumber(eco.total)}</span>
 			</div>
 
 			<!-- Direct deps you own vs transitive ones pulled in, same tint as the depth chart -->
-			<div class="bg-muted/40 flex h-2 overflow-hidden rounded-full">
+			<div class="flex h-2 overflow-hidden rounded-full bg-muted/40">
 				<span
 					style="width: {pct(eco.direct, eco.total)}%; background-color: {DIRECT_COLOR}"
 					title="{eco.direct} direct {eco.name} dependencies"
@@ -30,7 +30,7 @@
 				></span>
 			</div>
 
-			<div class="text-muted-foreground flex flex-wrap gap-x-3 text-xs tabular-nums">
+			<div class="flex flex-wrap gap-x-3 text-xs text-muted-foreground tabular-nums">
 				<span>{compactNumber(eco.direct)} direct</span>
 				<span>{compactNumber(eco.transitive)} transitive</span>
 				{#if eco.vulnerable}

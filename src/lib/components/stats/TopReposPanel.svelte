@@ -39,7 +39,7 @@
 			contributors: metrics.contributors
 		})}
 		<div class="mb-3 flex items-center justify-between gap-2">
-			<p class="text-muted-foreground text-xs">
+			<p class="text-xs text-muted-foreground">
 				{metric.label}{sampled ? ' · sampled repos' : ''}
 			</p>
 			<Select.Root type="single" bind:value={metricKey}>
@@ -65,7 +65,7 @@
 				format={metric.format}
 			/>
 		{:else}
-			<p class="text-muted-foreground text-sm">Nothing here yet</p>
+			<p class="text-sm text-muted-foreground">Nothing here yet</p>
 		{/if}
 	{/snippet}
 </AsyncPanel>

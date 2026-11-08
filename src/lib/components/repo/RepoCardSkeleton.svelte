@@ -2,7 +2,7 @@
 	import { Skeleton } from '$lib/components/ui/skeleton';
 </script>
 
-<div class="bg-card flex flex-col gap-3 rounded-md border p-4">
+<div class="flex flex-col gap-3 rounded-md border bg-card p-4">
 	<Skeleton class="h-5 w-2/5" />
 	<div class="space-y-1.5">
 		<Skeleton class="h-3.5 w-full" />

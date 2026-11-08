@@ -11,7 +11,7 @@
 	height={size}
 	aria-hidden="true"
 	class={cn(
-		'shrink-0 [--robot-shell:var(--foreground)] [--robot-screen:var(--muted)] [--robot-dark:var(--muted-foreground)] [--robot-accent:var(--primary)]',
+		'shrink-0 [--robot-accent:var(--primary)] [--robot-dark:var(--muted-foreground)] [--robot-screen:var(--muted)] [--robot-shell:var(--foreground)]',
 		className
 	)}
 >

@@ -42,19 +42,19 @@
 			<Card.Description>Pick up where you left off</Card.Description>
 		</Card.Header>
 		<Card.Content class="flex h-full flex-col gap-4">
-			<div class="flex items-center gap-3 dark:bg-input/30 border-input rounded p-4">
+			<div class="flex items-center gap-3 rounded border-input p-4 dark:bg-input/30">
 				<UserAvatar login={user.login} src={user.avatarUrl} size="lg" />
 				<div class="min-w-0">
 					<p class="truncate font-medium">{user.name ?? user.login}</p>
-					<p class="text-muted-foreground truncate text-xs">@{user.login}</p>
+					<p class="truncate text-xs text-muted-foreground">@{user.login}</p>
 				</div>
 			</div>
 
-			<div class="text-muted-foreground flex flex-wrap gap-2 text-xs">
+			<div class="flex flex-wrap gap-2 text-xs text-muted-foreground">
 				{#each pills as pill (pill.href)}
 					<a
 						href={pill.href}
-						class="hover:border-ring hover:text-foreground inline-flex items-center gap-1.5 rounded-md border px-2 py-1 transition-colors"
+						class="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 transition-colors hover:border-ring hover:text-foreground"
 					>
 						{#if pill.icon}<Icon icon={pill.icon} size={13} />{/if}{pill.label}
 					</a>
@@ -71,10 +71,10 @@
 			<Card.Description>Bring your own GitHub account (read-only)</Card.Description>
 		</Card.Header>
 		<Card.Content class="flex h-full flex-col justify-between gap-4">
-			<ul class="text-muted-foreground space-y-1.5 text-sm">
+			<ul class="space-y-1.5 text-sm text-muted-foreground">
 				{#each benefits as benefit (benefit)}
 					<li class="flex items-start gap-2">
-						<Icon icon={Check} size={14} class="text-success mt-0.5" />{benefit}
+						<Icon icon={Check} size={14} class="mt-0.5 text-success" />{benefit}
 					</li>
 				{/each}
 			</ul>
@@ -83,7 +83,7 @@
 					<GithubMark />Login with GitHub
 				</Button>
 				{#if loginFailed}
-					<p role="status" class="text-warning flex items-center gap-1.5 text-xs">
+					<p role="status" class="flex items-center gap-1.5 text-xs text-warning">
 						<Icon icon={TriangleAlert} size={13} />GitHub login failed, please try again
 					</p>
 				{/if}

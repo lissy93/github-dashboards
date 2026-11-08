@@ -18,10 +18,10 @@
 	<!-- token-derived dot grid and glow, purely decorative -->
 	<div aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10">
 		<div
-			class="absolute inset-0 bg-[radial-gradient(var(--border)_1px,transparent_1px)] [background-size:1rem_1rem] [mask-image:radial-gradient(ellipse_55%_65%_at_50%_40%,black,transparent)]"
+			class="absolute inset-0 bg-[radial-gradient(var(--border)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_55%_65%_at_50%_40%,black,transparent)] [background-size:1rem_1rem]"
 		></div>
 		<div
-			class="bg-primary/10 absolute top-8 left-1/2 h-40 w-full max-w-md -translate-x-1/2 rounded-full blur-3xl"
+			class="absolute top-8 left-1/2 h-40 w-full max-w-md -translate-x-1/2 rounded-full bg-primary/10 blur-3xl"
 		></div>
 	</div>
 
@@ -30,7 +30,7 @@
 	>
 		<Logo size={64} />{APP_NAME}
 	</h1>
-	<p class="text-muted-foreground mx-auto max-w-xl text-lg text-balance">{APP_DESCRIPTION}</p>
+	<p class="mx-auto max-w-xl text-lg text-balance text-muted-foreground">{APP_DESCRIPTION}</p>
 
 	<ul class="flex flex-wrap items-center justify-center gap-2">
 		{#each features as feature (feature.label)}

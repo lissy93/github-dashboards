@@ -46,7 +46,7 @@
 		<button
 			type="button"
 			onclick={() => (limit = more > 0 ? current + step : null)}
-			class="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs font-medium"
+			class="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
 		>
 			{#if more > 0}
 				<Icon icon={ChevronDown} size={14} />Show more ({formatNumber(more)})

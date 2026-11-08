@@ -87,7 +87,7 @@
 				y="50"
 				dy="0.35em"
 				text-anchor="middle"
-				class="fill-foreground rotate-90 text-[0.95rem] font-medium"
+				class="rotate-90 fill-foreground text-[0.95rem] font-medium"
 				style="transform-origin: center"
 			>
 				{centerLabel}
@@ -110,7 +110,7 @@
 					<span class="size-2.5 shrink-0 rounded-sm" style="background-color: {segment.color}"
 					></span>
 					<span class="truncate" class:line-through={off}>{segment.label}</span>
-					<span class="text-muted-foreground ml-auto tabular-nums">
+					<span class="ml-auto text-muted-foreground tabular-nums">
 						{compactNumber(segment.value)}
 					</span>
 				</button>

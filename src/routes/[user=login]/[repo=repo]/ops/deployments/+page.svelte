@@ -107,7 +107,7 @@
 						totalUnit="deploys"
 					/>
 				{:else}
-					<p class="text-muted-foreground text-sm">No deployments in this window</p>
+					<p class="text-sm text-muted-foreground">No deployments in this window</p>
 				{/if}
 			</Panel>
 

@@ -144,7 +144,7 @@
 <div class="space-y-3">
 	{#if !limit}
 		<div class="flex flex-wrap items-center justify-between gap-2">
-			<p class="text-muted-foreground flex items-center gap-2 text-xs">
+			<p class="flex items-center gap-2 text-xs text-muted-foreground">
 				<span class="tabular-nums">{graph.branchCount} branches</span>
 				<span aria-hidden="true">·</span>
 				<span class="tabular-nums">{graph.tagCount} tags</span>
@@ -183,7 +183,7 @@
 						{#each shownBranches as name (name)}
 							<Select.Item value={name}>{name}</Select.Item>
 						{:else}
-							<p class="text-muted-foreground px-2 py-1.5 text-xs">No matching branches</p>
+							<p class="px-2 py-1.5 text-xs text-muted-foreground">No matching branches</p>
 						{/each}
 					</Select.Content>
 				</Select.Root>
@@ -195,7 +195,7 @@
 		{#each layout.rows as row (row.commit.oid)}
 			<div
 				class={cn(
-					'hover:bg-muted flex items-stretch rounded-md transition-[background-color,opacity]',
+					'flex items-stretch rounded-md transition-[background-color,opacity] hover:bg-muted',
 					needle && !matches(row) && 'opacity-40'
 				)}
 			>
@@ -273,8 +273,8 @@
 							target="_blank"
 							rel="noreferrer"
 							title="{pr.state} pull request{pr.external ? ' from a fork' : ''}"
-							class="hover:bg-muted inline-flex shrink-0 items-center gap-1 rounded-full
-								border px-2 py-0.5 text-xs transition-colors"
+							class="inline-flex shrink-0 items-center gap-1 rounded-full border
+								px-2 py-0.5 text-xs transition-colors hover:bg-muted"
 							style="color: {PR_COLOR[pr.state]};
 								border-color: color-mix(in oklab, {PR_COLOR[pr.state]} 40%, transparent)"
 						>
@@ -283,13 +283,13 @@
 					{/if}
 					<span class="truncate">{row.commit.message}</span>
 					<span
-						class="text-muted-foreground ml-auto flex shrink-0 items-center gap-2 text-xs tabular-nums"
+						class="ml-auto flex shrink-0 items-center gap-2 text-xs text-muted-foreground tabular-nums"
 					>
 						{#if row.commit.author}
 							{#if row.commit.login}
 								<a
 									href={paths.user(row.commit.login)}
-									class="hover:text-foreground hidden items-center gap-1.5 sm:flex"
+									class="hidden items-center gap-1.5 hover:text-foreground sm:flex"
 								>
 									<UserAvatar
 										login={row.commit.login}
@@ -309,7 +309,7 @@
 							href="{repoUrl}/commit/{row.commit.oid}"
 							target="_blank"
 							rel="noreferrer"
-							class="hover:text-foreground font-mono">{row.commit.short}</a
+							class="font-mono hover:text-foreground">{row.commit.short}</a
 						>
 						<span class="hidden md:inline">{relativeTime(row.commit.date)}</span>
 					</span>
@@ -321,15 +321,15 @@
 	{#if limit === undefined && cursor !== null}
 		<div bind:this={sentinel} class="flex flex-col items-center gap-2 py-3">
 			{#if error}
-				<p class="text-danger text-center text-sm">{toDisplayError(error).message}</p>
+				<p class="text-center text-sm text-danger">{toDisplayError(error).message}</p>
 				<button type="button" onclick={loadMore} class={MORE_BTN}>Retry</button>
 			{:else if loading}
-				<Icon icon={Loader2} class="text-muted-foreground animate-spin" />
+				<Icon icon={Loader2} class="animate-spin text-muted-foreground" />
 			{:else}
 				<button type="button" onclick={loadMore} class={MORE_BTN}>Load more</button>
 			{/if}
 		</div>
 	{:else if limit === undefined && commits.length}
-		<p class="text-muted-foreground py-3 text-center text-xs">End of history</p>
+		<p class="py-3 text-center text-xs text-muted-foreground">End of history</p>
 	{/if}
 </div>

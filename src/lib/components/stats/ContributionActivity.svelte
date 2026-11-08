@@ -29,7 +29,7 @@
 			text="{formatNumber(
 				data.total
 			)} contributions across {data.yearsCovered} of {data.totalYears} years"
-			class="text-muted-foreground text-xs"
+			class="text-xs text-muted-foreground"
 		>
 			{compactNumber(data.total)}
 			{data.yearsCovered < data.totalYears ? 'loaded' : 'all time'}
@@ -61,7 +61,7 @@
 
 				<button
 					type="button"
-					class="text-muted-foreground hover:text-foreground flex items-center justify-center gap-1 rounded-md py-1 text-xs transition-colors lg:hidden"
+					class="flex items-center justify-center gap-1 rounded-md py-1 text-xs text-muted-foreground transition-colors hover:text-foreground lg:hidden"
 					aria-expanded={expanded}
 					onclick={() => (expanded = !expanded)}
 				>
@@ -72,7 +72,7 @@
 				</button>
 			{/if}
 
-			<div class="text-muted-foreground flex items-center gap-1.5 self-end text-[0.65rem]">
+			<div class="flex items-center gap-1.5 self-end text-[0.65rem] text-muted-foreground">
 				<span>Less</span>
 				{#each HEATMAP_LEVELS as level (level)}
 					<span class="size-[11px] rounded-[2px]" style="background-color: {level}"></span>
@@ -80,7 +80,7 @@
 				<span>More</span>
 			</div>
 			{#if data.yearsCovered < data.totalYears}
-				<p class="text-muted-foreground text-xs">
+				<p class="text-xs text-muted-foreground">
 					Building contribution history, {data.yearsCovered} of {data.totalYears} years loaded
 				</p>
 			{/if}

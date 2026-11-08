@@ -68,7 +68,7 @@
 </script>
 
 <div class={compact ? 'flex flex-wrap items-center justify-center gap-x-5 gap-y-1' : ''}>
-	<div class={compact ? 'min-w-[7rem] max-w-[10rem] flex-1' : 'mx-auto max-w-[15rem]'}>
+	<div class={compact ? 'max-w-[10rem] min-w-[7rem] flex-1' : 'mx-auto max-w-[15rem]'}>
 		<svg viewBox="0 0 100 56" class="w-full" role="img" aria-label="{centerLabel} {centerValue}">
 			<path d={track} fill="none" stroke="var(--muted)" stroke-width={STROKE} />
 			{#each segments as segment (segment.label)}

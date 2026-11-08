@@ -75,15 +75,15 @@
 						>
 							<Icon icon={ExternalLink} size={14} />
 						</a>
-						<span class="text-muted-foreground text-sm">@{profile.login}</span>
+						<span class="text-sm text-muted-foreground">@{profile.login}</span>
 						{#if profile.isOrg}<Badge variant="secondary">Org</Badge>{/if}
 					</div>
 					{#if profile.bio}
-						<p class="text-muted-foreground max-w-prose text-sm">{profile.bio}</p>
+						<p class="max-w-prose text-sm text-muted-foreground">{profile.bio}</p>
 					{/if}
 				</div>
 			</div>
-			<div class="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+			<div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
 				{#each meta as item (item.text)}
 					<Hint text={item.title} class="gap-1.5">
 						<Icon icon={item.icon} size={13} />
@@ -92,7 +92,7 @@
 								href={item.href}
 								target="_blank"
 								rel="noreferrer"
-								class="hover:text-foreground truncate"
+								class="truncate hover:text-foreground"
 							>
 								{item.text}
 							</a>

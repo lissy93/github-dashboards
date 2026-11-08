@@ -40,7 +40,7 @@
 <!-- Vertical bars on a shared baseline, hover for the full breakdown -->
 <div class="flex flex-col gap-2">
 	<div
-		class="border-chart-grid flex items-end border-b"
+		class="flex items-end border-b border-chart-grid"
 		style="height: {height}rem; gap: {barGap}rem"
 	>
 		{#each data as point (point.label)}
@@ -54,14 +54,14 @@
 			>
 				<!-- Zero-value bars still get a short muted stub so they stay visible without an axis -->
 				<div
-					class="hover:brightness-110 w-full rounded-t-sm transition-[height]"
+					class="w-full rounded-t-sm transition-[height] hover:brightness-110"
 					style="height: {(point.value / max) * 100}%; max-width: {maxBarWidth}px;
 						background-color: {point.value > 0 ? fill(point) : 'var(--muted)'}; min-height: 2px"
 				></div>
 			</div>
 		{/each}
 	</div>
-	<div class="text-muted-foreground flex text-[0.65rem]" style="gap: {barGap}rem">
+	<div class="flex text-[0.65rem] text-muted-foreground" style="gap: {barGap}rem">
 		{#each data as point, index (point.label)}
 			<span
 				class={labelStep > 1

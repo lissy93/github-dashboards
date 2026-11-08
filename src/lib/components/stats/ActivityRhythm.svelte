@@ -23,13 +23,13 @@
 >
 	{#snippet actions(data)}
 		{#if peakLabel(data)}
-			<span class="text-muted-foreground hidden text-xs sm:inline">Peak {peakLabel(data)}</span>
+			<span class="hidden text-xs text-muted-foreground sm:inline">Peak {peakLabel(data)}</span>
 		{/if}
 	{/snippet}
 	{#snippet children(data)}
 		<div class="flex flex-col gap-4">
 			<PunchCard punch={data.punch} peak={data.peak} />
-			<p class="text-muted-foreground text-[0.65rem]">
+			<p class="text-[0.65rem] text-muted-foreground">
 				From tracked activity (commits, PRs, issues, reviews, comments), shown in UTC
 			</p>
 		</div>

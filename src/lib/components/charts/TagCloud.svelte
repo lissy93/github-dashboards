@@ -35,7 +35,7 @@
 <ul class="flex flex-wrap items-baseline gap-x-1 gap-y-0.5">
 	{#each data as word, index (word.label)}
 		<li
-			class="hover:bg-muted/60 cursor-default rounded-md px-2 py-0.5 leading-tight font-medium transition-colors"
+			class="cursor-default rounded-md px-2 py-0.5 leading-tight font-medium transition-colors hover:bg-muted/60"
 			style="font-size: {sizeFor(word.value)}rem; color: {index < ACCENT_LIMIT
 				? seriesColor(index)
 				: 'var(--muted-foreground)'}"
@@ -48,7 +48,7 @@
 		</li>
 	{/each}
 	{#if more > 0}
-		<li class="text-muted-foreground px-2 py-0.5 text-xs">+{more} more</li>
+		<li class="px-2 py-0.5 text-xs text-muted-foreground">+{more} more</li>
 	{/if}
 </ul>
 

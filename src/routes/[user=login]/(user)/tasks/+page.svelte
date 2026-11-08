@@ -60,7 +60,7 @@
 			{#each columns as column, index (index)}
 				<div class="space-y-5">
 					{#each column as bucket (bucket)}
-						<div class="bg-card space-y-3 rounded-md border p-4">
+						<div class="space-y-3 rounded-md border bg-card p-4">
 							<Skeleton class="h-5 w-40" />
 							{#each [0, 1, 2] as row (row)}
 								<Skeleton class="h-10 w-full" />

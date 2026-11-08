@@ -14,13 +14,13 @@
 				href="{repoUrl}/blob/HEAD/{manifest.path}"
 				target="_blank"
 				rel="noopener noreferrer"
-				class="hover:bg-muted/50 flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm"
+				class="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm hover:bg-muted/50"
 			>
-				<Icon icon={FileCode} size={15} class="text-muted-foreground shrink-0" />
+				<Icon icon={FileCode} size={15} class="shrink-0 text-muted-foreground" />
 				<span class="truncate">{manifest.path}</span>
-				<span class="text-muted-foreground shrink-0 text-xs">{manifest.ecosystem}</span>
+				<span class="shrink-0 text-xs text-muted-foreground">{manifest.ecosystem}</span>
 				<span
-					class="text-muted-foreground ml-auto shrink-0 text-xs tabular-nums"
+					class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums"
 					title="{manifest.count} dependencies declared"
 				>
 					{compactNumber(manifest.count)}

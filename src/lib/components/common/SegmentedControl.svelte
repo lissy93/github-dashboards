@@ -44,7 +44,7 @@
 {/snippet}
 
 <div
-	class={cn('bg-muted inline-flex rounded-md p-0.5 text-xs', className)}
+	class={cn('inline-flex rounded-md bg-muted p-0.5 text-xs', className)}
 	role="group"
 	aria-label={label}
 >

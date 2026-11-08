@@ -147,7 +147,7 @@
 			<div class="relative {gutter} shrink-0" style="height: {height}rem" aria-hidden="true">
 				{#each yTicks as value (value)}
 					<span
-						class="text-muted-foreground absolute right-0 translate-y-1/2 text-[0.6rem] tabular-nums"
+						class="absolute right-0 translate-y-1/2 text-[0.6rem] text-muted-foreground tabular-nums"
 						style="bottom: {(value / max) * 100}%"
 					>
 						{compactNumber(value)}
@@ -158,7 +158,7 @@
 			<div class="relative flex-1">
 				{#each yTicks as value (value)}
 					<div
-						class="border-chart-grid absolute inset-x-0 border-t"
+						class="absolute inset-x-0 border-t border-chart-grid"
 						style="bottom: {(value / max) * 100}%"
 					></div>
 				{/each}
@@ -202,7 +202,7 @@
 		<!-- X-axis labels, offset to clear the y-axis gutter -->
 		<div class="flex gap-1.5">
 			<div class="{gutter} shrink-0" aria-hidden="true"></div>
-			<div class="text-muted-foreground flex flex-1 text-[0.65rem]" style="gap: {gap}rem">
+			<div class="flex flex-1 text-[0.65rem] text-muted-foreground" style="gap: {gap}rem">
 				{#each view.bars as bar, index (bar.label)}
 					<span
 						class={view.ticks

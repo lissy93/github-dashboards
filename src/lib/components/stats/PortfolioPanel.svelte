@@ -44,7 +44,7 @@
 	set: (next: string) => void
 )}
 	<div class="flex items-center gap-1.5">
-		<span class="text-muted-foreground text-xs">{tag}</span>
+		<span class="text-xs text-muted-foreground">{tag}</span>
 		<Select.Root type="single" value={axis.key} onValueChange={set}>
 			<Select.Trigger class="h-8 w-auto text-xs">{axis.label}</Select.Trigger>
 			<Select.Content>
@@ -72,7 +72,7 @@
 >
 	{#snippet children(data)}
 		<div class="mb-3 flex flex-wrap items-center justify-between gap-2">
-			<p class="text-muted-foreground text-xs">
+			<p class="text-xs text-muted-foreground">
 				{yAxis.label} vs {xAxis.label} · dot size = {sizeAxis.label}{sampled
 					? ' · sampled repos'
 					: ''}

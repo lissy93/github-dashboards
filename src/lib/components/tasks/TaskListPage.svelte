@@ -48,21 +48,21 @@
 </script>
 
 {#if !all.items.length}
-	<p class="text-muted-foreground py-16 text-center text-sm">{empty}</p>
+	<p class="py-16 text-center text-sm text-muted-foreground">{empty}</p>
 {:else}
 	<div class="space-y-3">
 		<SortFilterBar {config} bind:view searchPlaceholder="Search {title.toLowerCase()}" />
 		{#if note}
-			<p class="text-muted-foreground text-xs">{note}</p>
+			<p class="text-xs text-muted-foreground">{note}</p>
 		{/if}
 		{#if all.capped}
-			<p class="text-muted-foreground text-xs">
+			<p class="text-xs text-muted-foreground">
 				Showing the {compactNumber(all.items.length)} most recent of {compactNumber(all.total)}
 				{title}
 			</p>
 		{/if}
 		{#if visible.length}
-			<div class="bg-card overflow-hidden rounded-md border">
+			<div class="overflow-hidden rounded-md border bg-card">
 				<ul class="divide-y">
 					{#each shown as item (item.id)}
 						<li><ItemRow {item} /></li>
@@ -71,7 +71,7 @@
 			</div>
 			<Pagination bind:page {totalPages} />
 		{:else}
-			<p class="text-muted-foreground py-10 text-center text-sm">No items match</p>
+			<p class="py-10 text-center text-sm text-muted-foreground">No items match</p>
 		{/if}
 	</div>
 {/if}

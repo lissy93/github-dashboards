@@ -61,7 +61,7 @@
 					showDir={false}
 					searchPlaceholder="Search activity"
 				/>
-				<div class="bg-card overflow-hidden rounded-md border">
+				<div class="overflow-hidden rounded-md border bg-card">
 					<Feed
 						initial={result.data.events}
 						initialCursor={result.data.nextCursor}

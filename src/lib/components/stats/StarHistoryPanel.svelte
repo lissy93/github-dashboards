@@ -91,7 +91,7 @@
 				label="Star history view"
 			/>
 		{:else if covering}
-			<span class="text-muted-foreground text-xs tabular-nums">
+			<span class="text-xs text-muted-foreground tabular-nums">
 				Building history for {raw?.coveredRepos ?? 0} of {raw?.totalRepos} repos
 			</span>
 		{/if}
@@ -113,7 +113,7 @@
 				<StackedAreaChart data={stack} onrange={(range) => (zoomed = range)} />
 			{/if}
 			{#if perDay !== null}
-				<p class="text-muted-foreground text-xs tabular-nums">
+				<p class="text-xs text-muted-foreground tabular-nums">
 					Average {perDay.toFixed(1)} stars per day{covering
 						? ` · ${raw?.coveredRepos ?? 0} of ${raw?.totalRepos} repos`
 						: ''}

@@ -17,7 +17,7 @@
 <ul class="divide-y">
 	{#each rows as person, index (person.login)}
 		<li class="flex items-center gap-3 py-2">
-			<span class="text-muted-foreground w-5 shrink-0 text-right text-xs tabular-nums">
+			<span class="w-5 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
 				{index + 1}
 			</span>
 			<UserAvatar
@@ -34,7 +34,7 @@
 					{person.login}
 				</a>
 				{#if person.firstCommit && person.lastCommit}
-					<p class="text-muted-foreground truncate text-xs">
+					<p class="truncate text-xs text-muted-foreground">
 						{formatDate(person.firstCommit)} · last {relativeTime(person.lastCommit)}
 					</p>
 				{/if}
@@ -50,7 +50,7 @@
 				<span class="text-[color:var(--danger)]">−{compactNumber(person.deletions)}</span>
 			</div>
 			<span
-				class="text-muted-foreground w-16 shrink-0 text-right text-sm tabular-nums"
+				class="w-16 shrink-0 text-right text-sm text-muted-foreground tabular-nums"
 				title="{formatNumber(person.contributions)} commits"
 			>
 				{compactNumber(person.contributions)}

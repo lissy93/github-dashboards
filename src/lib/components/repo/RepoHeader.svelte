@@ -106,7 +106,7 @@
 		<div class="flex min-w-0 grow flex-col gap-3">
 			<div class="flex flex-wrap items-center gap-2">
 				<h1 class="flex min-w-0 items-baseline gap-1.5 text-lg font-semibold">
-					<span class="text-muted-foreground font-normal">
+					<span class="font-normal text-muted-foreground">
 						<a href={paths.user(repo.owner)} class="hover:text-foreground hover:underline"
 							>{repo.owner}</a
 						>/
@@ -136,9 +136,9 @@
 				{/each}
 			</div>
 			{#if repo.description}
-				<p class="text-muted-foreground max-w-prose text-sm">{repo.description}</p>
+				<p class="max-w-prose text-sm text-muted-foreground">{repo.description}</p>
 			{/if}
-			<div class="text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+			<div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
 				{#each meta as item (item.text)}
 					<Hint text={item.title} class="gap-1.5">
 						{#if item.dot !== undefined}
