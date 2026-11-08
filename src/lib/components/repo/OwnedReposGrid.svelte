@@ -25,7 +25,7 @@
 <div class="space-y-3">
 	{#if lazy.hasDeltas}
 		<div class="flex items-center justify-end gap-2">
-			<span class="text-muted-foreground text-xs">New stars</span>
+			<span class="text-xs text-muted-foreground">New stars</span>
 			<StarWindow bind:window={starWindow} />
 		</div>
 	{/if}

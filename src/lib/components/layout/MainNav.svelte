@@ -76,7 +76,7 @@
 									<span
 										{...props}
 										aria-disabled="true"
-										class={cn(itemStyle(false), 'text-muted-foreground/60 cursor-not-allowed')}
+										class={cn(itemStyle(false), 'cursor-not-allowed text-muted-foreground/60')}
 									>
 										{#if item.icon}<Icon icon={item.icon} />{/if}
 										{item.label}

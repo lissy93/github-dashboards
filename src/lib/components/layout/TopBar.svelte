@@ -14,7 +14,7 @@
 	const nav = useNavTree();
 </script>
 
-<header class="bg-background/80 sticky top-0 z-30 border-b backdrop-blur">
+<header class="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
 	<div class="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4">
 		{#if nav?.tree}
 			<NavDrawer tree={nav.tree} />

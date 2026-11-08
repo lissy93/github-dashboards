@@ -643,7 +643,7 @@ export function lifecycleSegments(
 	if (!flags.length) return [{ start, end, active: true }];
 
 	// A quiet run only dims once it reaches the gap, shorter pauses stay active
-	for (let index = 0; index < flags.length; ) {
+	for (let index = 0; index < flags.length;) {
 		if (flags[index].active) {
 			index++;
 			continue;

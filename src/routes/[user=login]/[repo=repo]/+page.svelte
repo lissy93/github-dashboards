@@ -221,7 +221,7 @@
 			>
 				{#snippet children(tree)}
 					<div class="space-y-3">
-						<p class="text-muted-foreground text-sm">{filesSummary(tree)}</p>
+						<p class="text-sm text-muted-foreground">{filesSummary(tree)}</p>
 						<Treemap data={treeSizeSlices(tree.root)} height={9} format={formatBytes} />
 					</div>
 				{/snippet}
@@ -238,7 +238,7 @@
 			>
 				{#snippet children(sc)}
 					<div class="space-y-3">
-						<p class="text-muted-foreground text-sm">{supplyChainSummary(sc)}</p>
+						<p class="text-sm text-muted-foreground">{supplyChainSummary(sc)}</p>
 						{#if sc.severities.length}
 							<ul class="flex flex-wrap gap-x-3 gap-y-1 text-xs">
 								{#each sc.severities as chip (chip.label)}
@@ -272,7 +272,7 @@
 				{#snippet children(wf)}
 					{@const gauge = workflowGauge(wf)}
 					<div class="space-y-3">
-						<p class="text-muted-foreground text-sm">{workflowSummary(wf)}</p>
+						<p class="text-sm text-muted-foreground">{workflowSummary(wf)}</p>
 						{#if gauge}
 							<RadialGauge
 								data={gauge.data}
@@ -295,7 +295,7 @@
 				{#snippet children(d)}
 					{@const freq = deploymentMiniChart(d)}
 					<div class="space-y-3">
-						<p class="text-muted-foreground text-sm">{deploymentSummary(d)}</p>
+						<p class="text-sm text-muted-foreground">{deploymentSummary(d)}</p>
 						{#if freq.bars.length >= 2}
 							<StackedBarChart
 								bars={freq.bars}
@@ -314,7 +314,7 @@
 				{#snippet children(p)}
 					{@const spark = pageBuildSpark(p)}
 					<div class="space-y-2">
-						<p class="text-muted-foreground text-sm">{pagesSummary(p)}</p>
+						<p class="text-sm text-muted-foreground">{pagesSummary(p)}</p>
 						{#if spark.values.length >= 3}
 							<div class="space-y-1">
 								<Sparkline
@@ -325,7 +325,7 @@
 									color="var(--chart-2)"
 									class="h-9"
 								/>
-								<p class="text-muted-foreground text-[0.65rem]">Recent build times</p>
+								<p class="text-[0.65rem] text-muted-foreground">Recent build times</p>
 							</div>
 						{/if}
 					</div>
@@ -340,7 +340,7 @@
 			>
 				{#snippet children(r)}
 					<div class="space-y-3">
-						<p class="text-muted-foreground text-sm">{releasesSummary(r)}</p>
+						<p class="text-sm text-muted-foreground">{releasesSummary(r)}</p>
 						{#if r.releases.length >= 2 && hasReleaseDownloads(r.releases)}
 							<BarChart
 								data={releaseDownloadBars(r.releases)}

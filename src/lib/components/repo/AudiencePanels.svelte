@@ -38,7 +38,7 @@
 			cause={gate?.cause}
 		>
 			{#snippet actions()}
-				<span class="text-muted-foreground text-xs tabular-nums">
+				<span class="text-xs text-muted-foreground tabular-nums">
 					{compactNumber(section.total)}
 				</span>
 			{/snippet}

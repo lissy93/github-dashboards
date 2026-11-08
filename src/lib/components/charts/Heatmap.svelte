@@ -70,7 +70,7 @@
 	</div>
 	<div class="overflow-x-auto pb-1">
 		<div class="flex min-w-[18rem] flex-col gap-1">
-			<div class="text-muted-foreground flex gap-[2px] text-[0.6rem]">
+			<div class="flex gap-[2px] text-[0.6rem] text-muted-foreground">
 				{#each monthLabels as label, index (index)}
 					<span class="min-w-0 flex-1 overflow-visible whitespace-nowrap">{label}</span>
 				{/each}

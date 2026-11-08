@@ -82,7 +82,7 @@
 	$effect(() => () => status?.remove(uid));
 </script>
 
-<Card.Root class={cn('gap-0 overflow-hidden py-0 h-full', className)}>
+<Card.Root class={cn('h-full gap-0 overflow-hidden py-0', className)}>
 	<Card.Header
 		class="flex flex-row items-center justify-between gap-2 border-b px-4 py-2.5 [.border-b]:pb-2.5"
 	>
@@ -114,8 +114,8 @@
 	<Card.Content class="p-4">
 		{#if display}
 			{#if display.pending}
-				<p class="text-muted-foreground flex items-center gap-2 text-sm">
-					<span class="bg-muted-foreground/60 size-2 shrink-0 animate-pulse rounded-full"></span>
+				<p class="flex items-center gap-2 text-sm text-muted-foreground">
+					<span class="size-2 shrink-0 animate-pulse rounded-full bg-muted-foreground/60"></span>
 					{display.message}
 				</p>
 			{:else}

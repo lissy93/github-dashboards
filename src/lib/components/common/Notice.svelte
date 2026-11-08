@@ -12,7 +12,7 @@
 </script>
 
 <div class="mx-auto max-w-md space-y-3 py-20 text-center">
-	<Icon {icon} size={28} class="text-muted-foreground mx-auto" />
+	<Icon {icon} size={28} class="mx-auto text-muted-foreground" />
 	<svelte:element this={heading} class="text-lg font-medium">{title}</svelte:element>
-	{#if message}<p class="text-muted-foreground text-sm">{message}</p>{/if}
+	{#if message}<p class="text-sm text-muted-foreground">{message}</p>{/if}
 </div>

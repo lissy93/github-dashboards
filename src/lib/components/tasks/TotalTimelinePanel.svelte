@@ -54,7 +54,7 @@
 				zoom={!mini}
 			/>
 			{#if tl.sampled && !mini}
-				<p class="text-muted-foreground text-xs">{TIMELINE_SAMPLED_NOTE}</p>
+				<p class="text-xs text-muted-foreground">{TIMELINE_SAMPLED_NOTE}</p>
 			{/if}
 		</div>
 	{/snippet}

@@ -17,12 +17,12 @@
 
 <div class="flex flex-col items-center gap-2 px-4 py-8 text-center">
 	<div
-		class="bg-muted/60 text-muted-foreground flex size-10 items-center justify-center rounded-full"
+		class="flex size-10 items-center justify-center rounded-full bg-muted/60 text-muted-foreground"
 	>
 		<Icon {icon} size={18} />
 	</div>
-	<p class="text-muted-foreground text-sm">{text}</p>
+	<p class="text-sm text-muted-foreground">{text}</p>
 	{#if hint}
-		<p class="text-muted-foreground/70 max-w-[24ch] text-xs">{hint}</p>
+		<p class="max-w-[24ch] text-xs text-muted-foreground/70">{hint}</p>
 	{/if}
 </div>

@@ -12,7 +12,7 @@
 
 {#if brush.band}
 	<div
-		class="border-foreground/25 bg-foreground/10 pointer-events-none absolute inset-y-0 border-x"
+		class="pointer-events-none absolute inset-y-0 border-x border-foreground/25 bg-foreground/10"
 		style="left: {brush.band.x}px; width: {brush.band.width}px"
 	></div>
 {/if}
@@ -23,7 +23,7 @@
 		onpointerdown={(event) => event.stopPropagation()}
 		class={cn(
 			PANEL_ACTION_CLASS,
-			'bg-card/85 absolute -top-3 right-0 z-10 backdrop-blur-xs',
+			'absolute -top-3 right-0 z-10 bg-card/85 backdrop-blur-xs',
 			className
 		)}
 	>

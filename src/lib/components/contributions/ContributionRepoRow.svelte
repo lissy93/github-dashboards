@@ -30,7 +30,7 @@
 		<a href="/{item.repo}" class="block truncate text-sm font-medium hover:underline">
 			{item.repo}
 		</a>
-		<div class="text-muted-foreground flex items-center gap-1.5 text-xs tabular-nums">
+		<div class="flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
 			{#if prs}
 				<Hint text={merged ? 'Pull requests merged' : 'Pull requests opened'} class="gap-1">
 					<GitPullRequest class="size-3.5" />{formatNumber(prs)}

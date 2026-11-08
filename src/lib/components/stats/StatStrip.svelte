@@ -100,7 +100,7 @@
 			<div class="space-y-2">
 				<StatTileGrid tiles={rows} />
 				{#if coverage}
-					<p class="text-muted-foreground px-1 text-xs">{coverage}</p>
+					<p class="px-1 text-xs text-muted-foreground">{coverage}</p>
 				{/if}
 			</div>
 		{/if}

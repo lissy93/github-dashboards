@@ -40,7 +40,7 @@
 				{#if detailed}
 					<Hint
 						text={check.hint}
-						class="text-muted-foreground self-start pl-4 text-xs {check.hint ? 'cursor-help' : ''}"
+						class="self-start pl-4 text-xs text-muted-foreground {check.hint ? 'cursor-help' : ''}"
 					>
 						{check.detail}
 					</Hint>
@@ -49,7 +49,7 @@
 		{/each}
 	</ul>
 
-	<div class="text-muted-foreground flex items-center justify-between gap-3 text-xs">
+	<div class="flex items-center justify-between gap-3 text-xs text-muted-foreground">
 		<span class="tabular-nums">{security.passed}/{security.applicable} checks passed</span>
 		<span>
 			Grade

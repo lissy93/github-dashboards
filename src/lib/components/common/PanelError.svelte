@@ -21,17 +21,17 @@
 </script>
 
 <div class="flex flex-col items-center gap-2 px-4 py-6 text-center">
-	<div class="bg-muted/60 flex size-10 items-center justify-center rounded-full">
+	<div class="flex size-10 items-center justify-center rounded-full bg-muted/60">
 		<Icon icon={ICONS[cause] ?? Unplug} size={18} class={LEVEL_META[meta.level].color} />
 	</div>
 	<p class="text-sm font-medium">{meta.label}</p>
-	<p class="text-muted-foreground/80 max-w-[32ch] text-xs">{meta.hint}</p>
+	<p class="max-w-[32ch] text-xs text-muted-foreground/80">{meta.hint}</p>
 	<details class="mt-1 w-full max-w-sm">
-		<summary class="text-muted-foreground hover:text-foreground cursor-pointer text-xs select-none">
+		<summary class="cursor-pointer text-xs text-muted-foreground select-none hover:text-foreground">
 			Show details
 		</summary>
 		<p
-			class="text-muted-foreground bg-muted/40 mt-2 max-h-32 overflow-auto rounded-md border p-2 text-left font-mono text-xs break-words"
+			class="mt-2 max-h-32 overflow-auto rounded-md border bg-muted/40 p-2 text-left font-mono text-xs break-words text-muted-foreground"
 		>
 			{error.message}
 		</p>

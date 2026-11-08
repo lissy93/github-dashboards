@@ -87,15 +87,15 @@
 		{/each}
 	</ul>
 {:else if !loading}
-	<p class="text-muted-foreground py-10 text-center text-sm">{empty}</p>
+	<p class="py-10 text-center text-sm text-muted-foreground">{empty}</p>
 {/if}
 
 {#if error}
-	<p class="text-danger py-4 text-center text-sm">{toDisplayError(error).message}</p>
+	<p class="py-4 text-center text-sm text-danger">{toDisplayError(error).message}</p>
 {:else if !done}
 	<div bind:this={sentinel} class="flex justify-center py-4">
-		{#if loading}<Icon icon={Loader2} class="text-muted-foreground animate-spin" />{/if}
+		{#if loading}<Icon icon={Loader2} class="animate-spin text-muted-foreground" />{/if}
 	</div>
 {:else if items.length}
-	<p class="text-muted-foreground py-4 text-center text-xs">End of timeline</p>
+	<p class="py-4 text-center text-xs text-muted-foreground">End of timeline</p>
 {/if}

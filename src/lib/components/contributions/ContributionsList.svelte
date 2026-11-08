@@ -48,7 +48,7 @@
 
 <div class="space-y-3">
 	{#if visible.length}
-		<p class="text-muted-foreground text-xs tabular-nums">{summary}</p>
+		<p class="text-xs text-muted-foreground tabular-nums">{summary}</p>
 		<ul class="divide-y">
 			{#each shown as row (row.year + '/' + row.repo)}
 				<ContributionRepoRow
@@ -61,6 +61,6 @@
 		</ul>
 		<Pagination bind:page {totalPages} />
 	{:else}
-		<p class="text-muted-foreground py-6 text-center text-sm">No contributions match</p>
+		<p class="py-6 text-center text-sm text-muted-foreground">No contributions match</p>
 	{/if}
 </div>

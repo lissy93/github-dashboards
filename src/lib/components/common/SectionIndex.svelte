@@ -53,7 +53,7 @@
 		{@const icon = iconFor(scope, section.slug, child.slug)}
 		{#if locked[child.slug]}
 			<Panel title={child.label} {icon} cause="forbidden" detail={locked[child.slug]}>
-				<p class="text-muted-foreground text-sm">{locked[child.slug]}</p>
+				<p class="text-sm text-muted-foreground">{locked[child.slug]}</p>
 			</Panel>
 		{:else if summaries[child.slug]}
 			<SummaryPanel
@@ -67,7 +67,7 @@
 			/>
 		{:else}
 			<Panel title={child.label} {icon} href={pageHref(base, section.slug, child.slug)}>
-				<p class="text-muted-foreground text-sm">{child.description}</p>
+				<p class="text-sm text-muted-foreground">{child.description}</p>
 			</Panel>
 		{/if}
 	{/each}

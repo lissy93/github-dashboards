@@ -15,7 +15,7 @@
 </script>
 
 {#snippet actions()}
-	{#if sampleText}<span class="text-muted-foreground text-xs">{sampleText}</span>{/if}
+	{#if sampleText}<span class="text-xs text-muted-foreground">{sampleText}</span>{/if}
 {/snippet}
 
 {#await result}

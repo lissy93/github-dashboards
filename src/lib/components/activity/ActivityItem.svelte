@@ -24,7 +24,7 @@
 <article class="flex gap-3 px-4 py-3">
 	<Icon icon={activityIcon(event)} size={16} class="mt-0.5 shrink-0 {activityColor(event)}" />
 	<div class="min-w-0 flex-1 space-y-1">
-		<div class="text-muted-foreground flex flex-wrap items-baseline gap-x-2 text-sm">
+		<div class="flex flex-wrap items-baseline gap-x-2 text-sm text-muted-foreground">
 			<span class="text-foreground">
 				{#if showActor && event.actor}<a href={paths.user(event.actor)} class="hover:underline"
 						>{event.actor}</a
@@ -35,12 +35,12 @@
 					href="{GITHUB_WEB}/{event.repo}"
 					target="_blank"
 					rel="noreferrer"
-					class="hover:text-foreground truncate"
+					class="truncate hover:text-foreground"
 				>
 					{event.repo}
 				</a>
 			{/if}
-			<span class="bg-muted rounded px-1.5 py-0.5 text-[0.65rem] tracking-wide uppercase">
+			<span class="rounded bg-muted px-1.5 py-0.5 text-[0.65rem] tracking-wide uppercase">
 				{activityLabel(event.type)}
 			</span>
 			<Hint text={formatDateTime(event.createdAt)} class="ml-auto shrink-0">
@@ -61,14 +61,14 @@
 			</a>
 		{/if}
 		{#if event.body}
-			<p class="text-muted-foreground line-clamp-2 text-sm">{event.body}</p>
+			<p class="line-clamp-2 text-sm text-muted-foreground">{event.body}</p>
 		{/if}
 		{#if event.reactions}
 			<Reactions {event} />
 		{/if}
 	</div>
 	{#if showActor && event.actor}
-		<Hint text={event.actor} class="self-end shrink-0">
+		<Hint text={event.actor} class="shrink-0 self-end">
 			<a href={paths.user(event.actor)}>
 				<UserAvatar
 					login={event.actor}

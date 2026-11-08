@@ -68,7 +68,7 @@
 		{@const all = owners(data)}
 		<BubbleCloud data={toBubbles(all.slice(0, MAX_OWNERS))} height={22} />
 		{#if all.length > MAX_OWNERS}
-			<p class="text-muted-foreground mt-2 text-center text-xs">
+			<p class="mt-2 text-center text-xs text-muted-foreground">
 				Top {MAX_OWNERS} of {formatNumber(all.length)} orgs by merged pull requests
 			</p>
 		{/if}

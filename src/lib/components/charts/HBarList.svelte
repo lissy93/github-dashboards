@@ -49,7 +49,7 @@
 				})}
 			onpointerleave={tip.hide}
 		>
-			<span class="text-muted-foreground flex min-w-0 items-center gap-1.5">
+			<span class="flex min-w-0 items-center gap-1.5 text-muted-foreground">
 				{#if row.icon}
 					<img
 						src={row.icon}
@@ -65,7 +65,7 @@
 					<span class="truncate">{row.label}</span>
 				{/if}
 			</span>
-			<span class="bg-muted/40 h-2 overflow-hidden rounded-full">
+			<span class="h-2 overflow-hidden rounded-full bg-muted/40">
 				<span class="flex h-full overflow-hidden rounded-full" style="width: {width(row)}%">
 					{#each row.segments ?? [] as segment (segment.key)}
 						<span

@@ -25,7 +25,7 @@
 
 {#await repos.result}
 	<Panel title="Repositories" icon={BookMarked} cause="loading">
-		<div class="grid gap-3 lg:grid-cols-2 3xl:grid-cols-3">
+		<div class="3xl:grid-cols-3 grid gap-3 lg:grid-cols-2">
 			{#each [0, 1, 2, 3, 4, 5] as index (index)}
 				<RepoCardSkeleton />
 			{/each}

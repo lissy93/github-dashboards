@@ -41,7 +41,7 @@
 		/>
 		<Icon icon={open ? FolderOpen : Folder} size={15} class="text-foreground/70" />
 		<span class="flex-1 truncate">{node.name}</span>
-		<span class="text-muted-foreground shrink-0 text-xs tabular-nums">
+		<span class="shrink-0 text-xs text-muted-foreground tabular-nums">
 			{node.fileCount} · {formatBytes(node.size)}
 		</span>
 	</button>
@@ -55,7 +55,7 @@
 		<span class="w-3.5 shrink-0"></span>
 		<Icon icon={iconForFile(node.name)} size={15} class="text-muted-foreground" />
 		<span class="flex-1 truncate">{node.name}</span>
-		<span class="text-muted-foreground shrink-0 text-xs tabular-nums">
+		<span class="shrink-0 text-xs text-muted-foreground tabular-nums">
 			{formatBytes(node.size)}
 		</span>
 	</a>

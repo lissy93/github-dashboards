@@ -360,9 +360,10 @@ async function guarded(label: string, read: () => Promise<CheckStatus>): Promise
 	try {
 		return await read();
 	} catch (error) {
-		if (
-			!(error instanceof AppError && (error.code === 'forbidden' || error.code === 'unauthorized'))
-		)
+		if (!(
+			error instanceof AppError &&
+			(error.code === 'forbidden' || error.code === 'unauthorized')
+		))
 			logError(`security-probe:${label}`, error);
 		return 'na';
 	}

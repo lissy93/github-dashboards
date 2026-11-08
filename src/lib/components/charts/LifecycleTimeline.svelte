@@ -49,14 +49,14 @@
 			<div class="relative h-4">
 				{#each ticks as tick (tick.label)}
 					<span
-						class="text-muted-foreground absolute -translate-x-1/2 tabular-nums"
+						class="absolute -translate-x-1/2 text-muted-foreground tabular-nums"
 						style="left: {tick.left}%"
 					>
 						{tick.label}
 					</span>
 				{/each}
 			</div>
-			<span class="text-muted-foreground text-right">Stars</span>
+			<span class="text-right text-muted-foreground">Stars</span>
 		</div>
 
 		<ul class="flex flex-col gap-1.5">
@@ -65,7 +65,7 @@
 				<li class="grid grid-cols-[9rem_1fr_3rem] items-center gap-3 text-xs">
 					<a class="truncate hover:underline" href={row.url}>{row.name}</a>
 					<div
-						class="bg-muted/35 relative h-5 rounded-sm"
+						class="relative h-5 rounded-sm bg-muted/35"
 						role="img"
 						aria-label="{row.name}, created {formatDate(row.createdAt)}, last pushed {formatDate(
 							row.pushedAt
@@ -74,7 +74,7 @@
 						onpointerleave={tip.hide}
 					>
 						{#each ticks as tick (tick.label)}
-							<span class="border-chart-grid absolute inset-y-0 border-l" style="left: {tick.left}%"
+							<span class="absolute inset-y-0 border-l border-chart-grid" style="left: {tick.left}%"
 							></span>
 						{/each}
 						{#each row.segments as segment, index (index)}
@@ -88,14 +88,14 @@
 							></span>
 						{/each}
 						<span
-							class="border-card absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border"
+							class="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-card"
 							class:opacity-60={row.archived}
 							style="left: {position(row.end)}%; width: {markerSize(
 								row.stars
 							)}px; height: {markerSize(row.stars)}px; background-color: {color}"
 						></span>
 					</div>
-					<span class="text-muted-foreground text-right tabular-nums">
+					<span class="text-right text-muted-foreground tabular-nums">
 						{compactNumber(row.stars)}
 					</span>
 				</li>
