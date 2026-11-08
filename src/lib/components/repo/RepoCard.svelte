@@ -96,7 +96,7 @@
 
 {#snippet description()}
 	{#if repo.description}
-		<p class="text-muted-foreground line-clamp-2 text-sm">{repo.description}</p>
+		<p class="line-clamp-2 text-sm text-muted-foreground">{repo.description}</p>
 	{/if}
 {/snippet}
 
@@ -115,15 +115,15 @@
 <!-- Closed count that width-reveals next to its open count on hover -->
 {#snippet closedCount(count: number)}
 	<span
-		class="-ml-1 grid grid-cols-[0fr] overflow-hidden opacity-0 transition-[grid-template-columns,opacity] duration-150 ease-out group-hover/drawer:grid-cols-[1fr] group-hover/drawer:opacity-100 group-focus-within/drawer:grid-cols-[1fr] group-focus-within/drawer:opacity-100"
+		class="-ml-1 grid grid-cols-[0fr] overflow-hidden opacity-0 transition-[grid-template-columns,opacity] duration-150 ease-out group-focus-within/drawer:grid-cols-[1fr] group-focus-within/drawer:opacity-100 group-hover/drawer:grid-cols-[1fr] group-hover/drawer:opacity-100"
 	>
-		<span class="text-muted-foreground/55 min-w-0 truncate pl-1">/ {compactNumber(count)}</span>
+		<span class="min-w-0 truncate pl-1 text-muted-foreground/55">/ {compactNumber(count)}</span>
 	</span>
 {/snippet}
 
 {#if detailed}
 	<div
-		class="bg-popover hover:border-ring/50 focus-within:border-ring/50 relative flex flex-col overflow-hidden rounded-md border transition-colors"
+		class="relative flex flex-col overflow-hidden rounded-md border bg-popover transition-colors focus-within:border-ring/50 hover:border-ring/50"
 	>
 		<div class="flex flex-1 flex-col gap-3 p-4">
 			<div class="flex items-start justify-between gap-2">
@@ -142,7 +142,7 @@
 		<!-- Issues/PRs stay visible, the rest slides up when the drawer is hovered -->
 		<div class="group/drawer relative">
 			<div
-				class="bg-muted absolute inset-x-0 bottom-full flex translate-y-full flex-col gap-2 border-t px-4 pt-2 text-xs transition-transform duration-300 ease-out group-hover/drawer:translate-y-0 group-focus-within/drawer:translate-y-0"
+				class="absolute inset-x-0 bottom-full flex translate-y-full flex-col gap-2 border-t bg-muted px-4 pt-2 text-xs transition-transform duration-300 ease-out group-focus-within/drawer:translate-y-0 group-hover/drawer:translate-y-0"
 			>
 				{#if repo.language || repo.license || stats || repo.diskUsage > 0}
 					<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -225,7 +225,7 @@
 			</div>
 
 			<div
-				class="bg-muted relative z-10 flex items-center gap-x-3 border-t px-4 py-2 text-xs transition-colors group-hover/drawer:border-transparent group-focus-within/drawer:border-transparent"
+				class="relative z-10 flex items-center gap-x-3 border-t bg-muted px-4 py-2 text-xs transition-colors group-focus-within/drawer:border-transparent group-hover/drawer:border-transparent"
 			>
 				<Metric icon={CircleDot} value={compactNumber(repo.openIssues)} label={issuesLabel}>
 					{#snippet trailing()}
@@ -240,7 +240,7 @@
 
 				<!-- Date and stars, collapse away once the panel slides open -->
 				<div
-					class="ml-auto grid grid-cols-[1fr] overflow-hidden transition-[grid-template-columns,opacity] duration-300 ease-out group-hover/drawer:grid-cols-[0fr] group-hover/drawer:opacity-0 group-focus-within/drawer:grid-cols-[0fr] group-focus-within/drawer:opacity-0"
+					class="ml-auto grid grid-cols-[1fr] overflow-hidden transition-[grid-template-columns,opacity] duration-300 ease-out group-focus-within/drawer:grid-cols-[0fr] group-focus-within/drawer:opacity-0 group-hover/drawer:grid-cols-[0fr] group-hover/drawer:opacity-0"
 				>
 					<div class="flex min-w-0 items-center gap-x-3 truncate">
 						<Metric
@@ -257,7 +257,7 @@
 {:else}
 	<a
 		href={paths.repo(repo.owner, repo.name)}
-		class="bg-card hover:border-ring/50 flex flex-col gap-3 rounded-md border p-4 transition-colors"
+		class="flex flex-col gap-3 rounded-md border bg-card p-4 transition-colors hover:border-ring/50"
 	>
 		<div class="flex items-start justify-between gap-2">
 			<span class="truncate font-medium">{repo.name}</span>
@@ -266,7 +266,7 @@
 
 		{@render description()}
 
-		<div class="text-muted-foreground mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+		<div class="mt-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
 			{@render langLabel()}
 			{#each basicStats as stat (stat.icon)}
 				<span class="flex items-center gap-1"

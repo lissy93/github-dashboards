@@ -11,7 +11,7 @@
 
 <div class="space-y-3">
 	{#if bar}<Skeleton class="h-9 w-full" />{/if}
-	<div class="space-y-3 {framed ? 'bg-card rounded-md border p-4' : ''}">
+	<div class="space-y-3 {framed ? 'rounded-md border bg-card p-4' : ''}">
 		{#each Array.from({ length: rows }, (_, index) => index) as index (index)}
 			<Skeleton class="h-10 w-full" />
 		{/each}

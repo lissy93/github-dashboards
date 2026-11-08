@@ -24,7 +24,7 @@
 	<Icon
 		icon={Search}
 		size={15}
-		class="text-muted-foreground absolute top-1/2 left-2.5 -translate-y-1/2"
+		class="absolute top-1/2 left-2.5 -translate-y-1/2 text-muted-foreground"
 	/>
 	<Input bind:value {placeholder} aria-label={label ?? placeholder} class={inputClass} />
 </div>

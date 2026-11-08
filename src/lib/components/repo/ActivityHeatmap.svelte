@@ -66,7 +66,7 @@
 
 <div class="max-w-2xl overflow-x-auto pb-1">
 	<div class="min-w-[20rem]">
-		<div class="text-muted-foreground flex gap-[2px] text-[0.6rem]">
+		<div class="flex gap-[2px] text-[0.6rem] text-muted-foreground">
 			<span class="w-9 shrink-0"></span>
 			{#each MONTHS as month, index (index)}
 				<span class="flex-1 text-center">{month}</span>
@@ -76,7 +76,7 @@
 			{#each data.rows as row, rowIndex (row.year)}
 				<div class="flex items-stretch gap-[2px] py-[2px]">
 					<span
-						class="text-muted-foreground flex w-9 shrink-0 items-center text-[0.6rem] tabular-nums"
+						class="flex w-9 shrink-0 items-center text-[0.6rem] text-muted-foreground tabular-nums"
 					>
 						{row.year}
 					</span>
@@ -94,7 +94,7 @@
 								class="m-px hidden h-[calc(100%-2px)] flex-col rounded-[2px] p-1 sm:flex md:bg-card/80"
 							>
 								{#if flow === 0}
-									<span class="text-muted-foreground/40 m-auto text-[0.7rem]" aria-hidden="true">
+									<span class="m-auto text-[0.7rem] text-muted-foreground/40" aria-hidden="true">
 										&middot;
 									</span>
 								{:else}
@@ -109,7 +109,7 @@
 												<Icon
 													icon={KIND_ICON[line.kind]}
 													size={11}
-													class="text-muted-foreground hidden shrink-0 lg:inline"
+													class="hidden shrink-0 text-muted-foreground lg:inline"
 												/>
 												{compactNumber(line.value)}
 											</span>

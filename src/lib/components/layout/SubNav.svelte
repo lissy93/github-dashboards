@@ -18,13 +18,13 @@
 
 <!-- Segmented control so it reads as a secondary selector, not a second tab bar -->
 <nav aria-label={label} class="flex">
-	<div class="bg-muted/50 flex w-fit max-w-full gap-1 overflow-x-auto rounded-lg p-1">
+	<div class="flex w-fit max-w-full gap-1 overflow-x-auto rounded-lg bg-muted/50 p-1">
 		{#each items as item (item.label)}
 			{#if item.disabled}
 				<span
 					aria-disabled="true"
 					title={item.tooltip}
-					class="text-muted-foreground/50 flex cursor-not-allowed items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap"
+					class="flex cursor-not-allowed items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap text-muted-foreground/50"
 				>
 					{#if item.icon}<Icon icon={item.icon} size={14} />{/if}
 					{item.label}

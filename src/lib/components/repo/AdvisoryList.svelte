@@ -12,7 +12,7 @@
 		<li class="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
 			<SeverityBadge severity={advisory.severity} />
 			<p class="min-w-0 grow truncate text-sm font-medium">{advisory.summary}</p>
-			<div class="text-muted-foreground shrink-0 text-right text-xs tabular-nums">
+			<div class="shrink-0 text-right text-xs text-muted-foreground tabular-nums">
 				{#if advisory.publishedAt}<p>{formatDate(advisory.publishedAt)}</p>{/if}
 				<ExtLink href={advisory.url}>{advisory.id}</ExtLink>
 			</div>

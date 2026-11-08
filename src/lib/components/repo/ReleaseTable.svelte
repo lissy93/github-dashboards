@@ -16,7 +16,7 @@
 
 <div class="overflow-x-auto">
 	<table class="w-full text-sm tabular-nums">
-		<thead class="text-muted-foreground text-xs">
+		<thead class="text-xs text-muted-foreground">
 			<tr class="border-b">
 				<th class="px-2 py-2 text-left font-medium first:pl-0">Release</th>
 				<th class="px-2 py-2 text-left font-medium max-sm:hidden">Tag</th>
@@ -34,19 +34,19 @@
 							<ExtLink href={release.url}>{release.name}</ExtLink>
 						</div>
 					</td>
-					<td class="text-muted-foreground max-w-[10rem] px-2 py-2 max-sm:hidden">
+					<td class="max-w-[10rem] px-2 py-2 text-muted-foreground max-sm:hidden">
 						<code class="text-xs">{release.tag}</code>
 					</td>
 					<td class="px-2 py-2 whitespace-nowrap max-md:hidden">
 						{#if release.prerelease}
-							<span class="bg-warning/10 text-warning rounded px-1.5 py-0.5 text-xs">
+							<span class="rounded bg-warning/10 px-1.5 py-0.5 text-xs text-warning">
 								Pre-release
 							</span>
 						{:else}
-							<span class="text-muted-foreground text-xs">Stable</span>
+							<span class="text-xs text-muted-foreground">Stable</span>
 						{/if}
 					</td>
-					<td class="text-muted-foreground px-2 py-2 whitespace-nowrap max-lg:hidden">
+					<td class="px-2 py-2 whitespace-nowrap text-muted-foreground max-lg:hidden">
 						{release.author ?? '-'}
 					</td>
 					<td class="px-2 py-2 text-right whitespace-nowrap max-sm:hidden">
@@ -58,7 +58,7 @@
 							<span class="text-muted-foreground">-</span>
 						{/if}
 					</td>
-					<td class="text-muted-foreground px-2 py-2 text-right whitespace-nowrap last:pr-0">
+					<td class="px-2 py-2 text-right whitespace-nowrap text-muted-foreground last:pr-0">
 						<TimeAgo date={release.publishedAt} />
 					</td>
 				</tr>

@@ -54,10 +54,10 @@
 			<Icon
 				icon={ChevronDown}
 				size={18}
-				class="text-muted-foreground ml-auto transition-transform {open ? '' : '-rotate-90'}"
+				class="ml-auto text-muted-foreground transition-transform {open ? '' : '-rotate-90'}"
 			/>
 		</button>
-		{#if description}<p class="text-muted-foreground text-sm">{description}</p>{/if}
+		{#if description}<p class="text-sm text-muted-foreground">{description}</p>{/if}
 		<Separator class="mt-2" />
 	</div>
 

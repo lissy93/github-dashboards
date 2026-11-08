@@ -142,9 +142,9 @@
 <!-- One kind's resolution histogram under its median headline, with a grey still-open bar -->
 {#snippet resolution(stats: ResolutionStats, unit: string, open: number)}
 	<div class="space-y-3">
-		<p class="text-muted-foreground text-xs">
+		<p class="text-xs text-muted-foreground">
 			median
-			<span class="text-foreground font-medium tabular-nums">
+			<span class="font-medium text-foreground tabular-nums">
 				{formatSpanHours(stats.medianHours)}
 			</span>
 			over {compactNumber(stats.count)}
@@ -206,10 +206,10 @@
 								label="Time to resolve over time"
 								height={20}
 							/>
-							<p class="text-muted-foreground text-xs">Median days to resolve, by close date</p>
+							<p class="text-xs text-muted-foreground">Median days to resolve, by close date</p>
 						</div>
 					{:else}
-						<p class="text-muted-foreground py-8 text-center text-sm">No resolved items in range</p>
+						<p class="py-8 text-center text-sm text-muted-foreground">No resolved items in range</p>
 					{/if}
 				{:else if view.mode === 'heatmap'}
 					{@const heat = activityHeatmap(tl.points, view)}
@@ -219,7 +219,7 @@
 							scope={view.scope}
 							label="Issue and PR activity by month"
 						/>
-						<p class="text-muted-foreground text-xs">Issues and PRs opened or closed each month</p>
+						<p class="text-xs text-muted-foreground">Issues and PRs opened or closed each month</p>
 					</div>
 				{:else}
 					<div class="space-y-5">
@@ -233,7 +233,7 @@
 							)}
 							<div class="space-y-2">
 								{#if view.scope === 'both'}
-									<p class="text-muted-foreground text-xs font-medium">Issues</p>
+									<p class="text-xs font-medium text-muted-foreground">Issues</p>
 								{/if}
 								<StackedBarChart
 									bars={lc.bars}
@@ -249,7 +249,7 @@
 							{@const lc = lifecycleView(tl.points, view, tl.granularity, tl.baseline.prs, 'pr')}
 							<div class="space-y-2">
 								{#if view.scope === 'both'}
-									<p class="text-muted-foreground text-xs font-medium">Pull requests</p>
+									<p class="text-xs font-medium text-muted-foreground">Pull requests</p>
 								{/if}
 								<StackedBarChart
 									bars={lc.bars}
@@ -264,7 +264,7 @@
 					</div>
 				{/if}
 				{#if tl.sampled}
-					<p class="text-muted-foreground text-xs">{TIMELINE_SAMPLED_NOTE}</p>
+					<p class="text-xs text-muted-foreground">{TIMELINE_SAMPLED_NOTE}</p>
 				{/if}
 			</div>
 		{/snippet}
@@ -316,14 +316,14 @@
 				{@const curve = contributionCurve(people.contributors)}
 				{#if curve}
 					<div class="space-y-3">
-						<p class="text-muted-foreground text-xs">
+						<p class="text-xs text-muted-foreground">
 							Top
-							<span class="text-foreground font-medium tabular-nums">{curve.busFactor}</span>
+							<span class="font-medium text-foreground tabular-nums">{curve.busFactor}</span>
 							wrote half,
-							<span class="text-foreground font-medium tabular-nums">{curve.coreFactor}</span>
+							<span class="font-medium text-foreground tabular-nums">{curve.coreFactor}</span>
 							of {curve.contributors} wrote
 							{Math.round(curve.coreThreshold * 100)}%, Gini
-							<span class="text-foreground font-medium tabular-nums">{curve.gini.toFixed(2)}</span>
+							<span class="font-medium text-foreground tabular-nums">{curve.gini.toFixed(2)}</span>
 						</p>
 						<LorenzCurve {curve} />
 					</div>
@@ -359,7 +359,7 @@
 		{#snippet children(people)}
 			<div class="space-y-3">
 				<DivergingAreaChart data={people.weekly} />
-				<p class="text-muted-foreground text-xs">Lines added and removed each week, all authors</p>
+				<p class="text-xs text-muted-foreground">Lines added and removed each week, all authors</p>
 			</div>
 		{/snippet}
 	</AsyncPanel>
@@ -398,7 +398,7 @@
 					<MetricTimeChart data={starChart(history)} label="Star history" height={16} />
 				{/if}
 				{#if history.sampled}
-					<p class="text-muted-foreground text-xs">{STAR_SAMPLED_NOTE}</p>
+					<p class="text-xs text-muted-foreground">{STAR_SAMPLED_NOTE}</p>
 				{/if}
 			</div>
 		{/snippet}
@@ -415,7 +415,7 @@
 			{#snippet children(rhythm)}
 				<div class="flex flex-col gap-3">
 					<PunchCard punch={rhythm.punch} peak={rhythm.peak} />
-					<p class="text-muted-foreground text-[0.65rem]">
+					<p class="text-[0.65rem] text-muted-foreground">
 						When commits land, by weekday and hour, shown in UTC
 					</p>
 				</div>
@@ -454,9 +454,9 @@
 			<div class="space-y-3">
 				<MarkerTimeline {cadence} />
 				{#if cadence.medianGapDays !== null}
-					<p class="text-muted-foreground text-xs">
+					<p class="text-xs text-muted-foreground">
 						Typically
-						<span class="text-foreground font-medium tabular-nums">{cadence.medianGapDays}d</span>
+						<span class="font-medium text-foreground tabular-nums">{cadence.medianGapDays}d</span>
 						between releases
 					</p>
 				{/if}

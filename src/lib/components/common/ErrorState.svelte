@@ -7,7 +7,7 @@
 </script>
 
 <div class="mx-auto max-w-md space-y-3 py-20 text-center">
-	<Icon icon={TriangleAlert} size={28} class="text-warning mx-auto" />
+	<Icon icon={TriangleAlert} size={28} class="mx-auto text-warning" />
 	<h1 class="text-lg font-medium capitalize">{error.title}</h1>
-	<p class="text-muted-foreground text-sm">{error.message}</p>
+	<p class="text-sm text-muted-foreground">{error.message}</p>
 </div>

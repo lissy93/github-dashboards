@@ -52,7 +52,7 @@
 					aria-label="Expand all folders"
 					onclick={expandAll}
 					disabled={filtering}
-					class="text-muted-foreground hover:text-foreground hover:bg-muted rounded-md p-1.5 transition-colors disabled:opacity-40"
+					class="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
 				>
 					<Icon icon={UnfoldVertical} size={16} />
 				</button>
@@ -63,7 +63,7 @@
 					aria-label="Collapse all folders"
 					onclick={() => expanded.clear()}
 					disabled={filtering}
-					class="text-muted-foreground hover:text-foreground hover:bg-muted rounded-md p-1.5 transition-colors disabled:opacity-40"
+					class="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-40"
 				>
 					<Icon icon={FoldVertical} size={16} />
 				</button>
@@ -71,26 +71,26 @@
 		</div>
 	</div>
 
-	<p class="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+	<p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
 		<span class="tabular-nums">{compactNumber(tree.totalFiles)} files</span>
 		<span aria-hidden="true">·</span>
 		<span class="tabular-nums">{compactNumber(tree.totalDirs)} folders</span>
 		<span aria-hidden="true">·</span>
 		<span class="tabular-nums">{formatBytes(tree.totalSize)}</span>
-		<span class="text-foreground/80 inline-flex items-center gap-1">
+		<span class="inline-flex items-center gap-1 text-foreground/80">
 			<Icon icon={GitBranch} size={13} />{tree.branch}
 		</span>
 	</p>
 
 	{#if tree.truncated}
-		<p class="text-warning flex items-center gap-1.5 text-xs">
+		<p class="flex items-center gap-1.5 text-xs text-warning">
 			<Icon icon={TriangleAlert} size={13} />
 			This repo is large, GitHub returned a partial listing
 		</p>
 	{/if}
 
 	{#if nodes.length === 0}
-		<p class="text-muted-foreground py-8 text-center text-sm">No files match your filter</p>
+		<p class="py-8 text-center text-sm text-muted-foreground">No files match your filter</p>
 	{:else}
 		<div class="-mx-1 max-h-[34rem] overflow-y-auto">
 			{#each nodes as node (node.path)}

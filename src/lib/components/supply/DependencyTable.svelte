@@ -61,7 +61,7 @@
 		<button
 			type="button"
 			onclick={() => sortBy(key, numeric)}
-			class="hover:text-foreground inline-flex max-w-full cursor-pointer items-center gap-1 select-none"
+			class="inline-flex max-w-full cursor-pointer items-center gap-1 select-none hover:text-foreground"
 		>
 			<Hint text="{hint}. Click to sort"><span class="truncate">{label}</span></Hint>
 			{#if view.sortKey === key}
@@ -89,9 +89,9 @@
 	</div>
 
 	{#if visible.length}
-		<div class="bg-card overflow-x-auto rounded-md border">
+		<div class="overflow-x-auto rounded-md border bg-card">
 			<table class="w-full table-fixed text-sm">
-				<thead class="text-muted-foreground border-b text-xs">
+				<thead class="border-b text-xs text-muted-foreground">
 					<tr>
 						<th scope="col" class="w-8 py-2 pl-3">
 							<span class="sr-only">Advisory</span>
@@ -138,7 +138,7 @@
 									></span>
 									<span class="sr-only">{pkg.vuln} severity advisory</span>
 								{:else}
-									<span class="bg-muted block size-2 rounded-full" title="No known advisory"></span>
+									<span class="block size-2 rounded-full bg-muted" title="No known advisory"></span>
 									<span class="sr-only">No known advisory</span>
 								{/if}
 							</td>
@@ -156,18 +156,18 @@
 									{:else}
 										<span class="truncate font-medium">{pkg.name}</span>
 									{/if}
-									<span class="text-muted-foreground shrink-0 text-xs tabular-nums">
+									<span class="shrink-0 text-xs text-muted-foreground tabular-nums">
 										{pkg.version ?? ''}
 									</span>
 								</div>
 							</td>
 							<td
-								class="text-muted-foreground hidden px-3 py-2 tabular-nums sm:table-cell"
+								class="hidden px-3 py-2 text-muted-foreground tabular-nums sm:table-cell"
 								title={pkg.direct ? 'Direct dependency' : 'Hops from project root'}
 							>
 								{pkg.depth ?? '-'}
 							</td>
-							<td class="text-muted-foreground hidden truncate px-3 py-2 sm:table-cell">
+							<td class="hidden truncate px-3 py-2 text-muted-foreground sm:table-cell">
 								{pkg.ecosystem}
 							</td>
 							<td class="hidden px-3 py-2 md:table-cell" title={RISK_LABEL[pkg.licenseRisk]}>
@@ -176,7 +176,7 @@
 								</span>
 							</td>
 							<td
-								class="text-muted-foreground px-3 py-2 tabular-nums"
+								class="px-3 py-2 text-muted-foreground tabular-nums"
 								title="Depended on by {pkg.fanIn} packages"
 							>
 								{compactNumber(pkg.fanIn)}
@@ -188,6 +188,6 @@
 		</div>
 		<Pagination bind:page {totalPages} />
 	{:else}
-		<p class="text-muted-foreground py-10 text-center text-sm">No dependencies match</p>
+		<p class="py-10 text-center text-sm text-muted-foreground">No dependencies match</p>
 	{/if}
 </div>

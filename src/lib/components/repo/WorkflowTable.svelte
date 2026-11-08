@@ -140,7 +140,7 @@
 
 <div class={cn('overflow-x-auto', compact && '@container')}>
 	<table class="w-full text-sm tabular-nums">
-		<thead class="text-muted-foreground text-xs">
+		<thead class="text-xs text-muted-foreground">
 			<tr class="border-b">
 				{#each headerColumns as col (col.key)}
 					<th
@@ -158,7 +158,7 @@
 							type="button"
 							onclick={() => toggleSort(col.key)}
 							class={cn(
-								'hover:text-foreground inline-flex cursor-pointer items-center gap-1 select-none',
+								'inline-flex cursor-pointer items-center gap-1 select-none hover:text-foreground',
 								col.align === 'text-right' && 'flex-row-reverse'
 							)}
 						>
@@ -191,12 +191,12 @@
 								<ExtLink href={workflow.latest.runUrl}>{workflow.name}</ExtLink>
 							{:else}{workflow.name}{/if}
 							{#if workflow.state.startsWith('disabled')}
-								<Hint text="Workflow disabled" class="text-muted-foreground ml-1.5 align-middle">
+								<Hint text="Workflow disabled" class="ml-1.5 align-middle text-muted-foreground">
 									<span class="text-[0.65rem] tracking-wide uppercase">disabled</span>
 								</Hint>
 							{/if}
 							{#if workflow.latest?.event}
-								<span class="text-muted-foreground ml-1.5 align-middle text-[0.65rem]">
+								<span class="ml-1.5 align-middle text-[0.65rem] text-muted-foreground">
 									{eventLabel(workflow.latest.event)}
 								</span>
 							{/if}
@@ -243,7 +243,7 @@
 					</td>
 					<td
 						class={cn(
-							'text-muted-foreground px-2 py-2 text-right whitespace-nowrap first:pl-0 last:pr-0',
+							'px-2 py-2 text-right whitespace-nowrap text-muted-foreground first:pl-0 last:pr-0',
 							cellClass(COLUMNS[5])
 						)}
 					>

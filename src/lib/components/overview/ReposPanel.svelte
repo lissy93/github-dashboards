@@ -33,7 +33,7 @@
 >
 	{#snippet actions()}
 		{#if lazy.hasDeltas}
-			<span class="text-muted-foreground hidden text-xs sm:inline">New stars</span>
+			<span class="hidden text-xs text-muted-foreground sm:inline">New stars</span>
 			<StarWindow bind:window={starWindow} />
 		{/if}
 	{/snippet}

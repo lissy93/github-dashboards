@@ -50,13 +50,13 @@
 <div class="space-y-3">
 	<SortFilterBar {config} bind:view searchPlaceholder="Search repos" />
 	{#if visible.length}
-		<div class={cn('grid gap-3', !dense && 'lg:grid-cols-2 3xl:grid-cols-3')}>
+		<div class={cn('grid gap-3', !dense && '3xl:grid-cols-3 lg:grid-cols-2')}>
 			{#each shown as repo (repo.nameWithOwner)}
 				<RepoCard {repo} {detailed} extras={extras?.[repo.nameWithOwner]} />
 			{/each}
 		</div>
 		<Pagination bind:page {totalPages} />
 	{:else}
-		<p class="text-muted-foreground py-6 text-center text-sm">No repos match</p>
+		<p class="py-6 text-center text-sm text-muted-foreground">No repos match</p>
 	{/if}
 </div>

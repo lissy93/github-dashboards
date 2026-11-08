@@ -25,13 +25,13 @@
 {#snippet row(item: NavItem, indent: boolean)}
 	{#if item.disabled}
 		<div class={cn('flex flex-col rounded-md px-3 py-2', indent && 'pl-9')}>
-			<span class="text-muted-foreground/50 flex items-center gap-2 text-sm">
+			<span class="flex items-center gap-2 text-sm text-muted-foreground/50">
 				{#if item.icon}<Icon icon={item.icon} />{/if}
 				{item.label}
 				<Icon icon={Lock} size={12} class="ml-auto" />
 			</span>
 			{#if item.tooltip}
-				<span class="text-muted-foreground/50 mt-0.5 text-xs">{item.tooltip}</span>
+				<span class="mt-0.5 text-xs text-muted-foreground/50">{item.tooltip}</span>
 			{/if}
 		</div>
 	{:else}
@@ -42,7 +42,7 @@
 				'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
 				indent && 'pl-9',
 				item.href === activeHref
-					? 'bg-muted text-primary font-medium'
+					? 'bg-muted font-medium text-primary'
 					: 'text-foreground hover:bg-muted/50'
 			)}
 		>
@@ -55,7 +55,7 @@
 <Sheet.Root bind:open>
 	<Sheet.Trigger
 		aria-label="Open navigation"
-		class="hover:bg-muted focus-visible:ring-ring inline-flex size-9 items-center justify-center rounded-md transition-colors focus-visible:ring-1 focus-visible:outline-none md:hidden"
+		class="inline-flex size-9 items-center justify-center rounded-md transition-colors hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none md:hidden"
 	>
 		<Icon icon={Menu} size={20} />
 	</Sheet.Trigger>
@@ -64,14 +64,14 @@
 			{#if tree.backLink}
 				<a
 					href={tree.backLink.href}
-					class="text-muted-foreground hover:text-foreground mb-2 flex items-center gap-1.5 text-xs"
+					class="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
 				>
 					<Icon icon={ArrowLeft} size={14} />
 					{tree.backLink.label}
 				</a>
 			{/if}
 			<Sheet.Title class="text-sm font-semibold">
-				<a href={tree.items[0]?.href} class="hover:text-primary transition-colors">{tree.label}</a>
+				<a href={tree.items[0]?.href} class="transition-colors hover:text-primary">{tree.label}</a>
 			</Sheet.Title>
 			<Sheet.Description class="sr-only">Jump to a page in {tree.label}</Sheet.Description>
 		</div>

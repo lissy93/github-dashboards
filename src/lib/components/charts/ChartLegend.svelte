@@ -58,7 +58,7 @@
 			</button>
 		</li>
 	{/each}
-	{#if more > 0}<li class="text-muted-foreground self-center">+{more} more</li>{/if}
+	{#if more > 0}<li class="self-center text-muted-foreground">+{more} more</li>{/if}
 </ul>
 
 <ChartTooltip data={tip.data} x={tip.x} y={tip.y} />

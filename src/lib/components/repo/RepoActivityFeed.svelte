@@ -98,7 +98,7 @@
 			{/if}
 			<div
 				class={framed
-					? 'bg-card overflow-hidden rounded-md border'
+					? 'overflow-hidden rounded-md border bg-card'
 					: hasControls
 						? '-mx-4 -mb-4 border-t'
 						: '-m-4'}
@@ -111,7 +111,7 @@
 							{/each}
 						</ul>
 					{:else}
-						<p class="text-muted-foreground py-10 text-center text-sm">
+						<p class="py-10 text-center text-sm text-muted-foreground">
 							No activity found for this repo
 						</p>
 					{/if}

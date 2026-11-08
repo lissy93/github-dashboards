@@ -47,7 +47,7 @@
 	aria-hidden="true"
 >
 	<div
-		class="bg-primary h-full transition-[width] duration-300 ease-out motion-reduce:transition-none"
+		class="h-full bg-primary transition-[width] duration-300 ease-out motion-reduce:transition-none"
 		style:width="{progress}%"
 		style:box-shadow="0 0 8px 0 var(--primary)"
 	></div>

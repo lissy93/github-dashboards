@@ -92,7 +92,7 @@
 {#snippet scope(label: string, hint?: string)}
 	<Hint
 		text={hint}
-		class={cn('text-muted-foreground text-xs whitespace-nowrap', hint && 'cursor-help')}
+		class={cn('text-xs whitespace-nowrap text-muted-foreground', hint && 'cursor-help')}
 	>
 		{label}
 	</Hint>
@@ -167,7 +167,7 @@
 		{/if}
 
 		{#if data?.capped}
-			<p class="text-muted-foreground px-1 text-xs">
+			<p class="px-1 text-xs text-muted-foreground">
 				Building analytics across your repos, cached history remains available while syncing
 			</p>
 		{/if}

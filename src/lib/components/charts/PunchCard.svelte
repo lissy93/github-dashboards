@@ -31,7 +31,7 @@
 
 <div class="overflow-x-auto pb-1">
 	<div class="min-w-[19rem] text-[0.6rem]">
-		<div class="text-muted-foreground flex">
+		<div class="flex text-muted-foreground">
 			<span class="w-9 shrink-0"></span>
 			{#each HOURS as hour (hour)}
 				<span class="flex-1 text-center">{hour % 3 === 0 ? hour : ''}</span>
@@ -47,7 +47,7 @@
 		>
 			{#each punch as row, weekday (weekday)}
 				<div class="flex items-center">
-					<span class="text-muted-foreground w-9 shrink-0">{DAYS_SHORT[weekday]}</span>
+					<span class="w-9 shrink-0 text-muted-foreground">{DAYS_SHORT[weekday]}</span>
 					{#each row as count, hour (hour)}
 						<span
 							class="flex aspect-square flex-1 items-center justify-center p-[1px]"

@@ -17,7 +17,7 @@
 </script>
 
 <Hint text={hint} class={cn('w-full flex-col items-start gap-1', hint && 'cursor-help', className)}>
-	<span class="text-muted-foreground flex items-center gap-1.5 text-xs">
+	<span class="flex items-center gap-1.5 text-xs text-muted-foreground">
 		{#if icon}<Icon {icon} size={13} />{/if}
 		<span class="truncate">{label}</span>
 	</span>

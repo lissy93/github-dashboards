@@ -10,10 +10,10 @@
 
 <section>
 	<header
-		class="bg-muted/50 flex items-baseline justify-between gap-2 rounded-md border px-2.5 py-1"
+		class="flex items-baseline justify-between gap-2 rounded-md border bg-muted/50 px-2.5 py-1"
 	>
 		<h3 class="text-sm font-semibold tabular-nums">{year.year}</h3>
-		<p class="text-muted-foreground text-xs tabular-nums">
+		<p class="text-xs text-muted-foreground tabular-nums">
 			{formatNumber(mergedPrs)} merged {plural(mergedPrs, 'PR')}
 		</p>
 	</header>

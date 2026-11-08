@@ -99,12 +99,12 @@
 						href={p.url}
 						target="_blank"
 						rel="noopener noreferrer"
-						class="text-primary hover:underline text-sm break-all"
+						class="text-sm break-all text-primary hover:underline"
 					>
 						{p.url}
 					</a>
 					{#if p.cname}
-						<p class="text-muted-foreground mt-1 text-xs">
+						<p class="mt-1 text-xs text-muted-foreground">
 							Custom domain: {p.cname}
 						</p>
 					{/if}
@@ -120,7 +120,7 @@
 			>
 				<div class="overflow-x-auto">
 					<table class="w-full text-sm tabular-nums">
-						<thead class="text-muted-foreground text-xs">
+						<thead class="text-xs text-muted-foreground">
 							<tr class="border-b">
 								<th class="px-2 py-2 text-left font-medium first:pl-0">Status</th>
 								<th class="px-2 py-2 text-left font-medium max-sm:hidden">Commit</th>
@@ -145,7 +145,7 @@
 									<td class="px-2 py-2 whitespace-nowrap max-sm:hidden">
 										{#if build.commitSha}
 											<span
-												class="text-muted-foreground inline-flex items-center gap-1 font-mono text-xs"
+												class="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground"
 											>
 												<Icon icon={GitCommitHorizontal} size={13} />
 												{build.commitSha.slice(0, 7)}
@@ -155,12 +155,12 @@
 										{/if}
 									</td>
 									<td
-										class="text-muted-foreground px-2 py-2 text-right whitespace-nowrap max-sm:hidden"
+										class="px-2 py-2 text-right whitespace-nowrap text-muted-foreground max-sm:hidden"
 									>
 										{build.duration ? formatDuration(build.duration) : '-'}
 									</td>
 									<td
-										class="text-muted-foreground px-2 py-2 text-right whitespace-nowrap last:pr-0"
+										class="px-2 py-2 text-right whitespace-nowrap text-muted-foreground last:pr-0"
 									>
 										<TimeAgo date={build.createdAt} />
 									</td>

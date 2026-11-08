@@ -51,7 +51,7 @@
 		{#if rows.length > PREVIEW}
 			<button
 				type="button"
-				class="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs"
+				class="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
 				aria-expanded={expanded}
 				onclick={() => (expanded = !expanded)}
 			>
@@ -63,13 +63,13 @@
 	{#snippet children(payload)}
 		{@const data = lifecycles(payload)}
 		<div class="flex flex-col gap-3">
-			<p class="text-muted-foreground text-xs">
+			<p class="text-xs text-muted-foreground">
 				Creation to last push · colour = language · dot size = stars{payload.activity
 					? ` · dim = ${LIFECYCLE_GAP_MONTHS}+ months without tracked activity`
 					: ''}
 			</p>
 			{#if payload.activity}
-				<p class="text-muted-foreground/70 text-[0.65rem]">
+				<p class="text-[0.65rem] text-muted-foreground/70">
 					Based on GitHub commit contributions and activity held by {APP_NAME}
 				</p>
 			{/if}

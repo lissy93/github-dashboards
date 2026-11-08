@@ -13,7 +13,7 @@
 </script>
 
 <section class="mx-auto max-w-md space-y-4 py-20 text-center">
-	<Icon icon={TriangleAlert} size={32} class="text-warning mx-auto" />
+	<Icon icon={TriangleAlert} size={32} class="mx-auto text-warning" />
 	<div class="space-y-1">
 		<h1 class="text-2xl font-semibold">{page.status}</h1>
 		<p class="text-muted-foreground">{page.error?.message ?? 'Something went wrong'}</p>

@@ -39,11 +39,11 @@
 </script>
 
 <Tooltip.Provider delayDuration={150} disableHoverableContent>
-	<div class="text-muted-foreground flex flex-wrap items-center justify-end gap-1 text-xs">
+	<div class="flex flex-wrap items-center justify-end gap-1 text-xs text-muted-foreground">
 		{#each Object.entries(reactions) as [key, count] (key)}
 			<Tooltip.Root onOpenChange={(open) => open && loadUsers(key)}>
 				<Tooltip.Trigger
-					class="bg-muted focus-visible:ring-ring inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 tabular-nums focus-visible:ring-1 focus-visible:outline-none"
+					class="inline-flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 tabular-nums focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
 				>
 					<span aria-hidden="true">{REACTIONS[key].emoji}</span>
 					{count}

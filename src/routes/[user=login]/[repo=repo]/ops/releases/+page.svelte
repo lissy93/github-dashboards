@@ -74,10 +74,10 @@
 
 			<Panel title="Release cadence" icon={Clock}>
 				<p class="text-sm">
-					<span class="text-foreground font-medium">
+					<span class="font-medium text-foreground">
 						{cadenceLabel(releaseCadence(r.releases).medianGapDays)}
 					</span>
-					<span class="text-muted-foreground ml-1">
+					<span class="ml-1 text-muted-foreground">
 						across {compactNumber(r.total)}
 						{plural(r.total, 'release')}
 						{#if r.sampled}(sampled){/if}

@@ -30,7 +30,7 @@
 			{item.title}
 		</a>
 
-		<div class="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+		<div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
 			<a
 				href="{GITHUB_WEB}/{item.repo}"
 				target="_blank"
@@ -84,7 +84,7 @@
 							alt={person.login}
 							width="20"
 							height="20"
-							class="border-card size-5 rounded-full border"
+							class="size-5 rounded-full border border-card"
 							loading="lazy"
 						/>
 					</Hint>

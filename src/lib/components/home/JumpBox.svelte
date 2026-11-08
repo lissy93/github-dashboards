@@ -81,7 +81,7 @@
 								aria-label="Open a specific page"
 								class={cn(
 									buttonVariants(),
-									'border-l-primary-foreground/20 h-10 w-8 rounded-l-none px-0'
+									'h-10 w-8 rounded-l-none border-l-primary-foreground/20 px-0'
 								)}
 							>
 								<Icon icon={ChevronDown} size={14} />
@@ -101,13 +101,13 @@
 			</form>
 			<p id="jump-hint" role="status" class="flex min-h-4 items-start gap-1.5 text-xs">
 				{#if rejected}
-					<Icon icon={TriangleAlert} size={13} class="text-warning mt-0.5" />
+					<Icon icon={TriangleAlert} size={13} class="mt-0.5 text-warning" />
 					<span class="text-warning">Not recognised, try a user, owner/repo or GitHub URL</span>
 				{:else if target}
 					<Icon
 						icon={CornerDownLeft}
 						size={13}
-						class="text-muted-foreground mt-0.5 dark:bg-input/30 border-input p-1"
+						class="mt-0.5 border-input p-1 text-muted-foreground dark:bg-input/30"
 					/>
 					<span class="text-muted-foreground">
 						Enter opens {kindWords[target.kind]}
@@ -119,13 +119,13 @@
 			</p>
 		</div>
 		<hr class="border-border" />
-		<div class="text-muted-foreground space-y-2 text-xs">
+		<div class="space-y-2 text-xs text-muted-foreground">
 			<p>Try out some examples</p>
 			<div class="flex flex-wrap items-center gap-2">
 				{#each chips as chip (chip.href)}
 					<a
 						href={chip.href}
-						class="hover:border-ring hover:text-foreground inline-flex items-center gap-1.5 rounded-md border py-0.5 pr-2 pl-1.5 transition-colors"
+						class="inline-flex items-center gap-1.5 rounded-md border py-0.5 pr-2 pl-1.5 transition-colors hover:border-ring hover:text-foreground"
 					>
 						<UserAvatar
 							login={chip.login}
@@ -135,7 +135,7 @@
 						/>
 						{chip.name}
 						{#if chip.page}
-							<span class="bg-border h-3.5 w-px"></span>
+							<span class="h-3.5 w-px bg-border"></span>
 							{#if chip.icon}<Icon icon={chip.icon} size={13} class="text-muted-foreground" />{/if}
 							<span class="opacity-70">{chip.page}</span>
 						{/if}

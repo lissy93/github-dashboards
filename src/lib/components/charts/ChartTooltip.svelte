@@ -35,7 +35,7 @@
 	<div
 		{@attach portal}
 		{@attach measure}
-		class="bg-popover pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full rounded-md border px-2.5 py-1.5 text-xs shadow-md"
+		class="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full rounded-md border bg-popover px-2.5 py-1.5 text-xs shadow-md"
 		style="left: {left}px; top: {top}px"
 		role="tooltip"
 	>
@@ -46,11 +46,11 @@
 			{data.title}
 		</div>
 		{#if data.note}
-			<p class="text-muted-foreground mt-0.5 max-w-44 text-[0.7rem] leading-snug">{data.note}</p>
+			<p class="mt-0.5 max-w-44 text-[0.7rem] leading-snug text-muted-foreground">{data.note}</p>
 		{/if}
 		{#each data.rows as row (row.label)}
 			<div class="flex justify-between gap-4 tabular-nums">
-				<span class="text-muted-foreground flex items-center gap-1.5">
+				<span class="flex items-center gap-1.5 text-muted-foreground">
 					{#if row.color}
 						<span class="size-2 shrink-0 rounded-sm" style="background-color: {row.color}"></span>
 					{/if}
