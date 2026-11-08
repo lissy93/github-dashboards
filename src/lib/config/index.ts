@@ -2,6 +2,9 @@ export const APP_NAME = 'github-dashboards';
 export const APP_DESCRIPTION = 'A fast GitHub status board for users and repos';
 export const GITHUB_WEB = 'https://github.com';
 
+// Social share card size, the 1.91:1 every platform crops to
+export const OG_SIZE = { width: 1200, height: 630 } as const;
+
 // A login's avatar straight from GitHub, no id needed, redirects to the sized image.
 // Larger sizes stay crisp when the avatar is drawn big, e.g. inside a bubble
 export const githubAvatar = (login: string, size = 48) => `${GITHUB_WEB}/${login}.png?size=${size}`;
@@ -32,5 +35,7 @@ export const paths = {
 		`/${user}/${repo}/ops/${section}`,
 	repoInfo: (user: string, repo: string) => `/${user}/${repo}/info`,
 	repoInfoSection: (user: string, repo: string, section: string) =>
-		`/${user}/${repo}/info/${section}`
+		`/${user}/${repo}/info/${section}`,
+	// Share card for a page path, home gets the baked default
+	ogImage: (path: string) => (path === '/' ? '/og.png' : `/_og${path}.png`)
 };

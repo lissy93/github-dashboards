@@ -19,7 +19,7 @@
 	import { STATUS_GLYPH } from '$lib/components/repo/status-glyph';
 	import type { RepoPages } from '$lib/types';
 	import { formatDateTime, formatDuration } from '$lib/utils/format';
-	import { APP_NAME } from '$lib/config';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 	import type { PageData } from './$types';
 	import { revalidatingResult } from '$lib/state/revalidate.svelte';
 
@@ -71,9 +71,10 @@
 	}
 </script>
 
-<svelte:head>
-	<title>Pages · {data.repo.nameWithOwner} · {APP_NAME}</title>
-</svelte:head>
+<PageMeta
+	title={`Pages · ${data.repo.nameWithOwner}`}
+	description={`GitHub Pages status and build history for ${data.repo.nameWithOwner}`}
+/>
 
 <div class="space-y-5">
 	{#await pages.result}

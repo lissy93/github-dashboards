@@ -476,6 +476,12 @@ export async function getUserOverview(login: string): Promise<UserOverview> {
 	return toOverview(stored.value);
 }
 
+// The cached profile only, never syncing, null until someone has loaded the overview
+export async function peekUserProfile(login: string): Promise<UserProfile | null> {
+	const stored = await readCached<OverviewState>(overviewKey(login));
+	return stored ? mapProfile(stored.value.owner, stored.value.owned.nodes.map(mapRepo)) : null;
+}
+
 // blocking sync of every owned repo, for callers that need live counts
 export async function refreshUserOverview(login: string): Promise<UserOverview> {
 	// joining a shallow sync already in flight would skip the rewalk

@@ -1,6 +1,19 @@
-# only the homepage is crawlable, the rest sits behind a bot check
+# only the homepage and share cards are crawlable, the rest sits behind a bot check
 User-agent: *
 Allow: /$
 Allow: /_app/
 Allow: /logo.svg
+Allow: /og.png
+Allow: /_og/
 Disallow: /
+
+# link preview bots read share tags off whatever page someone shared
+User-agent: Twitterbot
+User-agent: facebookexternalhit
+User-agent: LinkedInBot
+User-agent: Slackbot
+User-agent: Discordbot
+User-agent: TelegramBot
+User-agent: WhatsApp
+Disallow: /api/
+Allow: /

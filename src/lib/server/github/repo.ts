@@ -1,6 +1,6 @@
 import { graphql } from '$lib/server/github/client';
 import { REPO_FIELDS, mapRepo, type RawRepo } from '$lib/server/github/user';
-import { cached } from '$lib/server/cache';
+import { cached, isFresh, readCached } from '$lib/server/cache';
 import { AppError } from '$lib/utils/errors';
 import type { Repo } from '$lib/types';
 
@@ -44,6 +44,12 @@ export async function getRepo(owner: string, name: string): Promise<Repo | null>
 		TTL
 	);
 	return repo;
+}
+
+// Fresh cached header data only, never fetching, so a repo gone private drops out with its TTL
+export async function peekRepo(owner: string, name: string): Promise<Repo | null> {
+	const stored = await readCached<{ repo: Repo | null }>(repoKey(owner, name));
+	return stored && isFresh(stored.fetchedAt, stored.ttl) ? stored.value.repo : null;
 }
 
 // Resolve a repo without exposing private repos to other or anonymous viewers
