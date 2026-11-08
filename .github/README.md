@@ -26,7 +26,7 @@ Just swap `github.com` for `github-dashboards.as93.net` in any user or repo URL.
 ### Deploying
 
 You'll need a Postgres database ([Neon](https://neon.com) works well).<br>
-Run `npm run db:push` against it once, to create the tables.
+Run `npm run db:push` against it to create the tables, and again after each upgrade.
 
 #### Option 1 - Vercel
 
@@ -36,11 +36,12 @@ The daily maintenance cron is picked up from `vercel.json` automatically.
 #### Option 2 - Docker
 
 Build the image with `docker build -t github-dashboards .`<br>
-Then start it with `docker run -p 3000:3000 -e DATABASE_URL='postgres://...' github-dashboards`
+Then start it with `docker run -p 3000:3000 -e DATABASE_URL='postgres://...' -e ORIGIN='http://localhost:3000' github-dashboards`
 
 #### Option 3 - Node
 
-Follow the dev steps below, then run `npm run build` and start the server with `node build`.
+Follow the dev steps below and set `ORIGIN` in your `.env`.<br>
+Then run `npm run build` and start the server with `node --env-file=.env build`.
 
 > [!NOTE]
 > Outside of Vercel, call `GET /api/maintenance` once a day (with `CRON_SECRET` as a bearer token) to snapshot traffic and tidy the cache.
@@ -54,7 +55,7 @@ Follow the dev steps below, then run `npm run build` and start the server with `
 | `GITHUB_APP_ID`<br>`GITHUB_APP_PRIVATE_KEY`<br>`GITHUB_APP_INSTALLATION_ID` | GitHub App, gives anonymous visitors their own rate-limit pool                  |
 | `GITHUB_CLIENT_ID`<br>`GITHUB_CLIENT_SECRET`<br>`SESSION_SECRET`            | OAuth app, enables sign in with GitHub. Callback URL is `/auth/github/callback` |
 | `CRON_SECRET`                                                               | Locks the maintenance endpoint behind a bearer token                            |
-| `ORIGIN`                                                                    | Your public URL, when self-hosting behind a proxy                               |
+| `ORIGIN`                                                                    | Your public URL, like `http://localhost:3000` (required when self-hosting)      |
 
 See [`.env.example`](https://github.com/Lissy93/github-dashboards/blob/main/.env.example) for details.
 

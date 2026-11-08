@@ -1,0 +1,72 @@
+name: Bug Report 🐛
+description: Report something that's not working the way it's (probably) intended to
+title: '[BUG] <title>'
+labels: ['🐛 Bug']
+assignees:
+  - Lissy93
+body:
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      description: Where are you using GitHub Dashboards?
+      options:
+        - Public instance (github-dashboards.as93.net)
+        - Self-Hosted (Docker)
+        - Self-Hosted (Node)
+        - Cloud (Vercel)
+        - Other (Specify below)
+    validations:
+      required: true
+  - type: input
+    id: page
+    attributes:
+      label: Page
+      description: The URL or path of the page where the problem happens
+      placeholder: e.g. /lissy93/dashy/ops/workflows
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: If self-hosting, what version are you running?
+      placeholder: 1.2.0 ← should look like this (from package.json or the Docker tag)
+    validations:
+      required: false
+  - type: textarea
+    id: repro
+    attributes:
+      label: Describe the problem
+      description: Please describe exactly what is not working, include the steps to reproduce, actual result and expected result
+      placeholder: When doing ABC then DEF, I expect to see XYZ, but I actually see ZYX
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Additional info
+      description: Logs? Screenshots? Yes, please.
+      placeholder: For self-hosted issues, include the server logs. For anything in the browser, include the console output from Dev Tools (F12). Take care to blank out any tokens or personal info.
+    validations:
+      required: false
+  - type: checkboxes
+    id: idiot-check
+    attributes:
+      label: Please tick the boxes
+      description: Before submitting, please ensure that
+      options:
+        - label: You have explained the issue clearly, and included all relevant info
+          required: true
+        - label: You've checked that this [issue hasn't already been raised](https://github.com/Lissy93/github-dashboards/issues?q=is%3Aissue)
+          required: true
+        - label: You agree to the [code of conduct](https://github.com/Lissy93/github-dashboards/blob/main/.github/CODE_OF_CONDUCT.md#contributor-covenant-code-of-conduct)
+          required: true
+  - type: markdown
+    attributes:
+      value: |-
+        ## Thanks 🙏
+        <img align="left" width="160" src="https://i.ibb.co/S5vCnhL/gh-thanks.gif" alt="🐙" />
+        Thank you for raising this ticket - in doing so you are helping to make the app better for everyone 💪<br>
+        You should expect a reply within the next 48 hours :)<br>
+        ⭐️ Consider dropping the repo a star if you're enjoying GitHub Dashboards!<br>

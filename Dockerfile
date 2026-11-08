@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 
-ARG NODE_VERSION=24.11.0
+# Floating major, so rebuilds pick up upstream OS and Node security patches
+ARG NODE_VERSION=24
 
 # Build stage
 FROM node:${NODE_VERSION}-slim AS build
@@ -20,13 +21,18 @@ RUN npm ci --omit=dev
 FROM node:${NODE_VERSION}-slim AS runtime
 WORKDIR /app
 
+# Runtime only needs node, so drop the bundled package managers (and their CVEs)
+RUN rm -rf /usr/local/lib/node_modules /opt/yarn-* \
+      /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+      /usr/local/bin/yarn /usr/local/bin/yarnpkg
+
 # Build metadata
 ARG VERSION=dev
 ARG REVISION=unknown
 ARG CREATED=unknown
 LABEL org.opencontainers.image.title="github-dashboards" \
       org.opencontainers.image.description="GitHub insights dashboard" \
-      org.opencontainers.image.source="https://github.com/lissy93/goard" \
+      org.opencontainers.image.source="https://github.com/lissy93/github-dashboards" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}" \
@@ -39,6 +45,7 @@ ENV NODE_ENV=production \
 COPY --from=build /app/build ./build
 COPY --from=build /app/package.json ./package.json
 COPY --from=prod-deps /app/node_modules ./node_modules
+COPY LICENSE ./LICENSE
 
 EXPOSE 3000
 USER node

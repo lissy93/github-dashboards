@@ -1,5 +1,5 @@
-# Mirrors the full goard repo over to a Codeberg mirror
-# (for all you non-Microsoft folks). Runs weekly and on demand.
+# Mirrors the full repo over to Codeberg (for all you non-Microsoft folks)
+# Runs weekly and on demand, but only once the repo is public and the key is set
 name: 🪞 Mirror
 
 on:
@@ -12,9 +12,28 @@ permissions:
 
 jobs:
   codeberg:
+    name: 🪞 Mirror to Codeberg
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: lissy93/repo-mirror-action@v1.5.0
+      - name: 🔍 Check repo is public and key is set
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HAS_KEY: ${{ secrets.CODEBERG_SSH != '' }}
+        run: |
+          set -euo pipefail
+          VISIBILITY=$(gh api "repos/${GITHUB_REPOSITORY}" --jq .visibility)
+          if [ "$VISIBILITY" = "public" ] && [ "$HAS_KEY" = "true" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Skipping mirror (visibility: ${VISIBILITY}, key set: ${HAS_KEY})"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 🪞 Push to Codeberg
+        if: steps.guard.outputs.ok == 'true'
+        uses: lissy93/repo-mirror-action@v1.6.0
         with:
           ssh_key: ${{ secrets.CODEBERG_SSH }}
           host: git@codeberg.org
