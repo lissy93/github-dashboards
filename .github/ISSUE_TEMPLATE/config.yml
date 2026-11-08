@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: ⚠️ Report a security vulnerability
+    url: https://github.com/lissy93/github-dashboards/security/policy
+    about: Please do NOT open a public issue for unresolved security problems.
+  - name: 🌐 Live app
+    url: https://github-dashboards.as93.net
+    about: Try it out, on the public instance.

@@ -1,0 +1,47 @@
+name: Question 🤷‍♂️
+description: Got a question about GitHub Dashboards, deployment, development or usage?
+title: '[QUESTION] <title>'
+labels: ['🤷‍♂️ Question']
+assignees:
+  - Lissy93
+
+body:
+  # Field 1 - The actual question
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: Outline your question in a clear and concise manner
+    validations:
+      required: true
+
+  # Field 2 - Category
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      description: What part of the application does this relate to?
+      options:
+        - Setup and Deployment
+        - Configuration
+        - App Usage
+        - Sign in and Auth
+        - Missing or Wrong Data
+        - Rate Limits
+        - Development
+    validations:
+      required: true
+
+  # Field 3 - User has RTFM first, and agrees to code of conduct, etc
+  - type: checkboxes
+    id: idiot-check
+    attributes:
+      label: Please tick the boxes
+      description: Before submitting, please ensure that
+      options:
+        - label: You've checked that this [question hasn't already been raised](https://github.com/Lissy93/github-dashboards/issues?q=is%3Aissue)
+          required: true
+        - label: You've checked the [README](https://github.com/Lissy93/github-dashboards#readme)
+          required: true
+        - label: You agree to the [code of conduct](https://github.com/Lissy93/github-dashboards/blob/main/.github/CODE_OF_CONDUCT.md#contributor-covenant-code-of-conduct)
+          required: true
