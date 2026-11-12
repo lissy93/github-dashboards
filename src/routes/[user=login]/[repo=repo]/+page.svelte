@@ -16,6 +16,7 @@
 		Package
 	} from '@lucide/svelte';
 	import SectionHeading from '$lib/components/common/SectionHeading.svelte';
+	import PageMeta from '$lib/components/common/PageMeta.svelte';
 	import AsyncPanel from '$lib/components/common/AsyncPanel.svelte';
 	import Panel from '$lib/components/common/Panel.svelte';
 	import EmptyState from '$lib/components/common/EmptyState.svelte';
@@ -51,7 +52,7 @@
 	import { treeSizeSlices } from '$lib/views/repo-tree';
 	import { deploymentMiniChart } from '$lib/views/repo-deployments';
 	import { releaseDownloadBars, hasReleaseDownloads } from '$lib/views/repo-stats';
-	import { paths, APP_NAME } from '$lib/config';
+	import { paths } from '$lib/config';
 	import { findPage, REPO_PAGES } from '$lib/config/pages';
 	import { iconFor } from '$lib/components/layout/nav';
 	import { restrictedGate } from '$lib/config/status';
@@ -93,13 +94,10 @@
 	});
 </script>
 
-<svelte:head>
-	<title>{data.repo.nameWithOwner} · {APP_NAME}</title>
-	<meta
-		name="description"
-		content={data.repo.description ?? `Repo health and stats for ${data.repo.nameWithOwner}`}
-	/>
-</svelte:head>
+<PageMeta
+	title={data.repo.nameWithOwner}
+	description={data.repo.description ?? `Repo health and stats for ${data.repo.nameWithOwner}`}
+/>
 
 <!-- A short running-total chart, desktop only, sitting above its open list -->
 {#snippet totalMini(kind: 'issue' | 'pr', unit: string, title: string, icon: typeof CircleDot)}

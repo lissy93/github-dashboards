@@ -83,7 +83,7 @@ function purgeExpired(): void {
 let storageReachable = true;
 export const isStorageHealthy = () => storageReachable;
 
-function isFresh(fetchedAt: Date, ttl: number): boolean {
+export function isFresh(fetchedAt: Date, ttl: number): boolean {
 	return Date.now() - fetchedAt.getTime() < ttl * 1000;
 }
 
