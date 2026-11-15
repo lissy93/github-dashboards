@@ -126,4 +126,15 @@ describe('buildBreakdown', () => {
 		expect(out.series.map((item) => item.label)).toEqual(['a']);
 		expect(buildBreakdown([], repos, 8)).toEqual({ days: [], series: [] });
 	});
+
+	it('drops a repo that never had a star, but lets an unstarred one fall to zero', () => {
+		const rows = [
+			{ repo: 'o/b', day: '2021-01-01', stars: 2 },
+			{ repo: 'o/c', day: '2021-01-01', stars: 0 },
+			{ repo: 'o/b', day: '2021-02-01', stars: 0 },
+			{ repo: 'o/c', day: '2021-02-01', stars: 0 }
+		];
+		const out = buildBreakdown(rows, repos, 8);
+		expect(out.series).toEqual([{ label: 'b', values: [2, 0] }]);
+	});
 });

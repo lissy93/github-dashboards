@@ -36,44 +36,52 @@ type Point = { day: string; stars: number };
 type DayStars = Point & { repo: string };
 type BackfillState = { restricted: boolean };
 
-// Per-repo star history across a user's owned repos, reconstructed and cached
-export function getUserStarHistory(login: string): Promise<StarBreakdown> {
-	return cached(
-		`user:star-history:v7:${login.toLowerCase()}`,
-		async () => {
-			const { ownedRepos } = await getUserOverview(login);
-			const starred = ownedRepos.filter((repo) => repo.stars > 0).slice(0, MAX_REPOS);
-			const before = await readRows(starred.map((repo) => repo.nameWithOwner));
-			const known = new Set(before.map((row) => row.repo));
-			const targets = [
-				...starred.filter((repo) => !known.has(repo.nameWithOwner.toLowerCase())),
-				...starred.filter((repo) => known.has(repo.nameWithOwner.toLowerCase()))
-			].slice(0, REFRESH_REPOS);
-			let failures = 0;
-			let refused = 0;
-			await mapLimit(targets, CONCURRENCY, async (repo) => {
-				try {
-					if (await backfillRepo(repo)) refused += 1;
-				} catch (error) {
-					failures += 1;
-					log.warn(`backfill failed for ${repo.nameWithOwner}`, error);
-				}
-			});
-			const rows = await readRows(starred.map((repo) => repo.nameWithOwner));
-			if (failures && !rows.length) {
-				throw new AppError('upstream', 'Star history refresh failed', { expose: false });
-			}
-			const covered = new Set(rows.map((row) => row.repo)).size;
-			return {
-				...buildBreakdown(rows, starred, TOP_REPOS),
-				coveredRepos: covered,
-				totalRepos: starred.length,
-				// Only a real refusal is the gate, nothing stored yet is just history still building
-				restricted: refused > 0 && covered === 0
-			};
-		},
-		AGGREGATE_TTL
+// Only the GitHub walks are cached, the chart is rebuilt from rows each call
+export async function getUserStarHistory(login: string): Promise<StarBreakdown> {
+	const { ownedRepos } = await getUserOverview(login);
+	// Repos now at zero stay in, so their stars fall away rather than vanish
+	const charted = ownedRepos.slice(0, MAX_REPOS);
+	const starred = charted.filter((repo) => repo.stars > 0);
+	const { refused } = await cached(
+		`user:star-backfill:v1:${login.toLowerCase()}`,
+		() => backfillUser(starred),
+		BACKFILL_TTL
 	);
+	const rows = await readRows(charted.map((repo) => repo.nameWithOwner));
+	const stored = new Set(rows.map((row) => row.repo));
+	const covered = starred.filter((repo) => stored.has(repo.nameWithOwner.toLowerCase())).length;
+	return {
+		...buildBreakdown(rows, charted, TOP_REPOS),
+		coveredRepos: covered,
+		totalRepos: starred.length,
+		// Only a refusal is the gate, an empty store is history still building
+		restricted: refused > 0 && covered === 0
+	};
+}
+
+// Walk a batch of repos, unstored ones first, counting GitHub's refusals
+async function backfillUser(starred: Repo[]): Promise<{ refused: number }> {
+	const names = starred.map((repo) => repo.nameWithOwner);
+	const known = await storedRepos(names);
+	const targets = [
+		...starred.filter((repo) => !known.has(repo.nameWithOwner.toLowerCase())),
+		...starred.filter((repo) => known.has(repo.nameWithOwner.toLowerCase()))
+	].slice(0, REFRESH_REPOS);
+	let failures = 0;
+	let refused = 0;
+	await mapLimit(targets, CONCURRENCY, async (repo) => {
+		try {
+			if (await backfillRepo(repo)) refused += 1;
+		} catch (error) {
+			failures += 1;
+			log.warn(`backfill failed for ${repo.nameWithOwner}`, error);
+		}
+	});
+	// Thrown, not cached, so a failed first walk retries on the next visit
+	if (failures && !(await storedRepos(names)).size) {
+		throw new AppError('upstream', 'Star history refresh failed', { expose: false });
+	}
+	return { refused };
 }
 
 // One repo's reconstructed star curve, for the repo stars page and panel. Reuses
@@ -276,8 +284,7 @@ export function stride(points: Point[], target: number): Point[] {
 const dayOf = (iso: string) => iso.slice(0, 10);
 const today = () => dayOf(new Date().toISOString());
 
-// Store the interpolated curve, highest count per day wins so re-runs only grow it. source
-// 'curve' keeps it from ever overwriting a genuine daily total in the same rows
+// Store the walked curve as 'curve' rows, so it never overwrites a daily total
 async function writePoints(repo: string, points: Point[]): Promise<void> {
 	const byDay = new Map<string, number>();
 	for (const point of points)
@@ -296,6 +303,16 @@ async function writePoints(repo: string, points: Point[]): Promise<void> {
 		// The walk already has the curve, a failed persist only costs stored history
 		log.warn(`could not store star points for ${repo}`, { reason: rootReason(error) });
 	}
+}
+
+async function storedRepos(names: string[]): Promise<Set<string>> {
+	if (!names.length) return new Set();
+	const keys = names.map((name) => name.toLowerCase());
+	const rows = await db
+		.selectDistinct({ repo: repoStarsDaily.repo })
+		.from(repoStarsDaily)
+		.where(inArray(repoStarsDaily.repo, keys));
+	return new Set(rows.map((row) => row.repo));
 }
 
 async function readRows(names: string[]): Promise<DayStars[]> {
@@ -320,10 +337,13 @@ type RepoMeta = { nameWithOwner: string; name: string; stars: number };
 
 // Interpolate repo histories on one axis and fold the long tail into Other
 export function buildBreakdown(rows: DayStars[], repos: RepoMeta[], limit: number): StarBreakdown {
-	if (!rows.length) return { days: [], series: [] };
-	const days = [...new Set(rows.map((row) => row.day))];
+	// A repo that never had a star would only draw an empty band
+	const everStarred = new Set(rows.filter((row) => row.stars > 0).map((row) => row.repo));
+	const kept = rows.filter((row) => everStarred.has(row.repo));
+	if (!kept.length) return { days: [], series: [] };
+	const days = [...new Set(kept.map((row) => row.day))];
 	const byRepo = new Map<string, DayStars[]>();
-	for (const row of rows) {
+	for (const row of kept) {
 		const list = byRepo.get(row.repo) ?? [];
 		list.push(row);
 		byRepo.set(row.repo, list);

@@ -308,7 +308,7 @@ function toOverview(state: OverviewState): UserOverview {
 	};
 }
 
-// without rewalkOwned a complete owned list never repaginates and its counts freeze
+// a finished owned list only rereads on a rename, a new total or rewalkOwned
 async function syncOverview(
 	login: string,
 	current?: OverviewState,
@@ -339,14 +339,16 @@ async function syncOverview(
 		const pageBudget = rewalkOwned ? REWALK_PAGES : PAGES_PER_SYNC;
 
 		const ownedFirst = progress(owner.ownedRepos);
-		const ownedNodes = mergeRepos(current?.owned.nodes ?? [], owner.ownedRepos.nodes).slice(
-			0,
-			owner.ownedRepos.totalCount
-		);
-		const ownedStart =
-			current && !rewalkOwned && current.owned.total === owner.ownedRepos.totalCount
-				? { ...current.owned, nodes: ownedNodes }
-				: { ...ownedFirst, nodes: ownedNodes };
+		const known = new Set(current?.owned.nodes.map((node) => node.nameWithOwner.toLowerCase()));
+		// An unknown name atop a finished list means a repo was renamed
+		const renamed =
+			!!current?.owned.complete &&
+			ownedFirst.nodes.some((node) => !known.has(node.nameWithOwner.toLowerCase()));
+		const resuming =
+			!!current && !rewalkOwned && !renamed && current.owned.total === ownedFirst.total;
+		const ownedStart = resuming
+			? { ...current.owned, nodes: mergeRepos(current.owned.nodes, ownedFirst.nodes) }
+			: { ...ownedFirst, nodes: mergeRepos(ownedFirst.nodes) };
 		const contributedFirst =
 			owner.__typename === 'User' ? contributedData?.user?.repositoriesContributedTo : null;
 		const contributedNodes = mergeRepos(
@@ -366,7 +368,7 @@ async function syncOverview(
 					  current.contributed.total === contributedFirst.totalCount
 					? { ...current.contributed, nodes: contributedNodes }
 					: { ...progress(contributedFirst), nodes: contributedNodes };
-		const owned = await resume(ownedStart, pageBudget, async (cursor) => {
+		const walked = await resume(ownedStart, pageBudget, async (cursor) => {
 			const data = await graphql<{ repositoryOwner: { repos: RawConn } }>(OWNED_PAGE_QUERY, {
 				login,
 				cursor
@@ -378,6 +380,14 @@ async function syncOverview(
 			});
 			return ownedStart;
 		});
+		// A full read from the top replaces the list, so stale repos drop out
+		const owned =
+			walked.complete && !resuming
+				? walked
+				: {
+						...walked,
+						nodes: mergeRepos(current?.owned.nodes ?? [], walked.nodes).slice(0, walked.total)
+					};
 		const contributed =
 			owner.__typename === 'User'
 				? await resume(contributedStart, pageBudget, async (cursor) => {
