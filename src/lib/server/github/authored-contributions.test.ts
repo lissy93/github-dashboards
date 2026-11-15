@@ -30,12 +30,11 @@ const pr = (
 	createdAt: string,
 	additions = 0,
 	deletions = 0,
-	merged = false,
-	closedAt: string | null = null
+	merged = true
 ): PrNode => ({
 	id: `${repo}${createdAt}${additions}`,
 	createdAt,
-	closedAt,
+	closedAt: null,
 	merged,
 	additions,
 	deletions,
@@ -47,14 +46,13 @@ describe('reduceAuthored', () => {
 		const result = reduceAuthored(
 			state(
 				[issue('acme/api', '2024-03-01'), issue('acme/api', '2024-06-01')],
-				[pr('acme/api', '2024-02-01', 100, 20, true), pr('other/lib', '2023-11-01', 5, 1)]
+				[pr('acme/api', '2024-02-01', 100, 20), pr('other/lib', '2023-11-01', 5, 1)]
 			),
 			'lissy93'
 		);
 		expect(result.years.map((year) => year.year)).toEqual([2024, 2023]);
 		const api = result.years[0].repos.find((repo) => repo.repo === 'acme/api');
-		// the one PR was merged, so it counts toward mergedPrs too
-		expect(api).toMatchObject({ prs: 1, mergedPrs: 1, issues: 2, additions: 100, owned: false });
+		expect(api).toMatchObject({ prs: 1, issues: 2, additions: 100, owned: false });
 		// lastAt is the newest of the repo's items that year
 		expect(api?.lastAt).toBe('2024-06-01');
 		expect(result.years[1].repos[0]).toMatchObject({ repo: 'other/lib', prs: 1, issues: 0 });
@@ -81,28 +79,26 @@ describe('reduceAuthored', () => {
 		expect(result.years[0].repos[0].lastAt).toBe('2024-08-01');
 	});
 
-	it('counts only merged PRs toward mergedPrs', () => {
-		const result = reduceAuthored(
-			state([], [pr('x/y', '2024-01-01', 0, 0, true), pr('x/y', '2024-02-01', 0, 0, false)]),
-			'me'
-		);
-		expect(result.years[0].repos[0]).toMatchObject({ prs: 2, mergedPrs: 1 });
-	});
-
-	// GitHub sets closedAt on merged PRs too, so merged has to win the split
-	it('splits pull requests into merged, closed and still open', () => {
+	it('leaves out PRs that never got merged, diff and all', () => {
 		const result = reduceAuthored(
 			state(
 				[],
 				[
-					pr('x/y', '2024-01-01', 0, 0, true, '2024-01-02'),
-					pr('x/y', '2024-02-01', 0, 0, false, '2024-02-02'),
-					pr('x/y', '2024-03-01')
+					pr('x/y', '2024-01-01', 10, 3),
+					pr('x/y', '2024-02-01', 4, 1, false),
+					pr('never/landed', '2024-03-01', 7, 7, false)
 				]
 			),
 			'me'
 		);
-		expect(result.years[0].repos[0]).toMatchObject({ prs: 3, mergedPrs: 1, closedPrs: 1 });
+		expect(result.years[0].repos).toHaveLength(1);
+		expect(result.years[0].repos[0]).toMatchObject({
+			repo: 'x/y',
+			prs: 1,
+			additions: 10,
+			deletions: 3,
+			lastAt: '2024-01-01'
+		});
 	});
 
 	it('counts closed issues, leaving the rest open', () => {

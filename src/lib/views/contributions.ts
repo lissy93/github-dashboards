@@ -17,21 +17,13 @@ export const CONTRIB_PANEL_ROWS = 25;
 const MIN_EXTERNAL_REPOS = 3;
 
 // PR and issue totals across a set of repos, for the year separator and list tally
-export type ContribSummary = {
-	prs: number;
-	mergedPrs: number;
-	closedPrs: number;
-	issues: number;
-	closedIssues: number;
-};
+export type ContribSummary = { prs: number; issues: number; closedIssues: number };
 
 // Sum a repo list into one contribution summary
 export function summarize(repos: AuthoredRepo[]): ContribSummary {
-	const total: ContribSummary = { prs: 0, mergedPrs: 0, closedPrs: 0, issues: 0, closedIssues: 0 };
+	const total: ContribSummary = { prs: 0, issues: 0, closedIssues: 0 };
 	for (const repo of repos) {
 		total.prs += repo.prs;
-		total.mergedPrs += repo.mergedPrs;
-		total.closedPrs += repo.closedPrs;
 		total.issues += repo.issues;
 		total.closedIssues += repo.closedIssues;
 	}
@@ -40,16 +32,16 @@ export function summarize(repos: AuthoredRepo[]): ContribSummary {
 
 export type ContribYear = { year: number; repos: AuthoredRepo[]; summary: ContribSummary };
 
-// Years with optional external-only and merged-only filters, empty years dropped, each summarised
+// Years with optional external-only and PR-only filters, empty years dropped, each summarised
 export function contributionYears(
 	data: AuthoredContributions,
 	externalOnly: boolean,
-	mergedOnly = false
+	prsOnly = false
 ): ContribYear[] {
 	const years: ContribYear[] = [];
 	for (const year of data.years) {
 		const repos = year.repos.filter(
-			(repo) => (!externalOnly || !repo.owned) && (!mergedOnly || repo.mergedPrs > 0)
+			(repo) => (!externalOnly || !repo.owned) && (!prsOnly || repo.prs > 0)
 		);
 		if (repos.length) years.push({ year: year.year, repos, summary: summarize(repos) });
 	}
@@ -69,18 +61,17 @@ export function capYears(years: ContribYear[], maxRows: number): ContribYear[] {
 	return capped;
 }
 
-// The capped year sections shown in the overview panel. The panel counts landed work only,
-// so a repo the user opened PRs against but never got merged is not a contribution here
+// The capped year sections shown in the overview panel, which lists merged PRs only
 export function panelYears(data: AuthoredContributions, externalOnly: boolean): ContribYear[] {
 	return capYears(contributionYears(data, externalOnly, true), CONTRIB_PANEL_ROWS);
 }
 
 // Whether the user has enough external work to open the panel on external by default.
-// Counts the same merged-only repos the panel shows, so the default never opens on nothing
+// Counts the same PR repos the panel shows, so the default never opens on nothing
 export function hasEnoughExternal(data: AuthoredContributions): boolean {
 	const external = new Set<string>();
 	for (const year of data.years) {
-		for (const repo of year.repos) if (!repo.owned && repo.mergedPrs > 0) external.add(repo.repo);
+		for (const repo of year.repos) if (!repo.owned && repo.prs > 0) external.add(repo.repo);
 	}
 	return external.size >= MIN_EXTERNAL_REPOS;
 }
@@ -90,7 +81,6 @@ export type OwnerContribution = {
 	owner: string;
 	owned: boolean;
 	prs: number;
-	mergedPrs: number;
 	issues: number;
 	additions: number;
 	deletions: number;
@@ -98,18 +88,18 @@ export type OwnerContribution = {
 };
 
 // Contributions grouped by repo owner, biggest first. externalOnly drops the user's own
-// namespace so the view reads as outward reach into other orgs and projects, and mergedOnly
-// counts only repos where a PR actually landed
+// namespace so the view reads as outward reach into other orgs and projects, and prsOnly
+// skips repos where the user only filed issues
 export function contributionOwners(
 	data: AuthoredContributions,
 	externalOnly: boolean,
-	mergedOnly = false
+	prsOnly = false
 ): OwnerContribution[] {
 	const byOwner = new Map<string, OwnerContribution>();
 	for (const group of data.years) {
 		for (const repo of group.repos) {
 			if (externalOnly && repo.owned) continue;
-			if (mergedOnly && !repo.mergedPrs) continue;
+			if (prsOnly && !repo.prs) continue;
 			const owner = repoOwner(repo.repo);
 			let entry = byOwner.get(owner);
 			if (!entry) {
@@ -117,7 +107,6 @@ export function contributionOwners(
 					owner,
 					owned: repo.owned,
 					prs: 0,
-					mergedPrs: 0,
 					issues: 0,
 					additions: 0,
 					deletions: 0,
@@ -126,17 +115,14 @@ export function contributionOwners(
 				byOwner.set(owner, entry);
 			}
 			entry.prs += repo.prs;
-			entry.mergedPrs += repo.mergedPrs;
 			entry.issues += repo.issues;
 			entry.additions += repo.additions;
 			entry.deletions += repo.deletions;
 			entry.repos += 1;
 		}
 	}
-	// Rank on whatever the caller is counting, so a capped list keeps the right owners
-	const rank = (owner: OwnerContribution) => (mergedOnly ? owner.mergedPrs : owner.prs);
 	return [...byOwner.values()].sort(
-		(a, b) => rank(b) - rank(a) || b.issues - a.issues || a.owner.localeCompare(b.owner)
+		(a, b) => b.prs - a.prs || b.issues - a.issues || a.owner.localeCompare(b.owner)
 	);
 }
 
@@ -161,14 +147,11 @@ const churn = (row: ContribRow) => row.additions + row.deletions;
 // What each activity filter counts, a row survives when its count is non-zero
 const CONTRIB_METRICS: Record<string, { label: string; count: (row: ContribRow) => number }> = {
 	'': { label: 'Contributions', count: (row) => row.prs + row.issues },
-	merged: { label: 'Merged PRs', count: (row) => row.mergedPrs },
-	prs: { label: 'Pull requests', count: (row) => row.prs },
+	prs: { label: 'Merged pull requests', count: (row) => row.prs },
 	issues: { label: 'Issues', count: (row) => row.issues }
 };
 
 export const contribMetric = (activity: string) => CONTRIB_METRICS[activity] ?? CONTRIB_METRICS[''];
-
-export const MERGED_ACTIVITY = 'merged';
 
 // Sort, filter and search config for the full contributions list
 export function contributionsConfig(rows: ContribRow[]): SortFilterConfig<ContribRow> {
@@ -177,8 +160,7 @@ export function contributionsConfig(rows: ContribRow[]): SortFilterConfig<Contri
 		sorts: [
 			{ key: 'recent', label: 'Most recent', value: (row) => row.lastAt },
 			{ key: 'diff', label: 'Largest diff', value: churn },
-			{ key: 'merged', label: 'Most merged PRs', value: (row) => row.mergedPrs },
-			{ key: 'prs', label: 'Most PRs', value: (row) => row.prs },
+			{ key: 'prs', label: 'Most merged PRs', value: (row) => row.prs },
 			{ key: 'issues', label: 'Most issues', value: (row) => row.issues },
 			{ key: 'repo', label: 'Repository', value: (row) => row.repo }
 		],
@@ -187,8 +169,7 @@ export function contributionsConfig(rows: ContribRow[]): SortFilterConfig<Contri
 				key: 'activity',
 				label: 'Activity',
 				options: [
-					{ value: MERGED_ACTIVITY, label: 'Merged PRs' },
-					{ value: 'prs', label: 'Pull requests' },
+					{ value: 'prs', label: 'Merged PRs' },
 					{ value: 'issues', label: 'Issues' }
 				],
 				test: (row, value) => contribMetric(value).count(row) > 0
@@ -267,18 +248,6 @@ export const CONTRIB_YEAR_SERIES: StackSeries[] = [
 		hint: 'Pull requests that landed'
 	},
 	{
-		key: 'closed',
-		label: 'Closed PRs',
-		color: 'var(--lifecycle-discarded)',
-		hint: 'Pull requests closed without merging'
-	},
-	{
-		key: 'open',
-		label: 'Open PRs',
-		color: 'var(--lifecycle-open)',
-		hint: 'Pull requests still open'
-	},
-	{
 		key: 'closedIssues',
 		label: 'Closed issues',
 		color: 'color-mix(in oklch, var(--info) 70%, var(--card))',
@@ -292,24 +261,21 @@ export const CONTRIB_YEAR_SERIES: StackSeries[] = [
 	}
 ];
 
-// A summary split into the series above, the open counts being whatever is left over
+// A summary split into the series above, open issues being whatever is left over
 const lifecycleValues = (sum: ContribSummary): Record<string, number> => ({
-	merged: sum.mergedPrs,
-	closed: sum.closedPrs,
-	open: Math.max(0, sum.prs - sum.mergedPrs - sum.closedPrs),
+	merged: sum.prs,
 	closedIssues: sum.closedIssues,
 	openIssues: Math.max(0, sum.issues - sum.closedIssues)
 });
 
 // Which series make up each metric, so a bar only shows parts summing to its own length
 const METRIC_PARTS: Record<string, string[]> = {
-	'': ['merged', 'closed', 'open', 'closedIssues', 'openIssues'],
-	prs: ['merged', 'closed', 'open'],
-	issues: ['closedIssues', 'openIssues'],
-	merged: []
+	'': ['merged', 'closedIssues', 'openIssues'],
+	prs: [],
+	issues: ['closedIssues', 'openIssues']
 };
 
-// One bar per year, oldest first, with both kinds split by how they ended up
+// One bar per year, oldest first, merged PRs beside issues split by how they ended up
 export function contributionYearBars(rows: ContribRow[]): StackBar[] {
 	const byYear = new Map<number, ContribRow[]>();
 	for (const row of rows) {
@@ -348,15 +314,9 @@ export function topContributionRepos(rows: ContribRow[], activity: string, limit
 	const byRepo = new Map<string, ContribSummary & { value: number }>();
 	for (const row of rows) {
 		let entry = byRepo.get(row.repo);
-		if (!entry)
-			byRepo.set(
-				row.repo,
-				(entry = { value: 0, prs: 0, mergedPrs: 0, closedPrs: 0, issues: 0, closedIssues: 0 })
-			);
+		if (!entry) byRepo.set(row.repo, (entry = { value: 0, prs: 0, issues: 0, closedIssues: 0 }));
 		entry.value += count(row);
 		entry.prs += row.prs;
-		entry.mergedPrs += row.mergedPrs;
-		entry.closedPrs += row.closedPrs;
 		entry.issues += row.issues;
 		entry.closedIssues += row.closedIssues;
 	}

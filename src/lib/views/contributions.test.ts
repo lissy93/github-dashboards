@@ -27,9 +27,7 @@ const data: AuthoredContributions = {
 					repo: 'me/own',
 					owned: true,
 					lastAt: '2024-06-01',
-					prs: 3,
-					mergedPrs: 2,
-					closedPrs: 1,
+					prs: 2,
 					issues: 1,
 					closedIssues: 1,
 					additions: 50,
@@ -39,9 +37,7 @@ const data: AuthoredContributions = {
 					repo: 'acme/api',
 					owned: false,
 					lastAt: '2024-03-01',
-					prs: 2,
-					mergedPrs: 1,
-					closedPrs: 0,
+					prs: 1,
 					issues: 0,
 					closedIssues: 0,
 					additions: 20,
@@ -57,8 +53,6 @@ const data: AuthoredContributions = {
 					owned: true,
 					lastAt: '2023-11-01',
 					prs: 1,
-					mergedPrs: 1,
-					closedPrs: 0,
 					issues: 0,
 					closedIssues: 0,
 					additions: 5,
@@ -69,8 +63,8 @@ const data: AuthoredContributions = {
 	]
 };
 
-// A second repo the user opened PRs against but never landed one in
-const unmerged: AuthoredContributions = {
+// A second repo the user only filed issues in
+const issuesOnly: AuthoredContributions = {
 	complete: true,
 	years: [
 		{
@@ -81,9 +75,7 @@ const unmerged: AuthoredContributions = {
 					repo: 'acme/docs',
 					owned: false,
 					lastAt: '2024-05-01',
-					prs: 4,
-					mergedPrs: 0,
-					closedPrs: 2,
+					prs: 0,
 					issues: 2,
 					closedIssues: 1,
 					additions: 0,
@@ -95,14 +87,8 @@ const unmerged: AuthoredContributions = {
 };
 
 describe('summarize', () => {
-	it('sums opened PRs, merged PRs and issues across repos', () => {
-		expect(summarize(data.years[0].repos)).toEqual({
-			prs: 5,
-			mergedPrs: 3,
-			closedPrs: 1,
-			issues: 1,
-			closedIssues: 1
-		});
+	it('sums merged PRs and issues across repos', () => {
+		expect(summarize(data.years[0].repos)).toEqual({ prs: 3, issues: 1, closedIssues: 1 });
 	});
 });
 
@@ -110,11 +96,11 @@ describe('contributionYears', () => {
 	it('keeps all repos and computes a per-year summary', () => {
 		const years = contributionYears(data, false);
 		expect(years).toHaveLength(2);
-		expect(years[0].summary.mergedPrs).toBe(3);
+		expect(years[0].summary.prs).toBe(3);
 	});
 
-	it('drops repos with no merged PR when merged only', () => {
-		const years = contributionYears(unmerged, false, true);
+	it('drops issue-only repos when PRs only', () => {
+		const years = contributionYears(issuesOnly, false, true);
 		expect(years.map((year) => year.repos.map((repo) => repo.repo))).toEqual([['me/own']]);
 	});
 
@@ -138,14 +124,14 @@ describe('capYears', () => {
 		expect(capped).toHaveLength(1);
 		expect(capped[0].repos).toHaveLength(1);
 		// re-summed to just the shown repo (me/own's 2 merged PRs, not the full year)
-		expect(capped[0].summary.mergedPrs).toBe(2);
+		expect(capped[0].summary.prs).toBe(2);
 	});
 });
 
 describe('panelYears', () => {
-	it('shows landed work only, so an opened-but-unmerged repo is left out', () => {
+	it('lists merged PRs only, so an issue-only repo is left out', () => {
 		expect(
-			panelYears(unmerged, false).flatMap((year) => year.repos.map((repo) => repo.repo))
+			panelYears(issuesOnly, false).flatMap((year) => year.repos.map((repo) => repo.repo))
 		).toEqual(['me/own']);
 	});
 });
@@ -155,7 +141,7 @@ describe('hasEnoughExternal', () => {
 		expect(hasEnoughExternal(data)).toBe(false);
 	});
 
-	it('ignores external repos where nothing was merged', () => {
+	it('ignores external repos with no merged PR', () => {
 		const many: AuthoredContributions = {
 			complete: true,
 			years: [
@@ -165,9 +151,7 @@ describe('hasEnoughExternal', () => {
 						repo,
 						owned: false,
 						lastAt: '2024-01-01',
-						prs: 1,
-						mergedPrs: index === 0 ? 1 : 0,
-						closedPrs: 0,
+						prs: index === 0 ? 1 : 0,
 						issues: 0,
 						closedIssues: 0,
 						additions: 0,
@@ -190,8 +174,6 @@ describe('hasEnoughExternal', () => {
 						owned: false,
 						lastAt: '2024-01-01',
 						prs: 1,
-						mergedPrs: 1,
-						closedPrs: 0,
 						issues: 0,
 						closedIssues: 0,
 						additions: 0,
@@ -219,14 +201,13 @@ describe('contributionOwners', () => {
 		expect(owners[0]).toMatchObject({
 			owner: 'me',
 			owned: true,
-			prs: 4,
-			mergedPrs: 3,
+			prs: 3,
 			issues: 1,
 			additions: 55,
 			deletions: 10,
 			repos: 2
 		});
-		expect(owners[1]).toMatchObject({ owner: 'acme', owned: false, prs: 2, repos: 1 });
+		expect(owners[1]).toMatchObject({ owner: 'acme', owned: false, prs: 1, repos: 1 });
 	});
 
 	it('drops the user own namespace when external only', () => {
@@ -235,8 +216,8 @@ describe('contributionOwners', () => {
 		expect(owners.every((owner) => !owner.owned)).toBe(true);
 	});
 
-	it('drops owners with no merged PR and ranks the rest by merged when merged only', () => {
-		const owners = contributionOwners(unmerged, false, true);
+	it('drops issue-only owners when PRs only', () => {
+		const owners = contributionOwners(issuesOnly, false, true);
 		expect(owners.map((owner) => owner.owner)).toEqual(['me']);
 	});
 });
@@ -255,9 +236,7 @@ describe('contributionsConfig', () => {
 				repo: 'acme/docs',
 				owned: false,
 				lastAt: '2024-01-01',
-				prs: 2,
-				mergedPrs: 0,
-				closedPrs: 1,
+				prs: 0,
 				issues: 4,
 				closedIssues: 3,
 				additions: 0,
@@ -266,7 +245,7 @@ describe('contributionsConfig', () => {
 			}
 		];
 		const activity = contributionsConfig(rows).filters?.find((filter) => filter.key === 'activity');
-		expect(rows.filter((row) => activity?.test(row, 'merged')).map((row) => row.repo)).toEqual([
+		expect(rows.filter((row) => activity?.test(row, 'prs')).map((row) => row.repo)).toEqual([
 			'me/own',
 			'acme/api',
 			'me/own'
@@ -279,7 +258,7 @@ describe('contributionsConfig', () => {
 
 	it('offers a merged pull request sort', () => {
 		const config = contributionsConfig(contributionRows(data));
-		const merged = config.sorts.find((sort) => sort.key === 'merged');
+		const merged = config.sorts.find((sort) => sort.key === 'prs');
 		expect(merged?.value(contributionRows(data)[0])).toBe(2);
 	});
 
@@ -300,9 +279,7 @@ describe('contribution summary and charts', () => {
 		expect(totals).toMatchObject({
 			repos: 2,
 			owners: 2,
-			prs: 6,
-			mergedPrs: 4,
-			closedPrs: 1,
+			prs: 4,
 			issues: 1,
 			closedIssues: 1
 		});
@@ -311,21 +288,15 @@ describe('contribution summary and charts', () => {
 		expect(totals.years).toEqual([2023, 2024]);
 	});
 
-	it('builds one bar per year, oldest first, splitting both kinds by outcome', () => {
+	it('builds one bar per year, oldest first, splitting issues by outcome', () => {
 		const bars = contributionYearBars(rows);
 		expect(bars.map((bar) => bar.label)).toEqual(['2023', '2024']);
-		expect(bars[1].values).toEqual({
-			merged: 3,
-			closed: 1,
-			open: 1,
-			closedIssues: 1,
-			openIssues: 0
-		});
-		expect(bars[1].total).toBe(6);
+		expect(bars[1].values).toEqual({ merged: 3, closedIssues: 1, openIssues: 0 });
+		expect(bars[1].total).toBe(4);
 	});
 
 	it('ranks repos by the active metric and links to each one', () => {
-		const merged = topContributionRepos(rows, 'merged', 10);
+		const merged = topContributionRepos(rows, 'prs', 10);
 		expect(merged.map((slice) => [slice.label, slice.value])).toEqual([
 			['me/own', 3],
 			['acme/api', 1]
@@ -340,14 +311,13 @@ describe('contribution summary and charts', () => {
 		const [top] = topContributionRepos(rows, '', 10);
 		expect(top.segments?.map((part) => [part.key, part.value])).toEqual([
 			['merged', 3],
-			['closed', 1],
 			['closedIssues', 1]
 		]);
 		expect(top.segments?.reduce((sum, part) => sum + part.value, 0)).toBe(top.value);
 	});
 
 	it('leaves a single-series metric as a plain bar', () => {
-		expect(topContributionRepos(rows, 'merged', 10)[0].segments).toEqual([]);
+		expect(topContributionRepos(rows, 'prs', 10)[0].segments).toEqual([]);
 	});
 
 	it('follows the list filters, and lifts only the year for the all-years chart', () => {

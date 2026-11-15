@@ -5,17 +5,17 @@
 		CalendarRange,
 		CircleDot,
 		FileDiff,
-		GitMerge,
-		GitPullRequest
+		GitMerge
 	} from '@lucide/svelte';
 	import StatTileGrid from '$lib/components/common/StatTileGrid.svelte';
 	import type { Tile } from '$lib/components/common/StatTileGrid.svelte';
 	import { contributionTotals, visibleContributions } from '$lib/views/contributions';
-	import { compactNumber, formatNumber, formatPercent } from '$lib/utils/format';
+	import { compactNumber, formatNumber } from '$lib/utils/format';
 	import type { View } from '$lib/utils/sort-filter';
 	import type { AuthoredContributions, LoadResult } from '$lib/types';
 
-	const TILE_COUNT = 7;
+	const TILE_COUNT = 6;
+	const GRID = 'sm:grid-cols-3 lg:grid-cols-6';
 
 	type Result = LoadResult<AuthoredContributions>;
 	let { result, view }: { result: Promise<Result> | Result; view: View } = $props();
@@ -29,13 +29,7 @@
 		return [
 			{ label: 'Repos', value: formatNumber(totals.repos), icon: BookMarked },
 			{ label: 'Owners', value: formatNumber(totals.owners), icon: Building2 },
-			{ label: 'Pull requests', value: compactNumber(totals.prs), icon: GitPullRequest },
-			{
-				label: 'Merged',
-				value: compactNumber(totals.mergedPrs),
-				icon: GitMerge,
-				hint: `${formatPercent(totals.prs ? totals.mergedPrs / totals.prs : null)} of pull requests opened`
-			},
+			{ label: 'Merged PRs', value: compactNumber(totals.prs), icon: GitMerge },
 			{ label: 'Issues', value: compactNumber(totals.issues), icon: CircleDot },
 			{
 				label: 'Lines changed',
@@ -54,9 +48,9 @@
 </script>
 
 {#await result}
-	<StatTileGrid loading={TILE_COUNT} />
+	<StatTileGrid loading={TILE_COUNT} class={GRID} />
 {:then res}
 	{#if res.ok}
-		<StatTileGrid tiles={tiles(res.data)} />
+		<StatTileGrid tiles={tiles(res.data)} class={GRID} />
 	{/if}
 {/await}

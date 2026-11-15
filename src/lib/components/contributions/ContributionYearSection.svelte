@@ -3,9 +3,9 @@
 	import { formatNumber, plural } from '$lib/utils/format';
 	import type { ContribYear } from '$lib/views/contributions';
 
-	// The panel counts landed work only, so no opened-PR or issue totals here
+	// The panel counts merged PRs only, so no issue totals here
 	let { year }: { year: ContribYear } = $props();
-	const mergedPrs = $derived(year.summary.mergedPrs);
+	const mergedPrs = $derived(year.summary.prs);
 </script>
 
 <section>
@@ -19,7 +19,7 @@
 	</header>
 	<ul class="divide-y px-1">
 		{#each year.repos as repo (repo.repo)}
-			<ContributionRepoRow item={repo} merged showIssues={false} />
+			<ContributionRepoRow item={repo} showIssues={false} />
 		{/each}
 	</ul>
 </section>

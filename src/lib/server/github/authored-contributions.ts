@@ -18,8 +18,8 @@ const rank = (a: AuthoredRepo, b: AuthoredRepo) =>
 	b.prs + b.issues - (a.prs + a.issues) ||
 	a.repo.localeCompare(b.repo);
 
-// Fold the raw authored crawl into per-year, per-repo contribution summaries. Pure, so the
-// grouping maths tests apart from the GraphQL walk
+// Fold the raw authored crawl into per-year, per-repo contribution summaries, counting only
+// PRs that got merged. Pure, so the grouping maths tests apart from the GraphQL walk
 export function reduceAuthored(state: AuthoredState, login: string): AuthoredContributions {
 	const owner = login.toLowerCase();
 	const byYear = new Map<number, Map<string, AuthoredRepo>>();
@@ -34,8 +34,6 @@ export function reduceAuthored(state: AuthoredState, login: string): AuthoredCon
 				owned: isOwned(repo, owner),
 				lastAt: createdAt,
 				prs: 0,
-				mergedPrs: 0,
-				closedPrs: 0,
 				issues: 0,
 				closedIssues: 0,
 				additions: 0,
@@ -53,10 +51,9 @@ export function reduceAuthored(state: AuthoredState, login: string): AuthoredCon
 		if (node.closedAt) entry.closedIssues += 1;
 	}
 	for (const node of state.prs.nodes) {
+		if (!node.merged) continue;
 		const entry = record(node.createdAt, node.repository.nameWithOwner);
 		entry.prs += 1;
-		if (node.merged) entry.mergedPrs += 1;
-		else if (node.closedAt) entry.closedPrs += 1;
 		entry.additions += node.additions;
 		entry.deletions += node.deletions;
 	}

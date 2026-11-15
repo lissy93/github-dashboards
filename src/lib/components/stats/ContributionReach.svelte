@@ -22,26 +22,24 @@
 	// The user's own repos are covered by the rest of the page, so this panel shows only the
 	// outward reach: the orgs and people they contribute to elsewhere
 	const EXTERNAL_ONLY = true;
-	// Landed work only, an opened PR nobody merged is not reach
-	const MERGED_ONLY = true;
+	// Merged PRs only, an issue filed elsewhere is not reach
+	const PRS_ONLY = true;
 	// Keep the cloud legible, the tail of one-off owners adds little
 	const MAX_OWNERS = 50;
 
-	const owners = (data: AuthoredContributions) =>
-		contributionOwners(data, EXTERNAL_ONLY, MERGED_ONLY);
+	const owners = (data: AuthoredContributions) => contributionOwners(data, EXTERNAL_ONLY, PRS_ONLY);
 	const noOwners = (data: AuthoredContributions) => !owners(data).length;
 
 	// One avatar bubble per owner, sized by merged pull requests with the rest in the tooltip
 	function toBubbles(list: OwnerContribution[]): Bubble[] {
 		return list.map((owner) => ({
 			label: owner.owner,
-			value: owner.mergedPrs,
+			value: owner.prs,
 			image: githubAvatar(owner.owner, 120),
 			initials: owner.owner.slice(0, 2).toUpperCase(),
 			note: owner.repos > 1 ? `${formatNumber(owner.repos)} repositories` : undefined,
 			rows: [
-				{ label: 'Merged PRs', value: formatNumber(owner.mergedPrs) },
-				{ label: 'PRs opened', value: formatNumber(owner.prs) },
+				{ label: 'Merged PRs', value: formatNumber(owner.prs) },
 				{ label: 'Issues', value: formatNumber(owner.issues) },
 				{ label: 'Additions', value: `+${formatNumber(owner.additions)}`, color: 'var(--chart-2)' },
 				{ label: 'Deletions', value: `−${formatNumber(owner.deletions)}`, color: 'var(--danger)' }

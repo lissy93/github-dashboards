@@ -1,12 +1,7 @@
 <script lang="ts">
 	import Pagination from '$lib/components/common/Pagination.svelte';
 	import ContributionRepoRow from './ContributionRepoRow.svelte';
-	import {
-		contributionRows,
-		contributionsConfig,
-		summarize,
-		MERGED_ACTIVITY
-	} from '$lib/views/contributions';
+	import { contributionRows, contributionsConfig, summarize } from '$lib/views/contributions';
 	import { applyView, type View } from '$lib/utils/sort-filter';
 	import { formatNumber, plural } from '$lib/utils/format';
 	import type { AuthoredContributions } from '$lib/types';
@@ -21,18 +16,15 @@
 
 	let page = $state(1);
 	const visible = $derived(applyView(rows, config, view));
-	const mergedOnly = $derived(view.filters.activity === MERGED_ACTIVITY);
 
-	// Tally of what the filters leave, counting the same PRs the rows below show
+	// Tally of what the filters leave
 	const summary = $derived.by(() => {
-		const totals = summarize(visible);
-		const prs = mergedOnly ? totals.mergedPrs : totals.prs;
-		const parts = [
+		const { prs, issues } = summarize(visible);
+		return [
 			`${formatNumber(visible.length)} ${plural(visible.length, 'result')}`,
-			`${formatNumber(prs)} ${mergedOnly ? 'merged ' : ''}${plural(prs, 'PR')}`
-		];
-		if (!mergedOnly) parts.push(`${formatNumber(totals.issues)} ${plural(totals.issues, 'issue')}`);
-		return parts.join(' · ');
+			`${formatNumber(prs)} merged ${plural(prs, 'PR')}`,
+			`${formatNumber(issues)} ${plural(issues, 'issue')}`
+		].join(' · ');
 	});
 	const totalPages = $derived(Math.max(1, Math.ceil(visible.length / PAGE_SIZE)));
 	const shown = $derived(visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE));
@@ -51,12 +43,7 @@
 		<p class="text-xs text-muted-foreground tabular-nums">{summary}</p>
 		<ul class="divide-y">
 			{#each shown as row (row.year + '/' + row.repo)}
-				<ContributionRepoRow
-					item={row}
-					year={row.year}
-					merged={mergedOnly}
-					showIssues={!mergedOnly}
-				/>
+				<ContributionRepoRow item={row} year={row.year} />
 			{/each}
 		</ul>
 		<Pagination bind:page {totalPages} />

@@ -6,15 +6,13 @@
 	import { githubAvatar } from '$lib/config';
 	import type { AuthoredRepo } from '$lib/types';
 
-	// merged counts landed PRs instead of opened, showIssues drops them in PR-only views
+	// showIssues hides the issue count in PR-only views
 	let {
 		item,
 		year,
-		merged = false,
 		showIssues = true
-	}: { item: AuthoredRepo; year?: number; merged?: boolean; showIssues?: boolean } = $props();
+	}: { item: AuthoredRepo; year?: number; showIssues?: boolean } = $props();
 	const owner = $derived(item.repo.slice(0, item.repo.indexOf('/')));
-	const prs = $derived(merged ? item.mergedPrs : item.prs);
 	const issues = $derived(showIssues ? item.issues : 0);
 </script>
 
@@ -31,19 +29,19 @@
 			{item.repo}
 		</a>
 		<div class="flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
-			{#if prs}
-				<Hint text={merged ? 'Pull requests merged' : 'Pull requests opened'} class="gap-1">
-					<GitPullRequest class="size-3.5" />{formatNumber(prs)}
+			{#if item.prs}
+				<Hint text="Pull requests merged" class="gap-1">
+					<GitPullRequest class="size-3.5" />{formatNumber(item.prs)}
 				</Hint>
 			{/if}
 			{#if issues}
-				{#if prs}<span aria-hidden="true">·</span>{/if}
+				{#if item.prs}<span aria-hidden="true">·</span>{/if}
 				<Hint text="Issues opened" class="gap-1">
 					<CircleDot class="size-3.5" />{formatNumber(issues)}
 				</Hint>
 			{/if}
 			{#if year !== undefined}
-				{#if prs || issues}<span aria-hidden="true">·</span>{/if}
+				{#if item.prs || issues}<span aria-hidden="true">·</span>{/if}
 				<span>{year}</span>
 			{/if}
 		</div>
