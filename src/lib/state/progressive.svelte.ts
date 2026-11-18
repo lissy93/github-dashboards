@@ -16,6 +16,8 @@ type Options<T> = {
 	enabled: () => boolean;
 	incomplete: (data: T) => boolean;
 	refresh?: () => string;
+	// advance once on land even when complete, so the server can look for newer changes
+	revisit?: () => boolean;
 };
 
 // Progressively deepen a checkpointed dataset for a signed-in viewer: start from the
@@ -47,7 +49,7 @@ export function progressiveResult<T>(options: Options<T>) {
 			if (!active) return;
 			// A pending initial means the server is still crawling, so poll on for the data
 			const worthAdvancing = settled.ok
-				? options.incomplete(settled.data)
+				? options.revisit?.() || options.incomplete(settled.data)
 				: !!settled.error.pending;
 			if (!worthAdvancing) {
 				exhausted = true;
@@ -160,7 +162,8 @@ export function progressiveUserTimeline(data: () => UserTimelinePageData) {
 		refresh: () => endpoint('refresh'),
 		initial: () => data().timeline,
 		enabled: () => !!data().viewerLogin,
-		incomplete: (tl) => tl.sampled
+		incomplete: (tl) => tl.sampled,
+		revisit: () => !data().mine
 	});
 }
 

@@ -122,17 +122,21 @@ export async function readCached<T>(
 	}
 }
 
-// Read many keys in one query, unpacking each, returning only those found. A DB failure
-// degrades to an empty map so the caller treats every key as a cold miss rather than crash
-export async function readCachedMany<T>(keys: string[]): Promise<Map<string, T>> {
+// Read many keys in one query, unpacking each with its age, returning only those found. A DB
+// failure degrades to an empty map so the caller treats every key as a cold miss rather than crash
+export async function readCachedMany<T>(
+	keys: string[]
+): Promise<Map<string, { value: T; fetchedAt: Date }>> {
 	if (!keys.length) return new Map();
 	try {
 		const rows = await db
-			.select({ key: cacheEntry.key, value: cacheEntry.value })
+			.select({ key: cacheEntry.key, value: cacheEntry.value, fetchedAt: cacheEntry.fetchedAt })
 			.from(cacheEntry)
 			.where(inArray(cacheEntry.key, keys));
 		storageReachable = true;
-		return new Map(rows.map((row) => [row.key, unpackValue<T>(row.value)]));
+		return new Map(
+			rows.map((row) => [row.key, { value: unpackValue<T>(row.value), fetchedAt: row.fetchedAt }])
+		);
 	} catch (error) {
 		if (isConnectionError(error)) storageReachable = false;
 		log.warn('batch cache read failed', { code: toAppError(error).code });

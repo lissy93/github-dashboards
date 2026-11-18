@@ -8,8 +8,9 @@ import {
 	sweepRepoTimeline,
 	timelineContribution
 } from '$lib/server/github/repo-timeline';
+import { findChanges, type RepoChanges } from '$lib/server/github/repo-changes';
 import { getUserOverview, refreshUserOverview } from '$lib/server/github/user';
-import { cached, readCachedMany, writeCached } from '$lib/server/cache';
+import { cached, isFresh, readCached, readCachedMany, writeCached } from '$lib/server/cache';
 import { logError } from '$lib/utils/errors';
 
 // Short freshness on the aggregate, the on-land ?fresh path forces a rebuild when needed
@@ -21,23 +22,74 @@ const ADVANCE_REPOS = 3;
 const REFRESH_REPOS = 25;
 // Bump when the aggregate shape changes, to retire old entries
 const key = (login: string) => `user:timeline:v1:${login.toLowerCase()}`;
+const changesKey = (login: string) => `user:timeline-changes:v1:${login.toLowerCase()}`;
 
-type RepoRef = { owner: string; name: string; openIssues: number; openPRs: number };
+type RepoRef = {
+	owner: string;
+	name: string;
+	openIssues: number;
+	openPRs: number;
+	changedAt?: string;
+};
+// A repo's stored crawl, fetchedAt is when it was last swept even if nothing changed
+type StoredState = { value: TimelineState; fetchedAt: Date };
+// Signed-in callers look for new activity once the last look is stale, or always on Update
+type ChangeCheck = 'due' | 'force';
+// Owned repo (lowercase owner/name) to its latest change the crawl hasn't swept yet
+type Marks = Record<string, string>;
 
 const emptyBaseline = (): TimelineBaseline => ({ total: 0, open: 0 });
 // Resolution histograms are a repo-only readout, so the aggregate ships empty ones
 const emptyResolution = () => ({ issues: resolutionStats([]), prs: resolutionStats([]) });
+const slug = (ref: RepoRef) => `${ref.owner}/${ref.name}`.toLowerCase();
 
-// open counts moved since the crawl, so its stored lifecycle is out of date
-export function hasDrifted(ref: RepoRef, state: TimelineState): boolean {
-	return ref.openIssues !== state.issues.openTotal || ref.openPRs !== state.prs.openTotal;
+// GitHub logged activity after the crawl's last sweep
+const changedSince = (changedAt: string | undefined, sweptAt: Date) =>
+	!!changedAt && Date.parse(changedAt) > sweptAt.getTime();
+
+// open counts moved or newer activity landed since the last sweep, so the crawl is out of date
+export function hasDrifted(ref: RepoRef, stored: StoredState): boolean {
+	const { issues, prs } = stored.value;
+	return (
+		changedSince(ref.changedAt, stored.fetchedAt) ||
+		ref.openIssues !== issues.openTotal ||
+		ref.openPRs !== prs.openTotal
+	);
 }
 
-// drift only earns an automatic re-sweep once that repo's last sync has aged out
-export function needsResync(ref: RepoRef, state: TimelineState): boolean {
-	const syncedAt = state.issues.syncedAt ?? state.prs.syncedAt;
-	const stale = !syncedAt || Date.now() - Date.parse(syncedAt) >= TTL * 1000;
-	return hasDrifted(ref, state) && stale;
+// drift only earns an automatic re-sweep once that repo's last sweep has aged out
+export function needsResync(ref: RepoRef, stored: StoredState): boolean {
+	return hasDrifted(ref, stored) && !isFresh(stored.fetchedAt, TTL);
+}
+
+// Keep only marks for owned repos whose crawl hasn't swept past their latest change
+function pendingChanges(refs: RepoRef[], states: Map<string, StoredState>, latest: Marks): Marks {
+	const pending: Marks = {};
+	for (const ref of refs) {
+		const stored = states.get(repoTimelineKey(ref.owner, ref.name));
+		const changedAt = latest[slug(ref)];
+		if (stored && changedSince(changedAt, stored.fetchedAt)) pending[slug(ref)] = changedAt;
+	}
+	return pending;
+}
+
+// Repos with activity their crawl hasn't swept, which open counts miss when it nets out
+async function changeMarks(
+	login: string,
+	refs: RepoRef[],
+	states: Map<string, StoredState>,
+	check?: ChangeCheck
+): Promise<Marks> {
+	const stored = await readCached<RepoChanges>(changesKey(login));
+	const stale = !stored || !isFresh(stored.fetchedAt, TTL);
+	const due = check === 'force' || (check === 'due' && stale);
+	if (!due || !states.size) return stored?.value.repos ?? {};
+	const sweeps = [...states.values()].map((state) => state.fetchedAt.getTime());
+	const since = stored?.value.checkedAt ?? new Date(Math.min(Date.now(), ...sweeps)).toISOString();
+	const found = await findChanges(login, since);
+	const repos = pendingChanges(refs, states, { ...stored?.value.repos, ...found.repos });
+	await writeCached(changesKey(login), { checkedAt: found.checkedAt, repos }, TTL);
+	return repos;
 }
 
 // one bad repo (deleted, gone private, transient) must not stall or blank the rest
@@ -79,12 +131,18 @@ async function ownedRefs(login: string): Promise<{ refs: RepoRef[]; capped: bool
 // each time, so a repo closing an issue is never double counted. Repos that have drifted
 // since their last sync join the incomplete set so an advance re-sweeps their lifecycle
 async function assemble(
-	login: string
+	login: string,
+	check?: ChangeCheck
 ): Promise<{ timeline: RepoTimeline; incomplete: RepoRef[]; drifted: RepoRef[] }> {
-	const { refs, capped } = await ownedRefs(login);
+	const { refs: owned, capped } = await ownedRefs(login);
 	const states = await readCachedMany<TimelineState>(
-		refs.map((ref) => repoTimelineKey(ref.owner, ref.name))
+		owned.map((ref) => repoTimelineKey(ref.owner, ref.name))
 	);
+	const marks = await changeMarks(login, owned, states, check).catch((caught): Marks => {
+		logError('user-timeline-changes', caught);
+		return {};
+	});
+	const refs = owned.map((ref) => ({ ...ref, changedAt: marks[slug(ref)] }));
 
 	const issues: Lifecycle[] = [];
 	const prs: Lifecycle[] = [];
@@ -93,8 +151,8 @@ async function assemble(
 	const drifted: RepoRef[] = [];
 
 	for (const ref of refs) {
-		const state = states.get(repoTimelineKey(ref.owner, ref.name));
-		if (!state) {
+		const stored = states.get(repoTimelineKey(ref.owner, ref.name));
+		if (!stored) {
 			baseline.issues.total += ref.openIssues;
 			baseline.issues.open += ref.openIssues;
 			baseline.prs.total += ref.openPRs;
@@ -102,15 +160,15 @@ async function assemble(
 			incomplete.push(ref);
 			continue;
 		}
-		const part = timelineContribution(state);
+		const part = timelineContribution(stored.value);
 		issues.push(...part.issues);
 		prs.push(...part.prs);
 		baseline.issues.total += part.baseline.issues.total;
 		baseline.issues.open += part.baseline.issues.open;
 		baseline.prs.total += part.baseline.prs.total;
 		baseline.prs.open += part.baseline.prs.open;
-		if (part.complete && hasDrifted(ref, state)) drifted.push(ref);
-		if (!part.complete || needsResync(ref, state)) incomplete.push(ref);
+		if (part.complete && hasDrifted(ref, stored)) drifted.push(ref);
+		if (!part.complete || needsResync(ref, stored)) incomplete.push(ref);
 	}
 
 	const sampled = incomplete.length > 0 || capped;
@@ -141,7 +199,7 @@ export async function getUserIssuePrTimeline(login: string): Promise<RepoTimelin
 // Crawl one more incomplete repo, then rebuild and cache the aggregate, so a signed-in
 // viewer deepens the all-time history one repo at a time and later viewers get the warm cache
 export async function advanceUserTimeline(login: string): Promise<RepoTimeline> {
-	const { timeline, incomplete } = await assemble(login);
+	const { timeline, incomplete } = await assemble(login, 'due');
 	if (!incomplete.length) {
 		await writeCached(key(login), timeline, TTL);
 		return timeline;
@@ -152,10 +210,10 @@ export async function advanceUserTimeline(login: string): Promise<RepoTimeline> 
 	return rebuilt.timeline;
 }
 
-// on-demand catch-up, live counts first since drift is measured against them
+// on-demand catch-up, live counts and activity first since drift is measured against them
 export async function refreshUserTimeline(login: string): Promise<RepoTimeline> {
 	await refreshUserOverview(login).catch((caught) => logError('user-timeline-refresh', caught));
-	const { drifted } = await assemble(login);
+	const { drifted } = await assemble(login, 'force');
 	await sweepRepos(drifted);
 	return advanceUserTimeline(login);
 }
